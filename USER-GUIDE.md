@@ -32,8 +32,8 @@ internally, see `README.md`; for what the platform can't do, see
 2. Edit the animation as you normally would. Everything below is captured:
    - transform changes (position, scale, rotation, skew, opacity) and any
      property on child shapes (size, roundness, points, path geometry…)
-   - keyframes: added, removed, moved, value- or easing-changed, and the
-     motion-path bezier handles on position keyframes
+   - keyframes: added, removed, moved, value- or easing-changed (motion-path
+     curve handles are **not** exposed to plugins — see §11)
    - fills and strokes: added, removed, recolored, switched solid ↔ gradient
    - masks, trim paths, layer flags (visible, locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,
@@ -237,6 +237,9 @@ Confirmed platform limits live in `LIMITATIONS.md` with evidence. The ones
 you are most likely to meet:
 
 - **Per-fill opacity** isn't exposed to plugins — it records nothing.
+- **Motion-path curves** (bezier handles between position keyframes) aren't
+  exposed either — curved motion replays as straight lines between the same
+  keyframes.
 - **Nesting selected layers into a scene** can't be replayed (no API route
   moves existing layers into a scene); the step reports itself honestly.
 - Mask edits and layer-reorder replay are implemented but not yet verified in

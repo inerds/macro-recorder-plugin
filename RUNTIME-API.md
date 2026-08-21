@@ -24,16 +24,19 @@ Trace 2026-08-21T21-45-57-555 (rev .36): `playback.begin` with
 frame 16, and the keyframes landed at 16/63 (recorded 0/47). Stagger
 cascaded per selected target (+10 each).
 
-## Keyframe spatial tangents — UNVERIFIED (engine handles both outcomes)
+## Keyframe spatial tangents — NOT EXPOSED (verified 2026-08-22)
 
-The published `Keyframe<T>` interface has `frame/value/easing/remove` only,
-but the same file's example writes `positionKeyframe.inTangent` /
-`.outTangent` (motion-path bezier handles). The engine reads both with
-`tryRead` (absent → not recorded) and writes them after creating/updating a
-keyframe, verifying the read-back and emitting a note when the host drops
-them. `record.start` (debug) returns `keyframeIntrospection` — the first
-animated property's keyframe proxy surface — check a fresh trace to confirm
-which of the two worlds we live in, then update this section.
+Live position-keyframe proxy surface (trace 2026-08-21T21-53-02-401, rev
+.38): `easing, frame, id, remove, value` — nothing else. The typings' example
+writing `positionKeyframe.inTangent/outTangent` does not reflect the runtime.
+See LIMITATIONS.md. The engine's defensive read/write of `KfSnap.inTangent/
+outTangent` stays so a future host lights it up automatically.
+
+Also verified there: `rect.roundness` IS a full Animatable (`addKeyframes,
+clearKeyframes, getKeyframeAt, getValueAt, isAnimated, keyframes,
+staticValue`) despite the `Rectangle` typing omitting it; no other
+rounding-shaped property (`radius`, `cornerRadius`, `corners`, `modifiers`)
+exists on the rectangle or its layer.
 
 ## Methods that EXIST but are untyped
 
