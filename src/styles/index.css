@@ -1,0 +1,57 @@
+@import "tailwindcss";
+@import "@lottiefiles/creator-plugins-ui/theme.css";
+
+@custom-variant dark (&:is(.dark *));
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  min-width: 260px;
+}
+
+@keyframes record-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.record-pulse {
+  animation: record-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-pulse {
+    animation: none;
+  }
+}
+
+@keyframes success-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.success-flash {
+  animation: success-flash 1.5s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .success-flash {
+    animation: none;
+  }
+}

@@ -1,0 +1,13 @@
+<!-- Dev-only harness reproducing Creator's plugin iframe sandbox
+     (allow-scripts only → opaque origin, no localStorage). -->
+<!DOCTYPE html>
+<html>
+  <head><title>Sandbox test</title></head>
+  <body style="margin:0">
+    <iframe
+      src="http://localhost:5173/"
+      sandbox="allow-scripts"
+      style="width:300px;height:520px;border:1px solid #ccc"
+    ></iframe>
+  </body>
+</html>

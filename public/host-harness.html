@@ -1,0 +1,98 @@
+<!-- Dev-only harness emulating Creator's plugin host: a fake `creator`
+     global + fake scene nodes, running the REAL compiled plugin.js against
+     the REAL UI iframe. Lets the full record/diff/playback loop be tested
+     in a plain browser. Not part of the shipped plugin.
+
+     The fake scene itself lives in shared/testing/fakeScene.ts so that this
+     page and the vitest suite drive the SAME test double. That module is
+     imported as TypeScript, which the Vite dev server transforms on request —
+     so this page works under `pnpm dev`, not from a static build. -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Macro Recorder host harness</title>
+    <style>
+      body { margin: 0; font-family: system-ui; display: flex; gap: 16px; padding: 16px; }
+      iframe { border: 1px solid #ccc; width: 300px; height: 520px; }
+      pre { font-size: 11px; background: #f4f4f4; padding: 8px; flex: 1; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="panel-slot"></div>
+    <pre id="log"></pre>
+    <script type="module">
+      import { makeScene } from "/shared/testing/fakeScene.ts";
+
+      const logEl = document.getElementById("log");
+      function log(...args) {
+        logEl.textContent += args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ") + "\n";
+      }
+
+      const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
+
+      const scene = makeScene();
+      const storage = new Map();
+      const uiMessageHandlers = [];
+      let iframe = null;
+
+      const creator = {
+        ui: {
+          show(options) { log("ui.show", options); },
+          onMessage(cb) { uiMessageHandlers.push(cb); },
+          postMessage(data) {
+            iframe?.contentWindow?.postMessage({ pluginMessage: clone(data) }, "*");
+          },
+        },
+        selection: {
+          get nodes() { return [...window.harness.selection]; },
+        },
+        clientStorage: {
+          async keys() { return [...storage.keys()]; },
+          async get(key) { return clone(storage.get(key)); },
+          async set(key, value) { storage.set(key, clone(value)); },
+          async delete(key) { storage.delete(key); },
+          async clear() { storage.clear(); },
+          async usedQuota() { return 0; },
+        },
+        timeline: { currentFrame: 0, goToFrame() {}, play() {}, pause() {} },
+        on() {},
+        off() {},
+        closePlugin() {},
+      };
+
+      window.harness = {
+        selection: [],
+        nodes: { A: scene.A, B: scene.B, C: scene.C, D: scene.D },
+        storage,
+        log: (msg) => log(msg),
+        /** Convenience for building a keyframed property from the console. */
+        animate(node, prop, frames) {
+          node[prop].addKeyframes(frames);
+          log(`animated ${node.name}.${prop} @ ${frames.map((f) => f.frame).join(", ")}`);
+        },
+      };
+
+      // --- boot: run real plugin.js with the fake creator, then mount UI ---
+      (async () => {
+        const code = await (await fetch("/plugin.js")).text();
+        try {
+          new Function("creator", "console", code)(creator, console);
+          log("plugin.js evaluated");
+        } catch (error) {
+          log("plugin.js FAILED:", String(error));
+          return;
+        }
+        iframe = document.createElement("iframe");
+        iframe.setAttribute("sandbox", "allow-scripts");
+        iframe.src = "/";
+        document.getElementById("panel-slot").appendChild(iframe);
+        window.addEventListener("message", (event) => {
+          if (iframe && event.source === iframe.contentWindow && event.data?.pluginMessage) {
+            uiMessageHandlers.forEach((cb) => cb(clone(event.data.pluginMessage)));
+          }
+        });
+        log("UI iframe mounted");
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "name": "macro-recorder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "type-check": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:quickjs": "vite build >/dev/null && node scripts/quickjs-smoke.mjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@lottiefiles/creator-plugin-types": "file:lottiefiles-creator-plugin-types-0.0.2.tgz",
+    "@lottiefiles/creator-plugins-ui": "^0.2.2",
+    "@lottiefiles/vite-plugin-creator": "file:lottiefiles-vite-plugin-creator-0.0.2.tgz",
+    "lucide-react": "^0.544.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "quickjs-emscripten": "^0.32.0",
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.12",
+    "vitest": "^3.2.0"
+  }
+}

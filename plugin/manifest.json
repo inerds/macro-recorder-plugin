@@ -1,0 +1,7 @@
+{
+  "id": "a67faf08-f4d8-4dc4-9be9-458776c155bd",
+  "name": "Macro Recorder",
+  "apiVersion": "1",
+  "entry": "plugin.js",
+  "ui": "ui.html"
+}
