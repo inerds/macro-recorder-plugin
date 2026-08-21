@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-22.37";
+export const ENGINE_REV = "2026-08-22.38";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -95,6 +95,8 @@ export interface RpcContracts {
       paintIntrospection?: Json;
       /** Debug-only: one keyframe proxy's real surface (spatial tangents?). */
       keyframeIntrospection?: Json;
+      /** Debug-only: first RECTANGLE's surface + where corner rounding lives. */
+      shapeIntrospection?: Json;
     };
   };
   "record.tick": {

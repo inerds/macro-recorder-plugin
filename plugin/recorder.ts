@@ -54,6 +54,77 @@ function introspectKeyframe(node: AnyProxy): Json {
   return "no animated property on the probe node";
 }
 
+/** Own property names up the prototype chain — host getters are often non-enumerable. */
+function surfaceOf(obj: AnyProxy): string[] {
+  const names = new Set<string>();
+  let cursor: AnyProxy = obj;
+  for (let depth = 0; cursor && depth < 5; depth++) {
+    for (const name of Object.getOwnPropertyNames(cursor)) names.add(name);
+    cursor = Object.getPrototypeOf(cursor);
+  }
+  return [...names].sort();
+}
+
+/**
+ * Dev-only: the first RECTANGLE shape's real surface plus every plausible
+ * home for corner rounding — the typings list `roundness` only as a creation
+ * option, and no trace has ever seen `rect.roundness.staticValue` leave 0.
+ */
+function introspectRectangle(root: AnyProxy): Json {
+  const find = (node: AnyProxy, depth: number): AnyProxy | undefined => {
+    try {
+      if (node.type === "RECTANGLE") return node;
+      const shapes = node.shapes;
+      if (Array.isArray(shapes) && depth < 6) {
+        for (const child of shapes) {
+          const hit = find(child, depth + 1);
+          if (hit) return hit;
+        }
+      }
+    } catch {
+      // unreadable subtree
+    }
+    return undefined;
+  };
+  const layers = tryReadLayers(root) ?? [root];
+  let rect: AnyProxy | undefined;
+  for (const layer of layers) {
+    rect = find(layer, 0);
+    if (rect) break;
+  }
+  if (!rect) return "no rectangle in scene";
+  const probes: Record<string, Json> = {};
+  for (const key of ["roundness", "radius", "cornerRadius", "corners", "borderRadius", "modifiers", "effects"]) {
+    try {
+      const value: AnyProxy = rect[key];
+      probes[key] =
+        value === undefined
+          ? "undefined"
+          : value !== null && typeof value === "object"
+            ? { surface: surfaceOf(value), staticValue: toJson(tryReadValue(() => value.staticValue)), value: toJson(tryReadValue(() => value.value)) }
+            : toJson(value);
+    } catch (error) {
+      probes[key] = `threw: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  const parentSurface = (() => {
+    try {
+      return surfaceOf(rect.parent);
+    } catch {
+      return "unreadable";
+    }
+  })();
+  return { rectProps: surfaceOf(rect), probes, parentSurface };
+}
+
+function tryReadValue<T>(fn: () => T): T | undefined {
+  try {
+    return fn();
+  } catch {
+    return undefined;
+  }
+}
+
 function introspectPaint(node: AnyProxy): Json {
   const out: Record<string, Json> = {};
   try {
@@ -149,6 +220,7 @@ export function recordStart(params: { debug?: boolean }): {
   nodeName?: string;
   paintIntrospection?: Json;
   keyframeIntrospection?: Json;
+  shapeIntrospection?: Json;
 } {
   // Whole-scene recording: no selection required — every layer is watched.
   const scene = creator.activeScene;
@@ -168,6 +240,7 @@ export function recordStart(params: { debug?: boolean }): {
     nodeName?: string;
     paintIntrospection?: Json;
   keyframeIntrospection?: Json;
+  shapeIntrospection?: Json;
   } = { nodeId: snapshot.sceneId ?? "scene" };
   const sceneName = ((): string | undefined => {
     try {
@@ -190,6 +263,7 @@ export function recordStart(params: { debug?: boolean }): {
     if (probe) {
       result.paintIntrospection = introspectPaint(probe);
       result.keyframeIntrospection = introspectKeyframe(probe);
+      result.shapeIntrospection = introspectRectangle(scene);
     }
   }
   return result;
