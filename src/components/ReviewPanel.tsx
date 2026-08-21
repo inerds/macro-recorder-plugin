@@ -4,14 +4,22 @@ import {
   Label,
 } from "@lottiefiles/creator-plugins-ui";
 
+import type { EditableValue } from "../../shared/editing";
+import type { MacroParam } from "../../shared/macro";
 import type { MacroStep } from "../types";
+import { SimplifyButton } from "./SimplifyButton";
 import { StepList } from "./StepList";
 
 export interface ReviewPanelProps {
   name: string;
   steps: MacroStep[];
+  params: MacroParam[];
   onNameChange: (name: string) => void;
   onDeleteStep: (stepId: string) => void;
+  onSimplify: () => void;
+  onToggleStep: (stepId: string) => void;
+  onEditStep: (stepId: string, value: EditableValue) => void;
+  onToggleParam: (stepId: string) => void;
   onSave: () => void;
   onDiscard: () => void;
 }
@@ -20,8 +28,13 @@ export interface ReviewPanelProps {
 export function ReviewPanel({
   name,
   steps,
+  params,
   onNameChange,
   onDeleteStep,
+  onSimplify,
+  onToggleStep,
+  onEditStep,
+  onToggleParam,
   onSave,
   onDiscard,
 }: ReviewPanelProps) {
@@ -49,10 +62,20 @@ export function ReviewPanel({
             </p>
           ) : (
             <>
-              <p className="mb-1 px-2 text-11 font-medium text-muted-foreground">
-                {steps.length === 1 ? "1 step" : `${steps.length} steps`}
-              </p>
-              <StepList steps={steps} onDeleteStep={onDeleteStep} />
+              <div className="mb-1 flex items-center justify-between gap-2 px-2">
+                <p className="text-11 font-medium text-muted-foreground">
+                  {steps.length === 1 ? "1 step" : `${steps.length} steps`}
+                </p>
+                <SimplifyButton steps={steps} onSimplify={onSimplify} />
+              </div>
+              <StepList
+                steps={steps}
+                onDeleteStep={onDeleteStep}
+                onToggleStep={onToggleStep}
+                onEditStep={onEditStep}
+                onToggleParam={onToggleParam}
+                paramIds={params.map((param) => param.stepId)}
+              />
             </>
           )}
         </div>

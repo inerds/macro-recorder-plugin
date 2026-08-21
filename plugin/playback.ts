@@ -575,11 +575,34 @@ function applySceneOp(
 // RPC surface
 // ---------------------------------------------------------------------------
 
+/** The lowest frame any keyframe payload in the macro touches. */
+export function earliestKeyframe(steps: MacroStep[]): number | undefined {
+  let min: number | undefined;
+  const see = (frame: number) => {
+    if (typeof frame === "number" && Number.isFinite(frame) && (min === undefined || frame < min)) {
+      min = frame;
+    }
+  };
+  for (const step of steps) {
+    const payload = payloadOf(step);
+    if (!payload || payload.op !== "keyframes") continue;
+    for (const snap of payload.added) see(snap.frame);
+    for (const snap of payload.removed) see(snap.frame);
+    for (const change of payload.changed) {
+      see(change.before.frame);
+      see(change.after.frame);
+    }
+  }
+  return min;
+}
+
 export function playbackBegin(params: {
   steps: MacroStep[];
   sourceNodeId?: string;
+  atPlayhead?: boolean;
+  staggerFrames?: number;
   debug?: boolean;
-}): { total: number; targetCount: number } {
+}): { total: number; targetCount: number; frameOffset?: number } {
   const selection = ((): AnyProxy[] => {
     try {
       return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
@@ -591,6 +614,24 @@ export function playbackBegin(params: {
   const analysis = chooseMode(params.steps, selection.length);
   const mode = analysis.mode;
 
+  // Apply at playhead: slide the recorded motion so its first keyframe
+  // lands where the user parked the playhead. A macro without keyframes has
+  // nothing to slide; a host without a readable timeline gets no shift.
+  let frameOffsetBase = 0;
+  if (params.atPlayhead) {
+    const currentFrame = tryRead(() => creator.timeline.currentFrame);
+    const earliest = earliestKeyframe(params.steps);
+    if (typeof currentFrame === "number" && Number.isFinite(currentFrame) && earliest !== undefined) {
+      frameOffsetBase = currentFrame - earliest;
+    }
+  }
+  const staggerFrames =
+    typeof params.staggerFrames === "number" && Number.isFinite(params.staggerFrames)
+      ? params.staggerFrames
+      : 0;
+  const timing = { frameOffsetBase, staggerFrames };
+  const frameOffsetResult = frameOffsetBase !== 0 ? { frameOffset: frameOffsetBase } : {};
+
   if (mode === "scene") {
     session.playback = {
       mode,
@@ -600,10 +641,11 @@ export function playbackBegin(params: {
       steps: params.steps,
       origins: {},
       baselines: [],
+      ...timing,
       debug: params.debug === true,
     };
     session.recording = null;
-    return { total: params.steps.length, targetCount: 1 };
+    return { total: params.steps.length, targetCount: 1, ...frameOffsetResult };
   }
 
   let targets = selection;
@@ -645,11 +687,12 @@ export function playbackBegin(params: {
     steps: params.steps,
     origins,
     baselines,
+    ...timing,
     debug: params.debug === true,
   };
   session.recording = null;
 
-  return { total: params.steps.length, targetCount: targets.length };
+  return { total: params.steps.length, targetCount: targets.length, ...frameOffsetResult };
 }
 
 export function playbackStep(params: { index: number }): {
@@ -694,7 +737,11 @@ export function playbackStep(params: { index: number }): {
         try {
           // Scene scripts reproduce the recorded result exactly: no origins,
           // so values pass through verbatim.
-          const outcome = applyStep(layer, step.payload, { origins: {}, baselines: {} });
+          const outcome = applyStep(layer, step.payload, {
+            origins: {},
+            baselines: {},
+            frameOffset: playback.frameOffsetBase,
+          });
           stepNotes.push(...outcome.notes);
         } catch (error) {
           failures.push({
@@ -771,6 +818,8 @@ export function playbackStep(params: { index: number }): {
         const outcome = applyStep(nodeFor(target, i), step.payload, {
           origins: playback.origins,
           baselines: playback.baselines[i] ?? {},
+          // Cascade: each selected layer's motion starts later than the last.
+          frameOffset: playback.frameOffsetBase + i * playback.staggerFrames,
         });
         for (const message of outcome.notes) {
           notes.push({ target: nameOf(i), message });

@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { DebugStrip } from "./dev/DebugStrip";
 import { TraceStrip } from "./dev/TraceStrip";
 import type { GatewaysBundle } from "./gateways";
+import { ConfigureSheet } from "./components/ConfigureSheet";
 import { Header } from "./components/Header";
 import { ImportButton } from "./components/ImportButton";
 import { MacroList } from "./components/MacroList";
@@ -42,6 +43,11 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
   // Creator) they mean the sandbox handshake failed — say so loudly instead
   // of silently showing demo data.
   const demoInIframe = gateways.kind === "mock" && window.self !== window.top;
+
+  const configuringMacro =
+    state.mode === "configuring"
+      ? state.macros.find((macro) => macro.id === state.macroId)
+      : undefined;
 
   return (
     <ThemeProvider tokens={theme.tokens}>
@@ -81,10 +87,23 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
           <ReviewPanel
             name={state.name}
             steps={state.steps}
+            params={state.params}
             onNameChange={actions.changeReviewName}
             onDeleteStep={actions.deleteReviewStep}
+            onSimplify={actions.simplifyReview}
+            onToggleStep={actions.toggleReviewStep}
+            onEditStep={actions.editReviewStep}
+            onToggleParam={actions.toggleReviewParam}
             onSave={actions.saveReview}
             onDiscard={actions.discardReview}
+          />
+        ) : state.mode === "configuring" && configuringMacro ? (
+          <ConfigureSheet
+            macro={configuringMacro}
+            values={state.values}
+            onChange={actions.changeConfigureValue}
+            onPlay={actions.confirmConfigure}
+            onCancel={actions.cancelConfigure}
           />
         ) : (
           <>

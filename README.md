@@ -9,12 +9,16 @@ diffs against the previous snapshot, and returns human-labeled steps. Macros
 persist in `creator.clientStorage`. **Standalone** (plain browser tab) the
 handshake times out and the app falls back to mock gateways + the DebugStrip.
 
+**`USER-GUIDE.md`** is the end-user walkthrough of every feature (recording,
+review, simplify/edit/disable, play options, parameters, import/export).
+
 ## How the engine works
 
 - `shared/` — pure plain-data logic, used by both sides and fully unit-tested:
   RPC protocol (`protocol.ts`), snapshot model + candidate property registry
   (`snapshot.ts`), structural differ (`diff.ts`), step labels (`labels.ts`),
-  relative-playback math (`relative.ts`).
+  relative-playback math (`relative.ts`), step simplification
+  (`simplify.ts`) and step value editing (`editing.ts`).
 - `plugin/` — the QuickJS sandbox side: serial RPC dispatcher, defensive
   proxy→snapshot serializer (`serialize.ts`), step applier with path resolution
   (`applier.ts`), clientStorage-backed store. The sandbox has **no timers** —
@@ -59,6 +63,20 @@ handshake times out and the app falls back to mock gateways + the DebugStrip.
 - Genuine per-step failures ("target has no fills") still pause for
   Continue/Stop. Deleting the recorded layer mid-recording auto-stops with a
   notice.
+- **Pro-workflow tools (v3.1)** — all client-side data transforms except
+  the frame shift:
+  - *Simplify* (review sheet and macro detail): collapses a drag's
+    micro-steps into one first→last step per property and folds keyframe
+    edit chains into one net delta (`shared/simplify.ts`). Manual, never
+    automatic. *Disable* a step (eye toggle) and playback skips it; *edit* a
+    step's value inline (numbers, vectors, colors, text, new-layer names).
+  - *Play options* (chevron next to Play): **At playhead** slides the macro so
+    its earliest keyframe lands on `creator.timeline.currentFrame`;
+    **Stagger** adds N frames per selected layer (cascade); **Repeat ×N** runs
+    the macro N times — offsets compound, which is the point (spirals, steps).
+  - *Parameters*: pin an editable step in review; playing the macro first
+    shows a form with those values (defaults = recorded), then applies the
+    edited copy. Pins ride along in exported JSON.
 
 The plugin API's real runtime surface (which differs from the published
 typings in both directions) is documented in **RUNTIME-API.md** — read it

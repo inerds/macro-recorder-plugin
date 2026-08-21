@@ -201,6 +201,33 @@ check(
   JSON.stringify(deepStep ?? posted[0] ?? null),
 );
 
+// 8. playback.begin answers synchronously; frameOffset appears ONLY when
+//    atPlayhead is requested and the host exposes a timeline.
+sendToPlugin({ t: "req", id: 9, method: "record.discard", params: {} });
+const kfSteps = [
+  {
+    id: "k", kind: "keyframe", label: "kf",
+    payload: { op: "keyframes", path: ["position"], added: [{ frame: 20, value: { x: 0, y: 0 } }], removed: [], changed: [] },
+  },
+];
+posted.length = 0;
+sendToPlugin({ t: "req", id: 10, method: "playback.begin", params: { steps: kfSteps } });
+check(
+  "playback.begin default response carries no frameOffset",
+  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.frameOffset === undefined,
+  JSON.stringify(posted[0] ?? null),
+);
+sendToPlugin({ t: "req", id: 11, method: "playback.end", params: {} });
+vm.unwrapResult(vm.evalCode(`globalThis.creator.timeline = { currentFrame: 50 };`)).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 12, method: "playback.begin", params: { steps: kfSteps, atPlayhead: true } });
+check(
+  "playback.begin atPlayhead reads creator.timeline.currentFrame synchronously",
+  posted.length === 1 && posted[0]?.result?.frameOffset === 30,
+  JSON.stringify(posted[0] ?? null),
+);
+sendToPlugin({ t: "req", id: 13, method: "playback.end", params: {} });
+
 onMessageCallback.dispose();
 vm.dispose();
 console.log(`\n${pass}/${pass + fail} QuickJS checks passed`);

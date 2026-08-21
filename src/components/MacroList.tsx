@@ -49,7 +49,7 @@ export function MacroList({ playing }: MacroListProps) {
           playing={playing?.macroId === macro.id ? playing : null}
           playDisabled={playing !== null}
           onToggleExpand={() => actions.toggleExpand(macro.id)}
-          onPlay={() => actions.play(macro.id)}
+          onPlay={(options) => actions.play(macro.id, options)}
           onRenameStart={() => actions.startRename(macro.id)}
           onRenameCommit={(name) => actions.commitRename(macro.id, name)}
           onRenameCancel={() => actions.cancelRename()}
@@ -59,6 +59,10 @@ export function MacroList({ playing }: MacroListProps) {
           onDeleteCancel={() => actions.cancelDelete()}
           onDeleteConfirm={() => actions.confirmDelete(macro.id)}
           onDeleteStep={(stepId) => actions.deleteMacroStep(macro.id, stepId)}
+          onSimplify={() => actions.simplifyMacro(macro.id)}
+          onToggleStep={(stepId) => actions.toggleMacroStep(macro.id, stepId)}
+          onEditStep={(stepId, value) => actions.editMacroStep(macro.id, stepId, value)}
+          onToggleParam={(stepId) => actions.toggleMacroParam(macro.id, stepId)}
           onResolveFailure={(action) => actions.resolvePlaybackFailure(action)}
         />
       ))}

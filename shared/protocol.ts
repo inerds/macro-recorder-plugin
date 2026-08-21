@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-22.34";
+export const ENGINE_REV = "2026-08-22.35";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -102,8 +102,22 @@ export interface RpcContracts {
   };
   "record.discard": { params: Record<string, never>; result: null };
   "playback.begin": {
-    params: { steps: MacroStep[]; sourceNodeId?: string; debug?: boolean };
-    result: { total: number; targetCount: number };
+    params: {
+      steps: MacroStep[];
+      sourceNodeId?: string;
+      /** Shift every keyframe so the macro's earliest one lands on the
+       *  timeline's current frame. */
+      atPlayhead?: boolean;
+      /** Targets mode: additional frame shift per selected layer (i × n). */
+      staggerFrames?: number;
+      debug?: boolean;
+    };
+    result: {
+      total: number;
+      targetCount: number;
+      /** Frame shift applied to the first target (atPlayhead only). */
+      frameOffset?: number;
+    };
   };
   "playback.step": {
     params: { index: number };

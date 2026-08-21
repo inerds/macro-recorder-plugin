@@ -1,7 +1,13 @@
 import { RPC_ERRORS } from "../../../shared/protocol";
 import { trace } from "../../dev/trace";
 import type { Macro, StepResult } from "../../types";
-import type { PlaybackGateway, PlaybackRun } from "../types";
+import {
+  enabledSteps,
+  repeatCount,
+  type PlaybackGateway,
+  type PlaybackRun,
+  type PlayOptions,
+} from "../types";
 import type { RpcClient } from "./bridge";
 
 export class RpcPlaybackGateway implements PlaybackGateway {
@@ -11,8 +17,10 @@ export class RpcPlaybackGateway implements PlaybackGateway {
     this.rpc = rpc;
   }
 
-  run(macro: Macro, onEvent: (event: StepResult) => void): PlaybackRun {
+  run(macro: Macro, onEvent: (event: StepResult) => void, options?: PlayOptions): PlaybackRun {
     const rpc = this.rpc;
+    const steps = enabledSteps(macro);
+    const repeats = repeatCount(options);
     let cancelled = false;
     let failureResolver: ((action: "continue" | "stop") => void) | null = null;
 
@@ -23,23 +31,30 @@ export class RpcPlaybackGateway implements PlaybackGateway {
         failureResolver = null;
       });
 
-    async function loop(): Promise<void> {
+    /** One begin/steps/end pass. Returns false when the run should stop. */
+    async function pass(iteration: number, allNotes: string[]): Promise<boolean> {
       let begun = false;
-      const allNotes: string[] = [];
+      const offset = iteration * steps.length;
       try {
         const begin = await rpc.call("playback.begin", {
-          steps: macro.steps,
+          steps,
           ...(macro.source ? { sourceNodeId: macro.source.nodeId } : {}),
+          ...(options?.atPlayhead ? { atPlayhead: true } : {}),
+          ...(options?.staggerFrames ? { staggerFrames: options.staggerFrames } : {}),
           debug: trace.enabled,
         });
-        trace.setContext({ macro: { id: macro.id, name: macro.name } });
+        trace.setContext({
+          macro: { id: macro.id, name: macro.name },
+          ...(repeats > 1 ? { iteration, repeats } : {}),
+          ...(options ? { options } : {}),
+        });
         begun = true;
 
         for (let index = 0; index < begin.total; index++) {
-          if (cancelled) return;
-          onEvent({ kind: "progress", stepIndex: index });
+          if (cancelled) return false;
+          onEvent({ kind: "progress", stepIndex: offset + index });
           const result = await rpc.call("playback.step", { index });
-          if (cancelled) return;
+          if (cancelled) return false;
           const stepNotes = (result.notes ?? []).map(
             (note) => `Step ${index + 1} · ${note.target}: ${note.message}`,
           );
@@ -47,7 +62,8 @@ export class RpcPlaybackGateway implements PlaybackGateway {
           if (result.debug) {
             trace.event("playback-event", {
               index,
-              step: macro.steps[index],
+              iteration,
+              step: steps[index],
               failures: result.failures,
               notes: result.notes ?? [],
               targets: result.debug,
@@ -60,24 +76,36 @@ export class RpcPlaybackGateway implements PlaybackGateway {
               result.failures.length === 1
                 ? `${first.target}: ${first.message}`
                 : `${result.failures.length} of ${begin.targetCount} layers failed — ${first.message}`;
-            onEvent({ kind: "step-failed", stepIndex: index, message });
+            onEvent({ kind: "step-failed", stepIndex: offset + index, message });
             const action = await awaitDecision();
-            if (action === "stop" || cancelled) return;
+            if (action === "stop" || cancelled) return false;
           } else {
-            onEvent({ kind: "step-done", stepIndex: index, notes: stepNotes });
+            onEvent({ kind: "step-done", stepIndex: offset + index, notes: stepNotes });
           }
         }
-        if (!cancelled) onEvent({ kind: "done", notes: allNotes });
+        return !cancelled;
       } catch (error) {
-        if (cancelled) return;
+        if (cancelled) return false;
         const raw = error instanceof Error ? error.message : String(error);
         const message = raw === RPC_ERRORS.noSelection ? "Select a layer first" : raw;
         // Pre-run/hard failure: surface as a step-0 failure (the UI offers
         // only "OK" for step 0 before progress) and wait for dismissal.
-        onEvent({ kind: "step-failed", stepIndex: 0, message });
+        onEvent({ kind: "step-failed", stepIndex: offset, message });
         await awaitDecision();
+        return false;
       } finally {
-        if (begun) void rpc.call("playback.end", {}).catch(() => {});
+        if (begun) await rpc.call("playback.end", {}).catch(() => {});
+      }
+    }
+
+    async function loop(): Promise<void> {
+      const allNotes: string[] = [];
+      try {
+        for (let iteration = 0; iteration < repeats; iteration++) {
+          if (!(await pass(iteration, allNotes))) return;
+        }
+        if (!cancelled) onEvent({ kind: "done", notes: allNotes });
+      } finally {
         void trace.flush(`playback-${macro.name}`);
       }
     }

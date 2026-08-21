@@ -2,11 +2,15 @@ import { Button, Input } from "@lottiefiles/creator-plugins-ui";
 import { Check, Play } from "lucide-react";
 import { useState } from "react";
 
+import type { EditableValue } from "../../shared/editing";
+import type { PlayOptions } from "../gateways/types";
 import type { PlayingState } from "../state/appReducer";
 import type { Macro } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
 import { OverflowMenu } from "./OverflowMenu";
 import { PlaybackStatus } from "./PlaybackStatus";
+import { PlayOptionsPopover } from "./PlayOptionsPopover";
+import { SimplifyButton } from "./SimplifyButton";
 import { StepList } from "./StepList";
 
 export interface MacroRowProps {
@@ -20,7 +24,7 @@ export interface MacroRowProps {
   /** Disable play while another macro is playing. */
   playDisabled: boolean;
   onToggleExpand: () => void;
-  onPlay: () => void;
+  onPlay: (options?: PlayOptions) => void;
   onRenameStart: () => void;
   onRenameCommit: (name: string) => void;
   onRenameCancel: () => void;
@@ -30,6 +34,10 @@ export interface MacroRowProps {
   onDeleteCancel: () => void;
   onDeleteConfirm: () => void;
   onDeleteStep: (stepId: string) => void;
+  onSimplify: () => void;
+  onToggleStep: (stepId: string) => void;
+  onEditStep: (stepId: string, value: EditableValue) => void;
+  onToggleParam: (stepId: string) => void;
   onResolveFailure: (action: "continue" | "stop") => void;
 }
 
@@ -52,6 +60,10 @@ export function MacroRow({
   onDeleteCancel,
   onDeleteConfirm,
   onDeleteStep,
+  onSimplify,
+  onToggleStep,
+  onEditStep,
+  onToggleParam,
   onResolveFailure,
 }: MacroRowProps) {
   const [draftName, setDraftName] = useState(macro.name);
@@ -127,6 +139,11 @@ export function MacroRow({
               >
                 <Play className="size-3.5 fill-current" />
               </button>
+              <PlayOptionsPopover
+                macroName={macro.name}
+                disabled={playDisabled}
+                onPlay={(options) => onPlay(options)}
+              />
               <OverflowMenu
                 macroName={macro.name}
                 onRename={() => {
@@ -166,7 +183,19 @@ export function MacroRow({
               This macro has no steps.
             </p>
           ) : (
-            <StepList steps={macro.steps} onDeleteStep={onDeleteStep} />
+            <>
+              <div className="mb-1 flex justify-end px-1">
+                <SimplifyButton steps={macro.steps} onSimplify={onSimplify} />
+              </div>
+              <StepList
+                steps={macro.steps}
+                onDeleteStep={onDeleteStep}
+                onToggleStep={onToggleStep}
+                onEditStep={onEditStep}
+                onToggleParam={onToggleParam}
+                paramIds={(macro.params ?? []).map((param) => param.stepId)}
+              />
+            </>
           )}
         </div>
       )}

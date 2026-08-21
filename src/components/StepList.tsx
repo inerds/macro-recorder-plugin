@@ -1,11 +1,17 @@
 import { useEffect, useRef } from "react";
 
+import type { EditableValue } from "../../shared/editing";
 import type { MacroStep } from "../types";
 import { StepRow } from "./StepRow";
 
 export interface StepListProps {
   steps: MacroStep[];
   onDeleteStep?: (stepId: string) => void;
+  onToggleStep?: (stepId: string) => void;
+  onEditStep?: (stepId: string, value: EditableValue) => void;
+  onToggleParam?: (stepId: string) => void;
+  /** Ids of the steps pinned as parameters. */
+  paramIds?: readonly string[];
   /** Keep the newest step scrolled into view (recording feed). */
   autoScroll?: boolean;
   /** Index of the step currently being played back. */
@@ -16,6 +22,10 @@ export interface StepListProps {
 export function StepList({
   steps,
   onDeleteStep,
+  onToggleStep,
+  onEditStep,
+  onToggleParam,
+  paramIds,
   autoScroll,
   activeIndex,
 }: StepListProps) {
@@ -38,6 +48,10 @@ export function StepList({
             step={step}
             index={index}
             onDelete={onDeleteStep}
+            onToggle={onToggleStep}
+            onEdit={onEditStep}
+            onToggleParam={onToggleParam}
+            param={paramIds?.includes(step.id)}
             active={index === activeIndex}
           />
         ))}

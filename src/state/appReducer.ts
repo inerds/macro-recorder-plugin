@@ -1,5 +1,77 @@
+import { withEditedValue, type EditableValue } from "../../shared/editing";
+import type { MacroParam } from "../../shared/macro";
+import type { PlayOptions } from "../gateways/types";
 import type { Macro, MacroStep } from "../types";
 import { newId } from "../utils/id";
+
+/**
+ * Step-list transforms shared by the reducer and by AppContext (which has to
+ * persist the same result through the store). One implementation so the
+ * saved macro and the rendered macro can never disagree.
+ */
+
+/** Flips `disabled`. Absent, never `false` — imports stay clean. */
+export function toggleStepDisabled(steps: MacroStep[], stepId: string): MacroStep[] {
+  return steps.map((step) => {
+    if (step.id !== stepId) return step;
+    if (step.disabled !== true) return { ...step, disabled: true as const };
+    const enabled: MacroStep = { ...step };
+    delete enabled.disabled;
+    return enabled;
+  });
+}
+
+/** Rewrites one step's editable value (label included). */
+export function editStepValue(
+  steps: MacroStep[],
+  stepId: string,
+  value: EditableValue,
+): MacroStep[] {
+  return steps.map((step) => (step.id === stepId ? withEditedValue(step, value) : step));
+}
+
+/**
+ * Drops pins whose step is gone (deleted, or merged away by Simplify) and
+ * re-labels the survivors from the steps they point at.
+ */
+export function syncParams(
+  params: readonly MacroParam[] | undefined,
+  steps: MacroStep[],
+): MacroParam[] {
+  if (!params || params.length === 0) return [];
+  return params.flatMap((param) => {
+    const step = steps.find((s) => s.id === param.stepId);
+    return step ? [{ stepId: param.stepId, label: step.label }] : [];
+  });
+}
+
+/** Adds or removes the parameter pin for `stepId`. */
+export function toggleParamPin(
+  params: readonly MacroParam[] | undefined,
+  steps: MacroStep[],
+  stepId: string,
+): MacroParam[] {
+  const current = params ?? [];
+  if (current.some((param) => param.stepId === stepId)) {
+    return current.filter((param) => param.stepId !== stepId);
+  }
+  const step = steps.find((s) => s.id === stepId);
+  if (!step) return [...current];
+  return [...current, { stepId, label: step.label }];
+}
+
+/** A macro with new steps, its pins re-synced, `params` omitted when empty. */
+export function withSteps(
+  macro: Macro,
+  steps: MacroStep[],
+  params?: readonly MacroParam[],
+): Macro {
+  const next: Macro = { ...macro, steps };
+  const synced = syncParams(params ?? macro.params, steps);
+  if (synced.length > 0) next.params = synced;
+  else delete next.params;
+  return next;
+}
 
 export type Notice = {
   id: string;
@@ -38,6 +110,8 @@ export type AppState =
       macros: Macro[];
       steps: MacroStep[];
       name: string;
+      /** Steps pinned as parameters — asked for on every play. */
+      params: MacroParam[];
       /** The recorded layer — saved onto the macro for selection fallback. */
       source?: { nodeId: string; nodeName?: string };
     }
@@ -45,6 +119,15 @@ export type AppState =
       mode: "playing";
       macros: Macro[];
       playing: PlayingState;
+    }
+  /** Pre-play form for a macro with parameters. */
+  | {
+      mode: "configuring";
+      macros: Macro[];
+      macroId: string;
+      /** Working values, keyed by the pinned step's id. */
+      values: Record<string, EditableValue>;
+      options: PlayOptions;
     };
 
 export type AppEvent =
@@ -61,6 +144,10 @@ export type AppEvent =
   | { type: "DISCARD_CONFIRM" }
   | { type: "REVIEW_NAME_CHANGE"; name: string }
   | { type: "REVIEW_STEP_DELETE"; stepId: string }
+  | { type: "REVIEW_SET_STEPS"; steps: MacroStep[] }
+  | { type: "REVIEW_STEP_TOGGLE"; stepId: string }
+  | { type: "REVIEW_STEP_EDIT"; stepId: string; value: EditableValue }
+  | { type: "REVIEW_PARAM_TOGGLE"; stepId: string }
   | { type: "REVIEW_SAVE"; macro: Macro }
   | { type: "REVIEW_DISCARD" }
   | { type: "EXPAND_TOGGLE"; macroId: string }
@@ -68,11 +155,23 @@ export type AppEvent =
   | { type: "RENAME_COMMIT"; macroId: string; name: string }
   | { type: "RENAME_CANCEL" }
   | { type: "MACRO_STEP_DELETE"; macroId: string; stepId: string }
+  | { type: "MACRO_SET_STEPS"; macroId: string; steps: MacroStep[] }
+  | { type: "MACRO_STEP_TOGGLE"; macroId: string; stepId: string }
+  | { type: "MACRO_STEP_EDIT"; macroId: string; stepId: string; value: EditableValue }
+  | { type: "MACRO_PARAM_TOGGLE"; macroId: string; stepId: string }
   | { type: "DELETE_REQUEST"; macroId: string }
   | { type: "DELETE_CANCEL" }
   | { type: "DELETE_CONFIRM"; macroId: string }
   | { type: "DUPLICATE"; macro: Macro }
   | { type: "IMPORTED"; macro: Macro }
+  | {
+      type: "CONFIGURE_START";
+      macroId: string;
+      values: Record<string, EditableValue>;
+      options: PlayOptions;
+    }
+  | { type: "CONFIGURE_CHANGE"; stepId: string; value: EditableValue }
+  | { type: "CONFIGURE_CANCEL" }
   | { type: "PLAY_START"; macroId: string; total: number }
   | { type: "PLAY_PROGRESS"; stepIndex: number }
   | { type: "PLAY_STEP_FAILED"; stepIndex: number; message: string }
@@ -136,6 +235,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         macros: state.macros,
         steps: state.steps,
         name: event.suggestedName,
+        params: [],
         ...(event.source ? { source: event.source } : {}),
       };
 
@@ -159,8 +259,33 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
     case "REVIEW_STEP_DELETE": {
       if (state.mode !== "reviewing") return state;
       const steps = state.steps.filter((s) => s.id !== event.stepId);
-      return { ...state, steps };
+      return { ...state, steps, params: syncParams(state.params, steps) };
     }
+
+    case "REVIEW_SET_STEPS":
+      if (state.mode !== "reviewing") return state;
+      return {
+        ...state,
+        steps: event.steps,
+        params: syncParams(state.params, event.steps),
+      };
+
+    case "REVIEW_STEP_TOGGLE":
+      if (state.mode !== "reviewing") return state;
+      return { ...state, steps: toggleStepDisabled(state.steps, event.stepId) };
+
+    case "REVIEW_STEP_EDIT": {
+      if (state.mode !== "reviewing") return state;
+      const steps = editStepValue(state.steps, event.stepId, event.value);
+      return { ...state, steps, params: syncParams(state.params, steps) };
+    }
+
+    case "REVIEW_PARAM_TOGGLE":
+      if (state.mode !== "reviewing") return state;
+      return {
+        ...state,
+        params: toggleParamPin(state.params, state.steps, event.stepId),
+      };
 
     case "REVIEW_SAVE":
       if (state.mode !== "reviewing") return state;
@@ -208,14 +333,38 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
 
     case "MACRO_STEP_DELETE":
       if (state.mode !== "idle") return state;
-      return {
-        ...state,
-        macros: state.macros.map((m) =>
-          m.id === event.macroId
-            ? { ...m, steps: m.steps.filter((s) => s.id !== event.stepId) }
-            : m,
+      return mapMacro(state, event.macroId, (macro) =>
+        withSteps(
+          macro,
+          macro.steps.filter((s) => s.id !== event.stepId),
         ),
-      };
+      );
+
+    case "MACRO_SET_STEPS":
+      if (state.mode !== "idle") return state;
+      return mapMacro(state, event.macroId, (macro) => withSteps(macro, event.steps));
+
+    case "MACRO_STEP_TOGGLE":
+      if (state.mode !== "idle") return state;
+      return mapMacro(state, event.macroId, (macro) =>
+        withSteps(macro, toggleStepDisabled(macro.steps, event.stepId)),
+      );
+
+    case "MACRO_STEP_EDIT":
+      if (state.mode !== "idle") return state;
+      return mapMacro(state, event.macroId, (macro) =>
+        withSteps(macro, editStepValue(macro.steps, event.stepId, event.value)),
+      );
+
+    case "MACRO_PARAM_TOGGLE":
+      if (state.mode !== "idle") return state;
+      return mapMacro(state, event.macroId, (macro) =>
+        withSteps(
+          macro,
+          macro.steps,
+          toggleParamPin(macro.params, macro.steps, event.stepId),
+        ),
+      );
 
     case "DELETE_REQUEST":
       if (state.mode !== "idle") return state;
@@ -239,8 +388,30 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       if (state.mode !== "idle") return state;
       return { ...state, macros: [...state.macros, event.macro] };
 
-    case "PLAY_START":
+    case "CONFIGURE_START":
       if (state.mode !== "idle") return state;
+      return {
+        mode: "configuring",
+        macros: state.macros,
+        macroId: event.macroId,
+        values: event.values,
+        options: event.options,
+      };
+
+    case "CONFIGURE_CHANGE":
+      if (state.mode !== "configuring") return state;
+      return {
+        ...state,
+        values: { ...state.values, [event.stepId]: event.value },
+      };
+
+    case "CONFIGURE_CANCEL":
+      if (state.mode !== "configuring") return state;
+      return idleState(state.macros);
+
+    case "PLAY_START":
+      // Also from `configuring`: the pre-play form confirms straight into play.
+      if (state.mode !== "idle" && state.mode !== "configuring") return state;
       return {
         mode: "playing",
         macros: state.macros,
@@ -294,6 +465,18 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       if (state.mode !== "idle") return state;
       return { ...state, notice: null };
   }
+}
+
+/** Replaces one macro in an idle state, leaving the rest untouched. */
+function mapMacro(
+  state: Extract<AppState, { mode: "idle" }>,
+  macroId: string,
+  update: (macro: Macro) => Macro,
+): AppState {
+  return {
+    ...state,
+    macros: state.macros.map((macro) => (macro.id === macroId ? update(macro) : macro)),
+  };
 }
 
 /** "Macro N" where N is one more than the highest existing suffix. */

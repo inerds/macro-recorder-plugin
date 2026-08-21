@@ -2,7 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`README.md` is the product-level document: what the plugin does, the three ways to
+`USER-GUIDE.md` is the end-user feature walkthrough — update it when a
+user-facing behaviour changes. `README.md` is the product-level document: what the plugin does, the three ways to
 run it, the playback modes, and the accepted v1 limitations. Read it first. This
 file covers what the README leaves out — the invariants that make the code the
 shape it is, and the commands the README doesn't list.
@@ -209,6 +210,32 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   add+remove guard (legacy macros), move re-pairing in the differ, collision
   upsert (occupant gives way), per-entry fault tolerance.
 
+## v3.1 pro-workflow layer (simplify / edit / play options / params)
+
+Where each piece lives and the invariants worth keeping:
+
+- `shared/simplify.ts` is pure and order-preserving. A run is keyed by
+  (layer id, pathKey); structural/scene ops and disabled steps are barriers,
+  and a static edit never merges with a keyframe edit on the same path (the
+  value's meaning changed). `foldKeyframes` is the net-delta algebra —
+  extend it with a test per new case, it's easy to get a sign wrong.
+- `shared/editing.ts` is the single definition of "editable": the review
+  row, the macro detail and the parameter form must all go through
+  `editableValueOf`/`withEditedValue` so a value kind that's editable in one
+  place is editable everywhere (and relabeled the same way).
+- Disabled steps never reach the sandbox: `enabledSteps` in
+  `src/gateways/types.ts` filters client-side, so playback indices are into
+  the ENABLED list. Repeat ×N is also purely client-side (one
+  begin/steps/end pass per iteration; progress = iteration×len + index).
+- The only sandbox part is the frame shift: `playbackBegin` computes
+  `frameOffsetBase = currentFrame − earliestKeyframe(steps)` (0 when the
+  host has no readable timeline or the macro has no keyframes) and
+  `applyKeyframes` shifts the payload ONCE up front so matching and
+  placement both see shifted frames. Stagger is `+ i × staggerFrames` per
+  target in targets mode only.
+- Params reference step ids; anything that regenerates ids (import,
+  duplicate) or removes steps (delete, simplify) must remap or drop pins.
+
 ## Open threads (as of last update)
 
 - Nesting-from-selection: CONFIRMED platform limitation (see LIMITATIONS.md
@@ -218,7 +245,10 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
 - Never live-verified yet: mask add/remove/edit replay; scene-layer reorder
   replay. (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md.)
 - Repeat-applying an offsets macro to the same layer compounds by design —
-  user hasn't decided whether that should stay.
+  now formalized as the Repeat ×N play option.
+- v3.1 features are unit-tested but not yet live-verified in Creator (at
+  playhead in particular depends on `creator.timeline.currentFrame` being
+  readable from the sandbox — the typings say yes, no trace confirms it yet).
 - A persistent Monitor task watches `traces/` during dev sessions; audited
   traces are appended to `traces/.processed` (the /triage-traces skill skips
   those).

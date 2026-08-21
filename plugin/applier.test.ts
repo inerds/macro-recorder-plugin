@@ -1160,3 +1160,44 @@ describe("text layers (untyped runtime surface)", () => {
     expect(textNode.fontSize).toBe(48);
   });
 });
+
+describe("frame offset (apply at playhead / stagger)", () => {
+  it("places added keyframes at recorded frame + offset", () => {
+    const target = makeNode("Rect", {}, makeIds());
+    apply(
+      target,
+      { op: "keyframes", path: ["rotation"], added: [kf(0, 0), kf(30, 90)], removed: [], changed: [] },
+      { ...exact, frameOffset: 60 },
+    );
+    expect(frames(target.rotation)).toEqual([60, 90]);
+    expect(values(target.rotation)).toEqual([0, 90]);
+  });
+
+  it("matches removals and changes against shifted frames", () => {
+    const target = makeNode("Rect", {}, makeIds());
+    target.rotation.addKeyframes([kf(60, 0), kf(90, 90), kf(120, 180)]);
+    const outcome = apply(
+      target,
+      {
+        op: "keyframes",
+        path: ["rotation"],
+        added: [],
+        removed: [kf(60, 180)],
+        changed: [{ before: kf(30, 90), after: kf(45, 45) }],
+      },
+      { ...exact, frameOffset: 60 },
+    );
+    expect(outcome.notes).toEqual([]);
+    expect(frames(target.rotation)).toEqual([60, 105]);
+    expect(values(target.rotation)).toEqual([0, 45]);
+  });
+
+  it("a zero or absent offset changes nothing", () => {
+    const a = makeNode("A", {}, makeIds());
+    const b = makeNode("B", {}, makeIds());
+    const payload: StepPayload = { op: "keyframes", path: ["rotation"], added: [kf(10, 1)], removed: [], changed: [] };
+    apply(a, payload, { ...exact, frameOffset: 0 });
+    apply(b, payload);
+    expect(frames(a.rotation)).toEqual(frames(b.rotation));
+  });
+});

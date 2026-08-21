@@ -9,6 +9,16 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-22 — v3.1 pro-workflow features (ROADMAP.md)
+
+| Issue | Fix |
+|---|---|
+| A 500ms tick loop turns one drag into a dozen micro-steps; the only tool was deleting them one by one. | **Simplify** button (review sheet + macro detail): merges runs of value edits on one property into first→last (dropping net no-ops) and folds keyframe add/change/remove chains into one net delta. Never reaches across structural/scene ops or disabled steps. Manual, never automatic. |
+| No way to keep a step but not run it, or to fix a recorded value without re-recording. | Steps can be **disabled** (eye toggle; playback sends only enabled steps) and **edited** inline (numbers, x/y vectors, colors, text, new-layer names) with the label rebuilt from the new value. Both persist and export. |
+| Keyframed macros always replayed at the recorded frames — the one thing AE animation presets do that we didn't. | **At playhead** play option: `playback.begin` reads `creator.timeline.currentFrame` and shifts every recorded keyframe so the macro's earliest lands on the playhead (scene scripts too). **Stagger** adds N frames per selected layer for a cascade. |
+| Compounding offsets (re-applying a macro to the same layer) were an accident, not a feature. | **Repeat ×N** play option: the client runs begin/steps/end N times; progress counts across iterations; a failure pause behaves exactly as before. |
+| A macro's values were fixed at record time; the only "knob" was editing the macro itself. | **Parameters**: pin any editable step; playing the macro first opens a small form (defaults = recorded values), then plays an edited copy. Pins survive import/export (step ids are remapped). |
+
 ## 2026-08-22 — Nest-from-selection: verdict
 
 | Issue | Fix |

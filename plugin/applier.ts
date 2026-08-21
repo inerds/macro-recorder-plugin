@@ -21,6 +21,9 @@ export interface ApplyContext {
   origins: Record<string, Json>;
   /** This target's values at playback.begin, keyed by pathKey. */
   baselines: Record<string, Json>;
+  /** Added to every recorded keyframe frame before matching or placing it
+   *  (apply-at-playhead / stagger). Absent = 0. */
+  frameOffset?: number;
 }
 
 /**
@@ -255,6 +258,20 @@ function applyKeyframes(
     origin === undefined
       ? snap
       : { ...snap, value: computeTarget(baseline, origin, snap.value, propClass) };
+
+  // Apply-at-playhead: the whole recorded motion slides along the timeline,
+  // so lookup AND placement use shifted frames. Shift the payload once, up
+  // front, and the rest of this function never knows.
+  const frameOffset = context.frameOffset ?? 0;
+  if (frameOffset !== 0) {
+    const shift = (snap: KfSnap): KfSnap => ({ ...snap, frame: snap.frame + frameOffset });
+    payload = {
+      ...payload,
+      added: payload.added.map(shift),
+      removed: payload.removed.map(shift),
+      changed: payload.changed.map((c) => ({ before: shift(c.before), after: shift(c.after) })),
+    };
+  }
 
   // A macro recorded before the differ keyed keyframes by frame can carry the
   // SAME frame in both `added` and `removed` (Creator reassigns kf.id on
