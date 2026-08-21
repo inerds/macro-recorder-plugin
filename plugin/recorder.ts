@@ -217,9 +217,40 @@ function collectDelta(): { steps: MacroStep[]; debug?: RecordDebug } {
   // Only carry the (large) snapshot pair when it says something: a tick that
   // produced no steps and no diff is noise.
   if (recording.debug && steps.length > 0) {
-    return { steps, debug: { prev, next } };
+    const debug: RecordDebug = { prev, next };
+    // The record.start probe only sees keyframes that already exist; the
+    // first position keyframe this session creates is the better witness.
+    if (!recording.keyframeProbed) {
+      const kfStep = payloads.find(
+        (p) => p.op === "keyframes" && p.path.length === 1 && p.path[0] === "position",
+      );
+      const layerId = kfStep && "layer" in kfStep ? kfStep.layer?.id : undefined;
+      const layer = layerId
+        ? (tryReadLayers(recording.scene) ?? []).find((l) => {
+            try {
+              return String(l.id) === layerId;
+            } catch {
+              return false;
+            }
+          })
+        : undefined;
+      if (layer) {
+        debug.keyframeIntrospection = introspectKeyframe(layer);
+        recording.keyframeProbed = true;
+      }
+    }
+    return { steps, debug };
   }
   return { steps };
+}
+
+function tryReadLayers(scene: AnyProxy): AnyProxy[] | undefined {
+  try {
+    const layers = scene.layers;
+    return Array.isArray(layers) ? layers : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function recordTick(seq: number): {

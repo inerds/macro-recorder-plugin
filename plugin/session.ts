@@ -12,6 +12,8 @@ export interface RecordingSession {
   firstSnapshot: SceneSnapshot;
   /** Dev diagnostics opted into at record.start. */
   debug: boolean;
+  /** Debug: the keyframe-surface probe has already run this session. */
+  keyframeProbed?: boolean;
 }
 
 export interface PlaybackSession {

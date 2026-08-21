@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-22.36";
+export const ENGINE_REV = "2026-08-22.37";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -43,6 +43,9 @@ export type RpcMethod =
 export interface RecordDebug {
   prev: SceneSnapshot;
   next: SceneSnapshot;
+  /** Attached on the first tick that emits a position keyframe step: the
+   *  live keyframe proxy's real surface (do spatial tangents exist?). */
+  keyframeIntrospection?: Json;
 }
 
 /** One target's state at a path, as the sandbox actually reads it. */
