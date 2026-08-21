@@ -17,6 +17,13 @@ introspect first (the record-start debug probe dumps surfaces into traces).
 | image layers (from drops) | *(absent)* | generic layer surface works |
 | `RECTANGLE` `ELLIPSE` `POLYGON` `STAR` `PATH` `GROUP` | ✓ | shape stack members |
 
+## `creator.timeline.currentFrame` — VERIFIED readable from the sandbox
+
+Trace 2026-08-21T21-45-57-555 (rev .36): `playback.begin` with
+`atPlayhead: true` returned `frameOffset: 16` with the playhead parked at
+frame 16, and the keyframes landed at 16/63 (recorded 0/47). Stagger
+cascaded per selected target (+10 each).
+
 ## Keyframe spatial tangents — UNVERIFIED (engine handles both outcomes)
 
 The published `Keyframe<T>` interface has `frame/value/easing/remove` only,

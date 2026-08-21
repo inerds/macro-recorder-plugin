@@ -246,9 +246,12 @@ Where each piece lives and the invariants worth keeping:
   replay. (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md.)
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
-- v3.1 features are unit-tested but not yet live-verified in Creator (at
-  playhead in particular depends on `creator.timeline.currentFrame` being
-  readable from the sandbox — the typings say yes, no trace confirms it yet).
+- v3.1 live status: at-playhead, stagger and repeat verified in one trace
+  (2026-08-21T21-45-57-555; `timeline.currentFrame` IS readable). Note that
+  Repeat ×N on a keyframe-only macro is idempotent by design — keyframe
+  steps converge to the same absolute frames/values each pass; compounding
+  only happens through static transform offsets. Simplify/edit/disable and
+  params not yet seen in a trace.
 - A persistent Monitor task watches `traces/` during dev sessions; audited
   traces are appended to `traces/.processed` (the /triage-traces skill skips
   those).
