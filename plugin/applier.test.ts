@@ -1201,3 +1201,46 @@ describe("frame offset (apply at playhead / stagger)", () => {
     expect(frames(a.rotation)).toEqual(frames(b.rotation));
   });
 });
+
+describe("motion-path handles (spatial tangents)", () => {
+  it("writes recorded in/out tangents onto added and changed keyframes", () => {
+    const target = makeNode("Rect", {}, makeIds());
+    target.position.addKeyframes([kf(30, { x: 5, y: 5 })]);
+    const outcome = apply(target, {
+      op: "keyframes",
+      path: ["position"],
+      added: [{ frame: 0, value: { x: 0, y: 0 }, outTangent: { x: 40, y: 0 } }],
+      removed: [],
+      changed: [
+        {
+          before: kf(30, { x: 5, y: 5 }),
+          after: { frame: 30, value: { x: 5, y: 5 }, inTangent: { x: -40, y: 0 }, outTangent: { x: 0, y: 10 } },
+        },
+      ],
+    });
+    expect(outcome.notes).toEqual([]);
+    const [k0, k30] = target.position.keyframes;
+    expect(k0.outTangent).toEqual({ x: 40, y: 0 });
+    expect(k30.inTangent).toEqual({ x: -40, y: 0 });
+    expect(k30.outTangent).toEqual({ x: 0, y: 10 });
+  });
+
+  it("reports a note instead of a phantom success when the host drops the handle", () => {
+    const target = makeNode("Rect", {}, makeIds());
+    target.position.addKeyframes([kf(10, { x: 0, y: 0 })]);
+    const live = target.position.getKeyframeAt(10);
+    Object.defineProperty(live, "inTangent", { get: () => undefined, set: () => {} });
+    // The fake hands out a fresh handle per lookup, so patch the lookup too.
+    const original = target.position.getKeyframeAt;
+    target.position.getKeyframeAt = (frame: number) => (frame === 10 ? live : original(frame));
+    const outcome = apply(target, {
+      op: "keyframes",
+      path: ["position"],
+      added: [],
+      removed: [],
+      changed: [{ before: kf(10, { x: 0, y: 0 }), after: { frame: 10, value: { x: 1, y: 1 }, inTangent: { x: 3, y: 3 } } }],
+    });
+    expect(outcome.notes).toEqual(["motion-path handle (inTangent) @ 10 not supported by this host"]);
+    expect(live.value).toEqual({ x: 1, y: 1 });
+  });
+});

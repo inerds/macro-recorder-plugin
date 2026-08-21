@@ -7,7 +7,7 @@
  * only genuine errors (host refusals, exceptions) throw.
  */
 import type { Json } from "../shared/json";
-import { toJson } from "../shared/json";
+import { jsonEqual, toJson } from "../shared/json";
 import type { KfSnap, NodeSnapshot, PaintSnapshot, Path } from "../shared/snapshot";
 import { pathKey, propClassOf } from "../shared/snapshot";
 import { computeTarget } from "../shared/relative";
@@ -179,13 +179,33 @@ function keyframeAt(prop: AnyProxy, frame: number): AnyProxy | undefined {
   });
 }
 
-function keyframeEntry(snap: KfSnap): { frame: number; value: unknown; easing?: unknown } {
-  const entry: { frame: number; value: unknown; easing?: unknown } = {
-    frame: snap.frame,
-    value: snap.value,
-  };
+function keyframeEntry(snap: KfSnap): Record<string, unknown> {
+  const entry: Record<string, unknown> = { frame: snap.frame, value: snap.value };
   if (snap.easing !== undefined) entry.easing = snap.easing;
+  if (snap.inTangent !== undefined) entry.inTangent = snap.inTangent;
+  if (snap.outTangent !== undefined) entry.outTangent = snap.outTangent;
   return entry;
+}
+
+/**
+ * Writes the recorded motion-path handles onto a live keyframe and verifies
+ * the host kept them. `inTangent`/`outTangent` are absent from the typed
+ * Keyframe surface (documented only by example), so a host that ignores the
+ * write is reported as a note rather than assumed to have worked.
+ */
+function writeTangents(kf: AnyProxy, snap: KfSnap, notes: string[]): void {
+  for (const key of ["inTangent", "outTangent"] as const) {
+    const wanted = snap[key];
+    if (wanted === undefined) continue;
+    let kept = false;
+    try {
+      kf[key] = wanted;
+      kept = jsonEqual(toJson(kf[key]), wanted);
+    } catch {
+      kept = false;
+    }
+    if (!kept) notes.push(`motion-path handle (${key}) @ ${snap.frame} not supported by this host`);
+  }
 }
 
 /**
@@ -194,27 +214,34 @@ function keyframeEntry(snap: KfSnap): { frame: number; value: unknown; easing?: 
  * ignored (and may write staticValue instead). Once animated, frame 0 inserts
  * fine — so seed animation with a sentinel keyframe, retry, drop the sentinel.
  */
-function addVerified(prop: AnyProxy, snap: KfSnap): void {
+function addVerified(prop: AnyProxy, snap: KfSnap, notes: string[] = []): void {
   prop.addKeyframes([keyframeEntry(snap)]);
-  if (keyframeAt(prop, snap.frame)) return;
+  const direct = keyframeAt(prop, snap.frame);
+  if (direct) {
+    writeTangents(direct, snap, notes);
+    return;
+  }
   const sentinelFrame = snap.frame + 1;
   prop.addKeyframes([{ frame: sentinelFrame, value: snap.value }]);
   prop.addKeyframes([keyframeEntry(snap)]);
   const sentinel = keyframeAt(prop, sentinelFrame);
   if (sentinel) sentinel.remove();
-  if (!keyframeAt(prop, snap.frame)) {
+  const added = keyframeAt(prop, snap.frame);
+  if (!added) {
     throw new Error(`the host refused a keyframe at ${snap.frame}`);
   }
+  writeTangents(added, snap, notes);
 }
 
 /** Writes a recorded keyframe's values onto an existing target keyframe. */
-function writeKeyframe(prop: AnyProxy, kf: AnyProxy, snap: KfSnap): void {
+function writeKeyframe(prop: AnyProxy, kf: AnyProxy, snap: KfSnap, notes: string[] = []): void {
   try {
     if (Math.abs(Number(kf.frame) - snap.frame) >= FRAME_EPSILON) {
       kf.frame = snap.frame;
     }
     kf.value = snap.value;
     if (snap.easing !== undefined) kf.easing = snap.easing;
+    writeTangents(kf, snap, notes);
   } catch {
     // Fallback: recreate it. The removal must succeed first — otherwise we
     // would leave the original in place AND add a second one at the same
@@ -226,13 +253,13 @@ function writeKeyframe(prop: AnyProxy, kf: AnyProxy, snap: KfSnap): void {
 }
 
 /** Updates the keyframe at snap.frame if one is there, otherwise creates it. */
-function upsertKeyframe(prop: AnyProxy, snap: KfSnap): void {
+function upsertKeyframe(prop: AnyProxy, snap: KfSnap, notes: string[] = []): void {
   const occupant = keyframeAt(prop, snap.frame);
   if (occupant) {
-    writeKeyframe(prop, occupant, snap);
+    writeKeyframe(prop, occupant, snap, notes);
     return;
   }
-  addVerified(prop, snap);
+  addVerified(prop, snap, notes);
 }
 
 /**
@@ -288,7 +315,7 @@ function applyKeyframes(
 
   for (const snap of payload.added) {
     try {
-      upsertKeyframe(prop, adjust(snap));
+      upsertKeyframe(prop, adjust(snap), notes);
     } catch (error) {
       fail(snap.frame, error);
     }
@@ -314,7 +341,7 @@ function applyKeyframes(
       const existing = keyframeAt(prop, change.before.frame);
 
       if (!existing) {
-        upsertKeyframe(prop, adjust(change.after));
+        upsertKeyframe(prop, adjust(change.after), notes);
         notes.push(
           moving
             ? `no keyframe at ${change.before.frame} — created it at ${change.after.frame}`
@@ -333,7 +360,7 @@ function applyKeyframes(
         }
       }
 
-      writeKeyframe(prop, existing, adjust(change.after));
+      writeKeyframe(prop, existing, adjust(change.after), notes);
     } catch (error) {
       fail(change.before.frame, error);
     }

@@ -18,6 +18,42 @@ type AnyProxy = any;
  * toJson miss them). Exists to locate fill opacity, which the typings omit
  * and no probe has found under an expected name.
  */
+/**
+ * Dev-only: the real property surface of one keyframe proxy (own names up
+ * the prototype chain), so a trace shows whether the host exposes spatial
+ * tangents (`inTangent`/`outTangent`) the typings omit. Prefers a position
+ * keyframe; falls back to the first keyframe of any animated property.
+ */
+function introspectKeyframe(node: AnyProxy): Json {
+  const candidates = ["position", "scale", "rotation", "opacity"];
+  for (const name of candidates) {
+    try {
+      const prop: AnyProxy = node[name];
+      const list = prop?.keyframes;
+      if (!Array.isArray(list) || list.length === 0) continue;
+      const kf: AnyProxy = list[0];
+      const names = new Set<string>();
+      let obj: AnyProxy = kf;
+      for (let depth = 0; obj && depth < 5; depth++) {
+        for (const own of Object.getOwnPropertyNames(obj)) names.add(own);
+        obj = Object.getPrototypeOf(obj);
+      }
+      const values: Record<string, Json> = {};
+      for (const key of ["inTangent", "outTangent", "easing", "spatial", "tangents"]) {
+        try {
+          values[key] = toJson(kf[key]);
+        } catch (error) {
+          values[key] = `threw: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+      return { property: name, keyframeProps: [...names].sort(), values };
+    } catch {
+      // try the next property
+    }
+  }
+  return "no animated property on the probe node";
+}
+
 function introspectPaint(node: AnyProxy): Json {
   const out: Record<string, Json> = {};
   try {
@@ -112,6 +148,7 @@ export function recordStart(params: { debug?: boolean }): {
   nodeId: string;
   nodeName?: string;
   paintIntrospection?: Json;
+  keyframeIntrospection?: Json;
 } {
   // Whole-scene recording: no selection required — every layer is watched.
   const scene = creator.activeScene;
@@ -130,6 +167,7 @@ export function recordStart(params: { debug?: boolean }): {
     nodeId: string;
     nodeName?: string;
     paintIntrospection?: Json;
+  keyframeIntrospection?: Json;
   } = { nodeId: snapshot.sceneId ?? "scene" };
   const sceneName = ((): string | undefined => {
     try {
@@ -149,7 +187,10 @@ export function recordStart(params: { debug?: boolean }): {
       }
     })();
     const probe = nodes[0] ?? (Array.isArray(snapshot.layers) ? scene.layers?.[0] : undefined);
-    if (probe) result.paintIntrospection = introspectPaint(probe);
+    if (probe) {
+      result.paintIntrospection = introspectPaint(probe);
+      result.keyframeIntrospection = introspectKeyframe(probe);
+    }
   }
   return result;
 }

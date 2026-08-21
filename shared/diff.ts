@@ -20,12 +20,18 @@ function diffStatic(path: Path, prev: AnimatableSnapshot, next: AnimatableSnapsh
   }
 }
 
-function kfEqual(a: KfSnap, b: KfSnap): boolean {
+/** Everything about a keyframe except where it sits on the timeline. */
+function kfAttrsEqual(a: KfSnap, b: KfSnap): boolean {
   return (
-    Math.abs(a.frame - b.frame) < 1e-6 &&
     jsonEqual(a.value, b.value) &&
-    jsonEqual(a.easing ?? null, b.easing ?? null)
+    jsonEqual(a.easing ?? null, b.easing ?? null) &&
+    jsonEqual(a.inTangent ?? null, b.inTangent ?? null) &&
+    jsonEqual(a.outTangent ?? null, b.outTangent ?? null)
   );
+}
+
+function kfEqual(a: KfSnap, b: KfSnap): boolean {
+  return Math.abs(a.frame - b.frame) < 1e-6 && kfAttrsEqual(a, b);
 }
 
 function diffKeyframes(path: Path, prev: AnimatableSnapshot, next: AnimatableSnapshot, out: StepPayload[]) {
@@ -63,10 +69,7 @@ function diffKeyframes(path: Path, prev: AnimatableSnapshot, next: AnimatableSna
   if (added.length === 1 && removed.length === 1) {
     const before = removed[0]!;
     const after = added[0]!;
-    if (
-      jsonEqual(before.value, after.value) &&
-      jsonEqual(before.easing ?? null, after.easing ?? null)
-    ) {
+    if (kfAttrsEqual(before, after)) {
       changed.push({ before, after });
       added.length = 0;
       removed.length = 0;

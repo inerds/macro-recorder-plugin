@@ -32,7 +32,8 @@ internally, see `README.md`; for what the platform can't do, see
 2. Edit the animation as you normally would. Everything below is captured:
    - transform changes (position, scale, rotation, skew, opacity) and any
      property on child shapes (size, roundness, points, path geometry…)
-   - keyframes: added, removed, moved, value- or easing-changed
+   - keyframes: added, removed, moved, value- or easing-changed, and the
+     motion-path bezier handles on position keyframes
    - fills and strokes: added, removed, recolored, switched solid ↔ gradient
    - masks, trim paths, layer flags (visible, locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,

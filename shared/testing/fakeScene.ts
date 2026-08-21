@@ -30,13 +30,17 @@ interface KfEntry {
   frame: number;
   value: Json;
   easing?: Json;
+  inTangent?: Json;
+  outTangent?: Json;
 }
 
 export interface FakeAnimatable {
   readonly isAnimated: boolean;
   staticValue: Json;
   readonly keyframes: Any[];
-  addKeyframes(list: { frame: number; value: Json; easing?: Json }[]): void;
+  addKeyframes(
+    list: { frame: number; value: Json; easing?: Json; inTangent?: Json; outTangent?: Json }[],
+  ): void;
   getKeyframeAt(frame: number): Any | undefined;
   /** Test control: make addKeyframes throw, as a real host does on bad input. */
   __failAdd(message: string | null): void;
@@ -89,6 +93,18 @@ export function makeAnimatable(initial: Json, nextId: (prefix: string) => string
       set easing(next: Json | undefined) {
         entry.easing = clone(next);
       },
+      get inTangent() {
+        return clone(entry.inTangent);
+      },
+      set inTangent(next: Json | undefined) {
+        entry.inTangent = clone(next);
+      },
+      get outTangent() {
+        return clone(entry.outTangent);
+      },
+      set outTangent(next: Json | undefined) {
+        entry.outTangent = clone(next);
+      },
       remove() {
         if (removeFailure !== null) throw new Error(removeFailure);
         entries = entries.filter((candidate) => candidate !== entry);
@@ -127,6 +143,9 @@ export function makeAnimatable(initial: Json, nextId: (prefix: string) => string
           frame: kf.frame,
           value: clone(kf.value),
           easing: clone(kf.easing),
+          // Like the real host's addKeyframes (typed KeyframeAdd = frame +
+          // value + easing): handles are NOT taken on creation, only by
+          // writing the created keyframe afterwards.
         });
         animatedFlag = true;
       }

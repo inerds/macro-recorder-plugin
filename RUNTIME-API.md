@@ -17,6 +17,17 @@ introspect first (the record-start debug probe dumps surfaces into traces).
 | image layers (from drops) | *(absent)* | generic layer surface works |
 | `RECTANGLE` `ELLIPSE` `POLYGON` `STAR` `PATH` `GROUP` | ✓ | shape stack members |
 
+## Keyframe spatial tangents — UNVERIFIED (engine handles both outcomes)
+
+The published `Keyframe<T>` interface has `frame/value/easing/remove` only,
+but the same file's example writes `positionKeyframe.inTangent` /
+`.outTangent` (motion-path bezier handles). The engine reads both with
+`tryRead` (absent → not recorded) and writes them after creating/updating a
+keyframe, verifying the read-back and emitting a note when the host drops
+them. `record.start` (debug) returns `keyframeIntrospection` — the first
+animated property's keyframe proxy surface — check a fresh trace to confirm
+which of the two worlds we live in, then update this section.
+
 ## Methods that EXIST but are untyped
 
 - Every node/shape: `toJSON()` (raw Lottie document — how fill/stroke opacity

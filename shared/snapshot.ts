@@ -12,6 +12,11 @@ export interface KfSnap {
   frame: number;
   value: Json;
   easing?: Json;
+  /** Spatial (motion-path) bezier handles on position keyframes. Untyped on
+   *  the host's Keyframe interface but shown in its docs; read and written
+   *  defensively, absent when the host doesn't expose them. */
+  inTangent?: Json;
+  outTangent?: Json;
 }
 
 export interface AnimatableSnapshot {
