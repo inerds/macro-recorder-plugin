@@ -1,6 +1,7 @@
 import type { Json } from "./json";
+import type { MacroStep } from "./macro";
 import type { Path } from "./snapshot";
-import type { StepPayload } from "./steps";
+import type { LayerRef, StepPayload } from "./steps";
 
 function round2(n: number): string {
   return String(Math.round(n * 100) / 100);
@@ -70,6 +71,44 @@ function changedComponent(
   return null;
 }
 
+/**
+ * Host node types spelled the way a user would say them. Falls back to the
+ * raw type lowercased, so a type we've never seen still reads as English.
+ */
+const NODE_TYPE_NAMES: Record<string, string> = {
+  SHAPE_LAYER: "shape layer",
+  SCENE_LAYER: "scene",
+  CONTAINER: "group",
+  RECTANGLE: "rectangle",
+  ELLIPSE: "ellipse",
+  POLYGON: "polygon",
+  STAR: "star",
+  PATH: "path",
+  GROUP: "group",
+  TEXT_LAYER: "text layer",
+  IMAGE_LAYER: "image layer",
+};
+
+export function nodeTypeName(nodeType: string): string {
+  return NODE_TYPE_NAMES[nodeType] ?? nodeType.toLowerCase().replace(/_/g, " ");
+}
+
+/** Property names as the UI says them (the API's camelCase is not English). */
+const PROP_NAMES: Record<string, string> = {
+  blendMode: "blend mode",
+  skewAxis: "skew axis",
+  pathData: "path",
+  fontSize: "font size",
+  fontFamily: "font",
+  timelineOffset: "timeline offset",
+  startFrame: "start frame",
+  endFrame: "end frame",
+};
+
+export function propDisplayName(name: string): string {
+  return PROP_NAMES[name] ?? name;
+}
+
 function propName(path: Path): string {
   // Deep shape paths: "shapes.1.size" -> "Shape 2 · size";
   // nested groups flatten to the leaf shape.
@@ -110,21 +149,35 @@ function propNameFlat(path: Path): string {
     if (rest === "fill.color") rest = "color";
     return `Stroke${index}${rest ? ` · ${rest}` : ""}`;
   }
-  return String(root);
+  return propDisplayName(String(root));
 }
 
 const TRANSFORM_SET = new Set(["position", "scale", "rotation", "skew", "skewAxis", "opacity"]);
 
+/**
+ * The layer a step is bound to, or null when it has no binding. Scene-level
+ * ops are excluded on purpose: they name their layer inside the label itself,
+ * so they never carry the "Layer · " prefix.
+ */
+export function layerBindingOf(payload: unknown): LayerRef | null {
+  if (payload === null || typeof payload !== "object") return null;
+  const op = (payload as { op?: unknown }).op;
+  if (
+    op === "add-layer" ||
+    op === "remove-layer" ||
+    op === "break-scene" ||
+    op === "nest-layers" ||
+    op === "reorder-layers"
+  ) {
+    return null;
+  }
+  const layer = (payload as { layer?: unknown }).layer;
+  if (layer === null || typeof layer !== "object") return null;
+  return layer as LayerRef;
+}
+
 export function labelOf(payload: StepPayload): string {
-  // Scene-level ops already name their layer in the label itself.
-  const isSceneOp =
-    payload.op === "add-layer" ||
-    payload.op === "remove-layer" ||
-    payload.op === "break-scene" ||
-    payload.op === "nest-layers" ||
-    payload.op === "reorder-layers";
-  const layerName =
-    !isSceneOp && "layer" in payload && payload.layer?.name ? payload.layer.name : null;
+  const layerName = layerBindingOf(payload)?.name ?? null;
   const prefix = layerName ? `${layerName} · ` : "";
   return `${prefix}${bareLabelOf(payload)}`;
 }
@@ -179,7 +232,7 @@ function bareLabelOf(payload: StepPayload): string {
       return `Keyframes · ${prop} (${parts.join(", ")})`;
     }
     case "set-plain": {
-      const flag = String(payload.path[payload.path.length - 1]);
+      const flag = propDisplayName(String(payload.path[payload.path.length - 1]));
       if (typeof payload.after === "boolean") {
         return `Layer · ${flag} ${payload.after ? "on" : "off"}`;
       }
@@ -211,15 +264,17 @@ function bareLabelOf(payload: StepPayload): string {
     case "remove-mask":
       return "Remove mask";
     case "add-shape":
-      return `Add ${payload.spec.nodeType.toLowerCase()}`;
+      return `Add ${nodeTypeName(payload.spec.nodeType)}`;
     case "remove-shape":
-      return `Remove ${payload.shapeType ? payload.shapeType.toLowerCase() : "shape"}`;
+      return `Remove ${payload.shapeType ? nodeTypeName(payload.shapeType) : "shape"}`;
     case "reorder-shapes":
       return "Reorder shapes";
     case "add-layer":
       return payload.cloneOf
         ? `Duplicate ${payload.cloneOf.name ?? "layer"}`
-        : `Add layer${payload.spec.nodeName ? ` "${payload.spec.nodeName}"` : ""}`;
+        : `Add ${nodeTypeName(payload.spec.nodeType)}${
+            payload.spec.nodeName ? ` "${payload.spec.nodeName}"` : ""
+          }`;
     case "remove-layer":
       return `Remove ${payload.layer.name ?? "layer"}`;
     case "break-scene":
@@ -233,4 +288,28 @@ function bareLabelOf(payload: StepPayload): string {
     case "not-replayable":
       return payload.description;
   }
+}
+
+/**
+ * The layer name every step in a list is bound to, or "" when they aren't all
+ * bound to one. Derived from the step payloads, not from label text: a
+ * single-layer macro repeats the same 10–15 characters on every row, and
+ * the list shows the name once in its header instead.
+ *
+ * Steps with no layer binding (scene ops) are ignored. "" when no step is
+ * bound, when the bound steps name more than one layer, or when any bound
+ * step has no name to show.
+ */
+export function sharedLayerName(steps: readonly MacroStep[]): string {
+  const names = new Set<string>();
+  let bound = 0;
+  for (const step of steps) {
+    const layer = layerBindingOf(step.payload);
+    if (!layer) continue;
+    bound += 1;
+    if (!layer.name) return "";
+    names.add(layer.name);
+  }
+  if (bound === 0 || names.size !== 1) return "";
+  return [...names][0]!;
 }

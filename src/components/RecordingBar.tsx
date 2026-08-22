@@ -15,7 +15,7 @@ export interface RecordingBarProps {
   onDiscard: () => void;
 }
 
-/** Sticky bar shown while recording: pulse, elapsed time, step count, actions. */
+/** Bar shown while recording: pulse, elapsed time, step count, actions. */
 export function RecordingBar({
   startedAt,
   stepCount,
@@ -31,7 +31,7 @@ export function RecordingBar({
 
   return (
     <div
-      className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background px-3 py-2"
+      className="flex items-center gap-2 border-b border-border bg-background px-3 py-2"
       data-testid="recording-bar"
     >
       <span
@@ -41,13 +41,15 @@ export function RecordingBar({
       <span className="text-12 font-medium" role="timer" aria-label="Recording time">
         {formatElapsed(startedAt, now)}
       </span>
+      {/* Not a live region: at one tick every 500ms it read the count aloud
+          over everything else. The total is announced once, on stop. */}
       <span className="min-w-0 flex-1 truncate text-11 text-muted-foreground">
         {stepCount === 1 ? "1 step" : `${stepCount} steps`}
       </span>
-      <Button size="sm" variant="ghost" onClick={onDiscard}>
+      <Button size="sm" variant="ghost" className="press" onClick={onDiscard}>
         Discard
       </Button>
-      <Button size="sm" onClick={onStop} data-testid="stop-button">
+      <Button size="sm" className="press" onClick={onStop} data-testid="stop-button">
         Stop
       </Button>
     </div>

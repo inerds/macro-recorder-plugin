@@ -45,9 +45,20 @@ export function useTheme(): ThemeState {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  // Flipping the theme repaints every token at once; without this the panel
+  // smears through each element's own transition on the way there.
   useEffect(() => {
+    const freeze = document.createElement("style");
+    freeze.textContent = "*,*::before,*::after{transition:none !important}";
+    document.head.appendChild(freeze);
     document.documentElement.classList.toggle("dark", isDark);
-  }, [isDark]);
+    void document.body.offsetHeight; // force the repaint while frozen
+    const frame = requestAnimationFrame(() => freeze.remove());
+    return () => {
+      cancelAnimationFrame(frame);
+      freeze.remove();
+    };
+  }, [isDark, tokens]);
 
   return { isDark, tokens, toggle: () => setIsDark((d) => !d) };
 }

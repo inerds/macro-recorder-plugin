@@ -24,13 +24,14 @@ export function RecordingView({
 }: RecordingViewProps) {
   return (
     <div className="flex h-full flex-col">
+      <h2 className="sr-only">Recording</h2>
       <RecordingBar
         startedAt={startedAt}
         stepCount={steps.length}
         onStop={onStop}
         onDiscard={onDiscardRequest}
       />
-      <div className="flex-1 overflow-y-auto p-2">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-2">
         {confirmingDiscard && (
           <div className="mb-2">
             <ConfirmInline
@@ -45,12 +46,12 @@ export function RecordingView({
         )}
         {steps.length === 0 ? (
           <p className="px-2 py-6 text-center text-12 text-muted-foreground">
-            Recording… edit your animation and the steps will appear here.
+            Recording. Edit your animation — steps appear here as you work.
           </p>
         ) : (
           <StepList steps={steps} autoScroll />
         )}
-      </div>
+      </main>
     </div>
   );
 }

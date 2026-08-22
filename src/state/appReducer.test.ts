@@ -68,7 +68,9 @@ describe("recording flow", () => {
     });
     expect(state.mode).toBe("idle");
     if (state.mode === "idle") {
-      expect(state.notice?.message).toBe("Nothing was recorded");
+      expect(state.notice?.message).toBe(
+        "Nothing was recorded — the scene didn't change while recording.",
+      );
     }
   });
 
@@ -235,12 +237,83 @@ describe("playback flow", () => {
     expect(stopped.mode).toBe("idle");
   });
 
+  it("stopping after a failure says where it stopped and that the run half-landed", () => {
+    const failed = appReducer(
+      appReducer(playing, { type: "PLAY_PROGRESS", stepIndex: 1 }),
+      { type: "PLAY_STEP_FAILED", stepIndex: 1, message: "x" },
+    );
+    const stopped = appReducer(failed, {
+      type: "PLAY_FAILURE_RESOLVED",
+      action: "stop",
+    });
+    expect(stopped.mode).toBe("idle");
+    if (stopped.mode === "idle") {
+      expect(stopped.notice).toMatchObject({
+        message:
+          'Stopped "Macro m1" at step 2 of 3 — earlier steps are still applied',
+        tone: "info",
+      });
+    }
+  });
+
+  it("stopping a healthy run mid-way announces the same thing", () => {
+    const midRun = appReducer(playing, { type: "PLAY_PROGRESS", stepIndex: 2 });
+    const stopped = appReducer(midRun, {
+      type: "PLAY_FAILURE_RESOLVED",
+      action: "stop",
+    });
+    expect(stopped.mode).toBe("idle");
+    if (stopped.mode === "idle") {
+      expect(stopped.notice).toMatchObject({
+        message:
+          'Stopped "Macro m1" at step 3 of 3 — earlier steps are still applied',
+        tone: "info",
+      });
+    }
+  });
+
+  it("stopping a macro that is gone still returns to idle, without a notice", () => {
+    const orphan = appReducer(idleState([]), {
+      type: "PLAY_START",
+      macroId: "gone",
+      total: 2,
+    });
+    const stopped = appReducer(orphan, {
+      type: "PLAY_FAILURE_RESOLVED",
+      action: "stop",
+    });
+    expect(stopped.mode).toBe("idle");
+    if (stopped.mode === "idle") expect(stopped.notice).toBeNull();
+  });
+
   it("done returns to idle with a success flash on the macro", () => {
     const state = appReducer(playing, { type: "PLAY_DONE" });
     expect(state).toMatchObject({ mode: "idle", justPlayedId: "m1" });
     expect(appReducer(state, { type: "PLAY_FLASH_CLEAR" })).toMatchObject({
       justPlayedId: null,
     });
+  });
+
+  it("done announces the macro it played", () => {
+    const state = appReducer(playing, { type: "PLAY_DONE" });
+    expect(state.mode).toBe("idle");
+    if (state.mode === "idle") {
+      expect(state.notice).toMatchObject({
+        message: 'Played "Macro m1"',
+        tone: "success",
+      });
+    }
+  });
+
+  it("done on a macro that is gone still returns to idle, without a notice", () => {
+    const orphan = appReducer(idleState([]), {
+      type: "PLAY_START",
+      macroId: "gone",
+      total: 1,
+    });
+    const state = appReducer(orphan, { type: "PLAY_DONE" });
+    expect(state.mode).toBe("idle");
+    if (state.mode === "idle") expect(state.notice).toBeNull();
   });
 });
 
@@ -559,5 +632,29 @@ describe("configuring flow", () => {
       }),
     ).toBe(base);
     expect(appReducer(base, { type: "CONFIGURE_CANCEL" })).toBe(base);
+  });
+});
+
+describe("expanded step list survives play and configure", () => {
+  it("carries expandedId through PLAY_START → PLAY_DONE and CONFIGURE_START → CONFIGURE_CANCEL", () => {
+    const macro = { id: "m1", name: "M", createdAt: 0, steps: [] };
+    let state = appReducer(idleState([macro], { expandedId: "m1" }), {
+      type: "PLAY_START",
+      macroId: "m1",
+      total: 1,
+    });
+    expect(state.mode === "playing" && state.expandedId).toBe("m1");
+    state = appReducer(state, { type: "PLAY_DONE" });
+    expect(state.mode === "idle" && state.expandedId).toBe("m1");
+
+    state = appReducer(idleState([macro], { expandedId: "m1" }), {
+      type: "CONFIGURE_START",
+      macroId: "m1",
+      values: {},
+      options: {},
+    });
+    expect(state.mode === "configuring" && state.expandedId).toBe("m1");
+    state = appReducer(state, { type: "CONFIGURE_CANCEL" });
+    expect(state.mode === "idle" && state.expandedId).toBe("m1");
   });
 });

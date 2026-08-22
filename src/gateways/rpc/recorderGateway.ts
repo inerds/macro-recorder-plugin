@@ -36,7 +36,9 @@ export class RpcRecorderGateway implements RecorderGateway {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        message === RPC_ERRORS.noSelection ? "Select a layer first" : message,
+        message === RPC_ERRORS.noSelection
+          ? "Open a scene first — recording needs an active scene."
+          : message,
       );
     }
     this.active = true;
@@ -79,7 +81,7 @@ export class RpcRecorderGateway implements RecorderGateway {
       const raw = error instanceof Error ? error.message : String(error);
       const message =
         raw === RPC_ERRORS.nodeGone
-          ? "The recorded layer was deleted — recording stopped"
+          ? "Recording stopped — the scene is no longer available."
           : `Recording stopped — ${raw}`;
       this.endedListeners.forEach((cb) => cb(message));
     }

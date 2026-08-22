@@ -2,23 +2,42 @@ import {
   Button,
   Checkbox,
   DialogContent,
+  DialogDescription,
   DialogRoot,
   DialogTitle,
   DialogTrigger,
   NumberInput,
 } from "@lottiefiles/creator-plugins-ui";
-import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import { useId, useRef, useState } from "react";
 
 import type { PlayOptions } from "../gateways/types";
 
 export interface PlayOptionsPopoverProps {
   macroName: string;
   disabled?: boolean;
+  /** This macro replays as a scene script, so stagger has no targets. */
+  sceneScript?: boolean;
+  /** The row's current options (the bare Play button uses them too). */
+  value: PlayOptions;
+  onChange: (options: PlayOptions) => void;
   onPlay: (options: PlayOptions) => void;
 }
 
 const DEFAULTS = { atPlayhead: false, staggerFrames: 0, repeat: 1 };
+
+/** Only non-default fields travel — the gateways treat absent as default. */
+function normalize(draft: {
+  atPlayhead: boolean;
+  staggerFrames: number;
+  repeat: number;
+}): PlayOptions {
+  const options: PlayOptions = {};
+  if (draft.atPlayhead) options.atPlayhead = true;
+  if (draft.staggerFrames > 0) options.staggerFrames = draft.staggerFrames;
+  if (draft.repeat > 1) options.repeat = draft.repeat;
+  return options;
+}
 
 /**
  * Per-run playback choices. A Dialog rather than a Dropdown: the dropdown is
@@ -28,88 +47,158 @@ const DEFAULTS = { atPlayhead: false, staggerFrames: 0, repeat: 1 };
 export function PlayOptionsPopover({
   macroName,
   disabled,
+  sceneScript,
+  value,
+  onChange,
   onPlay,
 }: PlayOptionsPopoverProps) {
   const [open, setOpen] = useState(false);
-  const [atPlayhead, setAtPlayhead] = useState(DEFAULTS.atPlayhead);
-  const [staggerFrames, setStaggerFrames] = useState(DEFAULTS.staggerFrames);
-  const [repeat, setRepeat] = useState(DEFAULTS.repeat);
+  // What the dialog opened with — anything but Play puts it back. The fields
+  // write straight through to the row (the bare Play button shares them), so
+  // dismissing without this would silently keep the abandoned edits.
+  const [openedWith, setOpenedWith] = useState<PlayOptions>(value);
+  /** Set when Cancel or Play already decided what happens to the edits. */
+  const handled = useRef(false);
+  const playheadId = useId();
+  const playheadHintId = useId();
+  const staggerId = useId();
+  const staggerHintId = useId();
+  const repeatId = useId();
+  const repeatHintId = useId();
 
-  const play = () => {
-    // Only non-default fields travel — the gateways treat absent as default.
-    const options: PlayOptions = {};
-    if (atPlayhead) options.atPlayhead = true;
-    if (staggerFrames > 0) options.staggerFrames = staggerFrames;
-    if (repeat > 1) options.repeat = repeat;
+  const atPlayhead = value.atPlayhead ?? DEFAULTS.atPlayhead;
+  const staggerFrames = value.staggerFrames ?? DEFAULTS.staggerFrames;
+  const repeat = value.repeat ?? DEFAULTS.repeat;
+
+  const update = (patch: Partial<typeof DEFAULTS>) => {
+    onChange(normalize({ atPlayhead, staggerFrames, repeat, ...patch }));
+  };
+
+  /**
+   * A controlled Dialog does not fire onOpenChange when the parent closes it,
+   * so the buttons revert (or keep) the edits themselves — and flag it, in
+   * case a future version does fire it too.
+   */
+  const close = (revert: boolean) => {
+    handled.current = true;
+    if (revert) onChange(openedWith);
     setOpen(false);
-    onPlay(options);
   };
 
   return (
-    <DialogRoot open={open} onOpenChange={setOpen}>
+    <DialogRoot
+      open={open}
+      onOpenChange={(next: boolean) => {
+        if (next) {
+          setOpenedWith(value);
+          handled.current = false;
+        } else if (!handled.current) {
+          // Escape or an outside click: an abandoned dialog leaves nothing
+          // behind.
+          onChange(openedWith);
+        }
+        setOpen(next);
+      }}
+    >
       <DialogTrigger
         aria-label={`Play options for ${macroName}`}
         disabled={disabled}
-        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-secondary-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
-        onClick={(event: React.MouseEvent) => event.stopPropagation()}
+        className="press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
         data-testid="play-options-trigger"
       >
-        <ChevronDown className="size-3.5" />
+        <SlidersHorizontal className="size-3.5" strokeWidth={2.5} />
       </DialogTrigger>
-      {/* Portal clicks still bubble through the React tree to the row's
-          expand-toggle handler. */}
       <DialogContent
-        className="max-w-[280px] gap-3"
-        onClick={(event: React.MouseEvent) => event.stopPropagation()}
+        className="w-[calc(100%-1.5rem)] max-w-[280px] gap-2"
         data-testid="play-options"
       >
         <DialogTitle className="text-12 font-medium">Play options</DialogTitle>
-
-        <label className="flex items-center gap-2 text-12">
-          <Checkbox
-            checked={atPlayhead}
-            onCheckedChange={setAtPlayhead}
-            aria-label="At playhead"
-          />
-          At playhead
-        </label>
-
-        <label className="flex items-center justify-between gap-2 text-12">
-          Stagger
-          <span className="flex items-center gap-1.5">
-            <NumberInput
-              value={staggerFrames}
-              onChange={setStaggerFrames}
-              min={0}
-              step={1}
-              className="h-6 w-20"
-            />
-            <span className="text-11 text-muted-foreground">frames</span>
-          </span>
-        </label>
+        <DialogDescription className="sr-only">
+          Choose how this macro is applied on this run.
+        </DialogDescription>
 
         <div className="flex flex-col gap-1">
-          <label className="flex items-center justify-between gap-2 text-12">
-            Repeat
+          <div className="flex items-center gap-2 text-12">
+            <Checkbox
+              id={playheadId}
+              checked={atPlayhead}
+              onCheckedChange={(next) => update({ atPlayhead: next })}
+              aria-describedby={playheadHintId}
+            />
+            <label htmlFor={playheadId}>At playhead</label>
+          </div>
+          <p id={playheadHintId} className="text-11 text-muted-foreground">
+            Moves the macro's earliest keyframe to the current frame.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-2 text-12">
+            <label htmlFor={staggerId} className={sceneScript ? "text-muted-foreground" : ""}>
+              Stagger
+            </label>
             <NumberInput
+              id={staggerId}
+              value={staggerFrames}
+              onChange={(next) => update({ staggerFrames: next })}
+              min={0}
+              step={1}
+              suffix=" frames"
+              disabled={sceneScript}
+              className="h-6 w-20"
+              {...(sceneScript ? { "aria-describedby": staggerHintId } : {})}
+            />
+          </div>
+          {sceneScript && (
+            <p id={staggerHintId} className="text-11 text-muted-foreground">
+              Stagger needs a macro that applies to selected layers
+            </p>
+          )}
+        </div>
+
+        <div
+          role="group"
+          aria-labelledby={repeatId}
+          aria-describedby={repeatHintId}
+          className="flex flex-col gap-1"
+        >
+          <div className="flex items-center justify-between gap-2 text-12">
+            <label id={repeatId} htmlFor={`${repeatId}-input`}>
+              Repeat
+            </label>
+            <NumberInput
+              id={`${repeatId}-input`}
               value={repeat}
-              onChange={setRepeat}
+              onChange={(next) => update({ repeat: next })}
               min={1}
               max={100}
               step={1}
               className="h-6 w-20"
             />
-          </label>
-          <p className="text-10 text-muted-foreground">
+          </div>
+          <p id={repeatHintId} className="text-11 text-muted-foreground">
             Each repeat applies on top of the last.
           </p>
         </div>
 
-        <div className="flex justify-end gap-1.5">
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+        <div className="mt-2 flex justify-end gap-1.5 border-t border-border pt-3">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="press"
+            onClick={() => close(true)}
+          >
             Cancel
           </Button>
-          <Button size="sm" onClick={play} data-testid="play-with-options">
+          <Button
+            size="sm"
+            className="press"
+            onClick={() => {
+              close(false);
+              onPlay(normalize({ atPlayhead, staggerFrames, repeat }));
+            }}
+            data-testid="play-with-options"
+          >
             Play
           </Button>
         </div>

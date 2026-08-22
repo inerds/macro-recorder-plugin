@@ -345,7 +345,7 @@ describe("nest-layers replay", () => {
     });
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
-    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layer(s)"]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layers"]);
     expect(scene.layers.map((l: Any) => l.name)).toEqual(["Keep", "Nested Scene 5"]);
     expect(scene.layers[1].scene.layers).toEqual([a, b]);
   });

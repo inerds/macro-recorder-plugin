@@ -1,5 +1,6 @@
 import {
   Circle,
+  CircleSlash,
   Diamond,
   Eye,
   EyeOff,
@@ -13,7 +14,7 @@ import {
   Scissors,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { editableValueOf, type EditableValue } from "../../shared/editing";
 import type { MacroStep, StepKind } from "../types";
@@ -30,9 +31,29 @@ const KIND_ICONS: Record<StepKind, typeof Move> = {
   other: Circle,
 };
 
-/** Hover/focus-revealed row action. Shown permanently when `pinned`. */
+/**
+ * Row action. Always mounted and tabbable — only its opacity changes — so a
+ * hovered row never reflows, and touch devices (no hover) always show them.
+ */
 const ACTION_CLASS =
-  "size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-secondary-foreground focus-visible:flex group-hover:flex group-focus-within:flex";
+  "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground opacity-0 transition-[opacity,background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100";
+
+/**
+ * The lane the actions live in. Absolute, so it costs the label no width: it
+ * floats over the row's tail on hover and paints `bg-inherit` behind itself.
+ * `pointer-events-none` hides it from the mouse at rest without taking the
+ * buttons out of the tab order.
+ */
+const LANE_CLASS =
+  "absolute end-1 top-0 bottom-0 flex items-center gap-0.5 bg-inherit pl-2";
+const LANE_HIDDEN =
+  "pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto";
+/** A pinned or skipped row shows its state icon at rest, so the lane stays. */
+const LANE_SHOWN = "pointer-events-auto opacity-100";
+
+/** Both eye glyphs stay mounted and cross-fade, so the button never jumps. */
+const EYE_ICON_CLASS =
+  "col-start-1 row-start-1 size-3.5 transition-[opacity,scale,filter] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
 
 export interface StepRowProps {
   step: MacroStep;
@@ -48,6 +69,8 @@ export interface StepRowProps {
   param?: boolean;
   /** Highlight as the currently-running playback step. */
   active?: boolean;
+  /** A "Layer · " prefix shared by the whole list, shown once in its header. */
+  hidePrefix?: string;
 }
 
 export function StepRow({
@@ -59,30 +82,53 @@ export function StepRow({
   onToggleParam,
   param,
   active,
+  hidePrefix = "",
 }: StepRowProps) {
+  const shownLabel =
+    hidePrefix && step.label.startsWith(hidePrefix) ? step.label.slice(hidePrefix.length) : step.label;
   const Icon = KIND_ICONS[step.kind];
   const [draft, setDraft] = useState<EditableValue | null>(null);
+  const pencilRef = useRef<HTMLButtonElement>(null);
 
   const editable = editableValueOf(step);
   const disabled = step.disabled === true;
   const editing = draft !== null;
+  // The live recording feed passes no handlers: no lane, no wasted width.
+  const hasActions = Boolean(onDelete || onToggle || onEdit || onToggleParam);
+  // A pin or a struck-through eye is state, not an action: it has to survive
+  // the lane's resting fade, and the lane's background with it.
+  const laneAtRest =
+    (param === true && Boolean(onToggleParam) && editable !== null) ||
+    (disabled && Boolean(onToggle));
 
   const commit = () => {
     if (draft && onEdit) onEdit(step.id, draft);
     setDraft(null);
   };
 
+  /** Editing is a detour, not a destination — hand focus back to the pencil. */
+  const restoreFocus = () => {
+    queueMicrotask(() => pencilRef.current?.focus());
+  };
+
   return (
     <li
-      className={`group flex min-h-7 items-center gap-2 rounded px-2 text-12 ${
-        active ? "bg-accent text-accent-foreground" : "text-foreground"
-      } ${disabled ? "opacity-50" : ""}`}
+      className={`group relative flex min-h-7 items-center gap-1.5 rounded-sm px-2 text-12 ${
+        active ? "bg-accent text-accent-foreground" : "bg-background text-foreground"
+      }`}
+      aria-current={active ? "step" : undefined}
       data-testid="step-row"
     >
-      <span className="w-4 shrink-0 text-right text-10 tabular-nums text-muted-foreground">
+      <span className="w-5 shrink-0 text-end text-10 tabular-nums text-muted-foreground">
         {index + 1}
       </span>
-      <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <Icon
+        className={`size-3.5 shrink-0 ${
+          disabled ? "text-muted-foreground/70" : "text-muted-foreground"
+        }`}
+        strokeWidth={2.5}
+        aria-hidden
+      />
 
       {editing ? (
         <span
@@ -91,87 +137,147 @@ export function StepRow({
             if (event.key === "Enter") {
               event.preventDefault();
               commit();
+              restoreFocus();
             }
             if (event.key === "Escape") {
               event.preventDefault();
               setDraft(null);
+              restoreFocus();
             }
           }}
           // Moving between the editor's own fields (hex + swatch, x + y) must
-          // not commit; leaving the editor entirely does.
+          // not commit; leaving the editor entirely does. Focus is NOT
+          // restored here — the user is already on their way elsewhere.
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
               commit();
             }
           }}
         >
-          <StepValueEditor value={draft} onChange={setDraft} autoFocus />
+          <StepValueEditor
+            value={draft}
+            onChange={setDraft}
+            label={`New value for step ${index + 1}`}
+            autoFocus
+          />
         </span>
       ) : (
         <span
-          className={`min-w-0 flex-1 truncate ${disabled ? "line-through" : ""}`}
+          className={`min-w-0 flex-1 truncate ${
+            disabled ? "text-muted-foreground line-through" : ""
+          } ${laneAtRest ? "pe-[6.5rem]" : ""}`}
           title={step.label}
         >
-          {step.label}
+          {shownLabel}
+          {disabled && <span className="sr-only"> (skipped)</span>}
+          {param && <span className="sr-only"> (parameter)</span>}
         </span>
       )}
 
       {step.replayable === false && (
         <span
-          className="shrink-0 rounded bg-muted px-1 py-0.5 text-9 uppercase tracking-wide text-muted-foreground"
-          title="Creator's plugin API can't perform this action, so playback will skip it"
+          className="flex shrink-0 items-center"
+          title="Skipped — Creator can't replay this action"
         >
-          won't replay
+          <CircleSlash
+            className="size-3.5 shrink-0 text-muted-foreground"
+            strokeWidth={2.5}
+            role="img"
+            aria-label="Skipped — Creator can't replay this action"
+          />
+          <span className="sr-only">
+            Creator's plugin API can't perform this action, so playback skips it.
+          </span>
         </span>
       )}
 
-      {!editing && onToggleParam && editable && (
-        <button
-          type="button"
-          className={`${ACTION_CLASS} ${param ? "flex text-foreground" : "hidden"}`}
-          aria-label={param ? "Stop using as parameter" : "Use as parameter"}
-          title={
-            param
-              ? "Asked for on every play"
-              : "Ask for this value on every play"
-          }
-          onClick={() => onToggleParam(step.id)}
-        >
-          <Pin className={`size-3.5 ${param ? "fill-current" : ""}`} />
-        </button>
-      )}
+      {/* Absent entirely in the recording feed, where there is nothing to
+          reveal. */}
+      {!editing && hasActions && (
+        <span className={`${LANE_CLASS} ${laneAtRest ? LANE_SHOWN : LANE_HIDDEN}`}>
+          {onToggleParam && editable && (
+            <button
+              type="button"
+              className={`${ACTION_CLASS} ${
+                param ? "pointer-events-auto opacity-100 text-foreground" : ""
+              }`}
+              aria-pressed={param === true}
+              aria-label={`Ask for step ${index + 1}'s value on every play`}
+              title={`Ask for step ${index + 1}'s value on every play`}
+              onClick={() => onToggleParam(step.id)}
+            >
+              <Pin
+                className="size-3.5 transition-[fill,color] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none"
+                strokeWidth={2.5}
+                fill={param ? "currentColor" : "transparent"}
+              />
+            </button>
+          )}
 
-      {!editing && onEdit && editable && (
-        <button
-          type="button"
-          className={`${ACTION_CLASS} hidden`}
-          aria-label={`Edit step ${index + 1}`}
-          onClick={() => setDraft(editable)}
-        >
-          <Pencil className="size-3.5" />
-        </button>
-      )}
+          {onEdit && editable && (
+            <button
+              type="button"
+              ref={pencilRef}
+              className={ACTION_CLASS}
+              aria-label={`Edit step ${index + 1}`}
+              title={`Edit step ${index + 1}`}
+              onClick={() => setDraft(editable)}
+            >
+              <Pencil className="size-3.5" strokeWidth={2.5} />
+            </button>
+          )}
 
-      {!editing && onToggle && (
-        <button
-          type="button"
-          className={`${ACTION_CLASS} ${disabled ? "flex" : "hidden"}`}
-          aria-label={disabled ? `Enable step ${index + 1}` : `Disable step ${index + 1}`}
-          onClick={() => onToggle(step.id)}
-        >
-          {disabled ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-        </button>
-      )}
+          {onToggle && (
+            <button
+              type="button"
+              className={`${ACTION_CLASS} ${
+                disabled ? "pointer-events-auto opacity-100" : ""
+              }`}
+              aria-pressed={disabled}
+              aria-label={`Skip step ${index + 1} during playback`}
+              title={`Skip step ${index + 1} during playback`}
+              onClick={() => onToggle(step.id)}
+            >
+              <span className="relative grid size-3.5 place-items-center">
+                <EyeOff
+                  className={EYE_ICON_CLASS}
+                  strokeWidth={2.5}
+                  style={{
+                    opacity: disabled ? 1 : 0,
+                    scale: disabled ? "1" : "0.25",
+                    filter: disabled ? "blur(0px)" : "blur(4px)",
+                  }}
+                  aria-hidden
+                />
+                <Eye
+                  className={EYE_ICON_CLASS}
+                  strokeWidth={2.5}
+                  style={{
+                    opacity: disabled ? 0 : 1,
+                    scale: disabled ? "0.25" : "1",
+                    filter: disabled ? "blur(4px)" : "blur(0px)",
+                  }}
+                  aria-hidden
+                />
+              </span>
+            </button>
+          )}
 
-      {!editing && onDelete && (
-        <button
-          type="button"
-          className={`${ACTION_CLASS} hidden`}
-          aria-label={`Delete step ${index + 1}`}
-          onClick={() => onDelete(step.id)}
-        >
-          <X className="size-3.5" />
-        </button>
+          {onDelete && (
+            <button
+              type="button"
+              className={ACTION_CLASS}
+              aria-label={`Delete step ${index + 1}`}
+              title={`Delete step ${index + 1}`}
+              // StepList re-aims focus at the neighbouring row's delete
+              // button once this row is gone.
+              data-step-action="delete"
+              onClick={() => onDelete(step.id)}
+            >
+              <X className="size-3.5" strokeWidth={2.5} />
+            </button>
+          )}
+        </span>
       )}
     </li>
   );

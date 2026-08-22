@@ -1,26 +1,32 @@
-import type { MacroStep, StepKind } from "../types";
-import { newId } from "../utils/id";
+import { buildStep, type StepPayload } from "../../shared/steps";
+import type { MacroStep } from "../types";
 import type { RecorderGateway } from "./types";
 
 export type RecorderScenario = "burst" | "long" | "silent";
 
-type ScriptedStep = { kind: StepKind; label: string };
+const LAYER = { id: "mock-layer", name: "Rectangle 1" };
 
-const BURST_SCRIPT: ScriptedStep[] = [
-  { kind: "transform", label: "Transform · x → 200" },
-  { kind: "transform", label: "Transform · rotation → 45°" },
-  { kind: "fill", label: "Fill → #FF5A00" },
-  { kind: "keyframe", label: "Keyframe · position @ frame 60" },
-  { kind: "stroke", label: "Stroke · width → 4" },
-  { kind: "layer", label: "Layer · opacity → 60%" },
+/**
+ * Real StepPayloads (labels come from the same `buildStep` as production),
+ * so demo mode exercises Simplify (two consecutive position edits), step
+ * editing and parameter pins exactly as a recording would.
+ */
+const BURST_SCRIPT: StepPayload[] = [
+  { op: "set-static", path: ["position"], before: { x: 100, y: 120 }, after: { x: 160, y: 120 }, layer: LAYER },
+  { op: "set-static", path: ["position"], before: { x: 160, y: 120 }, after: { x: 200, y: 120 }, layer: LAYER },
+  { op: "set-static", path: ["rotation"], before: 0, after: 45, layer: LAYER },
+  { op: "set-static", path: ["fills", 0, "color"], before: { r: 40, g: 40, b: 40 }, after: { r: 255, g: 90, b: 0 }, layer: LAYER },
+  { op: "keyframes", path: ["position"], added: [{ frame: 60, value: { x: 200, y: 120 } }], removed: [], changed: [], layer: LAYER },
+  { op: "set-static", path: ["strokes", 0, "width"], before: 2, after: 4, layer: LAYER },
+  { op: "set-plain", path: ["visible"], before: true, after: false, layer: LAYER },
 ];
 
-const LONG_SCRIPT: ScriptedStep[] = Array.from({ length: 20 }, (_, i) => {
-  const cycle: ScriptedStep[] = [
-    { kind: "transform", label: `Transform · x → ${100 + i * 10}` },
-    { kind: "fill", label: `Fill → hsl(${i * 18} 80% 50%)` },
-    { kind: "keyframe", label: `Keyframe · scale @ frame ${i * 5}` },
-    { kind: "stroke", label: `Stroke · width → ${i + 1}` },
+const LONG_SCRIPT: StepPayload[] = Array.from({ length: 20 }, (_, i) => {
+  const cycle: StepPayload[] = [
+    { op: "set-static", path: ["position"], before: { x: 100 + i * 10, y: 120 }, after: { x: 110 + i * 10, y: 120 }, layer: LAYER },
+    { op: "set-static", path: ["fills", 0, "color"], before: { r: i * 12, g: 80, b: 120 }, after: { r: i * 12 + 12, g: 80, b: 120 }, layer: LAYER },
+    { op: "keyframes", path: ["scale"], added: [{ frame: i * 5, value: { x: 1, y: 1 } }], removed: [], changed: [], layer: LAYER },
+    { op: "set-static", path: ["strokes", 0, "width"], before: i, after: i + 1, layer: LAYER },
   ];
   return cycle[i % cycle.length]!;
 });
@@ -52,14 +58,8 @@ export class MockRecorderGateway implements RecorderGateway {
     const script = this.scenario === "long" ? LONG_SCRIPT : BURST_SCRIPT;
     let index = 0;
     this.timer = setInterval(() => {
-      const scripted = script[index % script.length]!;
+      const step = buildStep(script[index % script.length]!);
       index += 1;
-      const step: MacroStep = {
-        id: newId(),
-        kind: scripted.kind,
-        label: scripted.label,
-        payload: { mock: true },
-      };
       this.captured.push(step);
       this.listeners.forEach((cb) => cb(step));
       if (this.scenario === "long" && index >= LONG_SCRIPT.length) {
@@ -74,13 +74,7 @@ export class MockRecorderGateway implements RecorderGateway {
 
   /** Manually emit one step (driven from the DebugStrip). */
   emitNow(): void {
-    const scripted = BURST_SCRIPT[this.captured.length % BURST_SCRIPT.length]!;
-    const step: MacroStep = {
-      id: newId(),
-      kind: scripted.kind,
-      label: scripted.label,
-      payload: { mock: true },
-    };
+    const step = buildStep(BURST_SCRIPT[this.captured.length % BURST_SCRIPT.length]!);
     this.captured.push(step);
     this.listeners.forEach((cb) => cb(step));
   }

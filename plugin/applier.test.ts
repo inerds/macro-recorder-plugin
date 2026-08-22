@@ -45,7 +45,7 @@ describe("keyframe replay onto a divergent timeline", () => {
       changed: [],
     });
 
-    expect(outcome.notes).toEqual(["no keyframe at 67 to remove"]);
+    expect(outcome.notes).toEqual(["couldn't find a keyframe at 67 to remove"]);
   });
 
   it("creates the keyframe when updating one the target never had", () => {
@@ -283,7 +283,7 @@ describe("path resolution failures", () => {
 
     expect(target.fills[0].color.staticValue).toEqual({ r: 64, g: 180, b: 208 });
     expect(outcome.notes).toEqual([
-      "target fill is solid — applied the gradient's first color",
+      "this layer's fill is solid — applied the gradient's first color",
     ]);
   });
 
@@ -312,7 +312,7 @@ describe("path resolution failures", () => {
       { color: { r: 0, g: 204, b: 255 }, offset: 1, opacity: 1 },
     ]);
     expect(outcome.notes).toEqual([
-      "target fill is a gradient — applied the color to every stop",
+      "this layer's fill is a gradient — applied the color to every stop",
     ]);
   });
 
@@ -327,7 +327,7 @@ describe("path resolution failures", () => {
     });
 
     expect(target.fills[0].color.staticValue).toEqual({ r: 255, g: 0, b: 0 });
-    expect(outcome.notes).toEqual(["applied to the target's first fill"]);
+    expect(outcome.notes).toEqual(["applied to this layer's first fill"]);
   });
 
   it("readBaseline returns undefined rather than throwing for an absent path", () => {
@@ -432,7 +432,7 @@ describe("the reported scenario, end to end", () => {
     const notes = steps.flatMap((step) => apply(target, step).notes);
 
     expect(frames(target.position)).toEqual([0, 90]);
-    expect(notes).toEqual(["no keyframe at 67 to remove"]);
+    expect(notes).toEqual(["couldn't find a keyframe at 67 to remove"]);
   });
 });
 
@@ -623,7 +623,7 @@ describe("v2: deep paths and structural ops", () => {
     });
 
     expect(target.shapes[1].size.staticValue).toEqual({ x: 200, y: 100 });
-    expect(outcome.notes).toEqual(["matched the target's rectangle shape"]);
+    expect(outcome.notes).toEqual(["matched this layer's rectangle shape"]);
   });
 
   it("keyframes a nested shape property", () => {
@@ -810,7 +810,7 @@ describe("animated recolors across paint kinds", () => {
       { color: { r: 147, g: 103, b: 244 }, offset: 1, opacity: 1 },
     ]);
     expect(outcome.notes).toEqual([
-      "target fill is a gradient — animated the color onto every stop",
+      "this layer's fill is a gradient — animated the color onto every stop",
     ]);
   });
 
@@ -832,7 +832,7 @@ describe("animated recolors across paint kinds", () => {
     expect(frames(color)).toEqual([0, 60]);
     expect(color.keyframes[0].value).toEqual({ r: 64, g: 180, b: 208 });
     expect(outcome.notes).toEqual([
-      "target fill is solid — animated the gradient's first color",
+      "this layer's fill is solid — animated the gradient's first color",
     ]);
   });
 });
@@ -889,7 +889,7 @@ describe("reorder replay via the untyped move methods", () => {
 
     const outcome = apply(target, { op: "reorder-shapes", path: [], order: [1, 0] });
 
-    expect(outcome.notes).toEqual(["this target can't reorder shapes — skipped"]);
+    expect(outcome.notes).toEqual(["this layer can't reorder shapes — skipped"]);
   });
 
   it("round-trips: a recorded reorder diff replays onto a same-shaped layer", () => {
@@ -975,7 +975,7 @@ describe("trim paths (untyped runtime surface)", () => {
       path: ["trimPaths", 0],
       spec: {},
     });
-    expect(outcome.notes).toEqual(["this target can't take trim paths — skipped"]);
+    expect(outcome.notes).toEqual(["this layer can't take trim paths — skipped"]);
   });
 });
 
@@ -994,7 +994,7 @@ describe("trim edits onto targets without a trim path", () => {
 
     expect(target.trimPaths).toHaveLength(1);
     expect(frames(target.trimPaths[0].start)).toEqual([0, 36]);
-    expect(outcome.notes).toEqual(["added a trim path to this target"]);
+    expect(outcome.notes).toEqual(["added a trim path to this layer"]);
   });
 
   it("creates the trim path for a static trim edit too", () => {
@@ -1009,7 +1009,7 @@ describe("trim edits onto targets without a trim path", () => {
 
     expect(target.trimPaths).toHaveLength(1);
     expect(target.trimPaths[0].end.staticValue).toBe(40);
-    expect(outcome.notes).toEqual(["added a trim path to this target"]);
+    expect(outcome.notes).toEqual(["added a trim path to this layer"]);
   });
 
   it("still skips when the target can't take trim paths at all", () => {
@@ -1081,7 +1081,7 @@ describe("paint removal on the real host's surface (object-level remove)", () =>
     expect(target.fills).toHaveLength(0);
 
     const outcome = apply(target, { op: "remove-paint", path: ["fills", 0] });
-    expect(outcome.notes).toEqual(["no fill at index 0 to remove"]);
+    expect(outcome.notes).toEqual(["couldn't find fill 1 to remove"]);
   });
 });
 
@@ -1240,7 +1240,7 @@ describe("motion-path handles (spatial tangents)", () => {
       removed: [],
       changed: [{ before: kf(10, { x: 0, y: 0 }), after: { frame: 10, value: { x: 1, y: 1 }, inTangent: { x: 3, y: 3 } } }],
     });
-    expect(outcome.notes).toEqual(["motion-path handle (inTangent) @ 10 not supported by this host"]);
+    expect(outcome.notes).toEqual(["motion-path handle (inTangent) @ 10 not supported by Creator"]);
     expect(live.value).toEqual({ x: 1, y: 1 });
   });
 });

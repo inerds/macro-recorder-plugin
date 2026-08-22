@@ -175,6 +175,15 @@ export function AppProvider({
     });
   }, []);
 
+  /** Simplify changes the list under the user's eyes — say what it did. */
+  const announceSimplify = useCallback(
+    (before: number, after: number) => {
+      if (before === after) return;
+      notify(`${before} steps merged into ${after}`, "info");
+    },
+    [notify],
+  );
+
   const recordingSourceRef = useRef<{ nodeId: string; nodeName?: string } | null>(null);
 
   const findMacro = useCallback((macroId: string): Macro | undefined => {
@@ -214,14 +223,13 @@ export function AppProvider({
             const [topReason, topCount] = [...counts.entries()].sort(
               (a, b) => b[1] - a[1],
             )[0]!;
-            notify(
+            const message =
               notes.length === 1
-                ? notes[0]!
-                : `${notes.length} steps adapted or skipped — ${topReason}${
-                    counts.size > 1 ? " (+ more, see console)" : ""
-                  }${topCount > 1 ? ` ×${topCount}` : ""}`,
-              "info",
-            );
+                ? notes[0]!.replace(/^Step (\d+) · ([^:]+): /, "Step $1 ($2): ")
+                : `${notes.length} steps adapted or skipped — ${topReason}` +
+                  (topCount > 1 ? ` (${topCount} times)` : "") +
+                  (counts.size > 1 ? " and other reasons" : "");
+            notify(message, "info");
           }
           break;
         }
@@ -307,7 +315,9 @@ export function AppProvider({
       simplifyReview() {
         const current = stateRef.current;
         if (current.mode !== "reviewing") return;
-        dispatch({ type: "REVIEW_SET_STEPS", steps: simplifySteps(current.steps) });
+        const steps = simplifySteps(current.steps);
+        dispatch({ type: "REVIEW_SET_STEPS", steps });
+        announceSimplify(current.steps.length, steps.length);
       },
       toggleReviewStep(stepId) {
         dispatch({ type: "REVIEW_STEP_TOGGLE", stepId });
@@ -371,6 +381,7 @@ export function AppProvider({
         const steps = simplifySteps(macro.steps);
         dispatch({ type: "MACRO_SET_STEPS", macroId, steps });
         updateMacro(macroId, (current) => withSteps(current, steps));
+        announceSimplify(macro.steps.length, steps.length);
       },
       toggleMacroStep(macroId, stepId) {
         dispatch({ type: "MACRO_STEP_TOGGLE", macroId, stepId });
@@ -496,6 +507,9 @@ export function AppProvider({
         playbackRunRef.current?.resolveFailure(action);
         dispatch({ type: "PLAY_FAILURE_RESOLVED", action });
         if (action === "stop") {
+          // Stop can also arrive mid-run (the progress row's Stop), where no
+          // failure is pending — cancel so the loop actually ends.
+          playbackRunRef.current?.cancel();
           playbackRunRef.current = null;
         }
       },
@@ -509,7 +523,7 @@ export function AppProvider({
         dispatch({ type: "NOTICE_CLEAR" });
       },
     }),
-    [recorder, store, findMacro, notify, runMacro, updateMacro],
+    [recorder, store, findMacro, notify, runMacro, updateMacro, announceSimplify],
   );
 
   const value = useMemo(() => ({ state, actions }), [state, actions]);

@@ -17,14 +17,14 @@ export function MacroList({ playing }: MacroListProps) {
   if (macros.length === 0) {
     return (
       <EmptyState
-        className="py-10"
+        className="px-6 py-12 [&>p]:max-w-[32ch]"
         icon={<ListVideo className="size-8" aria-hidden />}
         title="No macros yet"
-        description="Press Record, edit your animation, then press Stop to save the steps as a reusable macro."
+        description="Record your edits, then stop to save them as a macro you can replay."
         action={
-          <Button size="sm" onClick={() => actions.startRecording()}>
+          <Button size="sm" className="press" onClick={() => actions.startRecording()}>
             <Circle
-              className="size-3 fill-current text-destructive"
+              className="size-3! fill-current text-destructive"
               aria-hidden
             />
             Record
@@ -35,14 +35,16 @@ export function MacroList({ playing }: MacroListProps) {
   }
 
   const idle = state.mode === "idle" ? state : null;
+  // Expansion survives play/configure so the running step can be watched.
+  const expandedId = state.mode === "recording" || state.mode === "reviewing" ? null : state.expandedId;
 
   return (
-    <ul className="flex flex-col gap-1.5 p-2" data-testid="macro-list">
+    <ul className="flex flex-col gap-2 p-2" data-testid="macro-list">
       {macros.map((macro) => (
         <MacroRow
           key={macro.id}
           macro={macro}
-          expanded={idle?.expandedId === macro.id}
+          expanded={expandedId === macro.id}
           renaming={idle?.renamingId === macro.id}
           confirmingDelete={idle?.confirmingDeleteId === macro.id}
           justPlayed={idle?.justPlayedId === macro.id}

@@ -8,6 +8,7 @@
  */
 import type { Json } from "../shared/json";
 import { jsonEqual, toJson } from "../shared/json";
+import { nodeTypeName } from "../shared/labels";
 import type { KfSnap, NodeSnapshot, PaintSnapshot, Path } from "../shared/snapshot";
 import { pathKey, propClassOf } from "../shared/snapshot";
 import { computeTarget } from "../shared/relative";
@@ -45,6 +46,20 @@ function tryRead<T>(fn: () => T): T | undefined {
   }
 }
 
+/** "fills" -> "fill": how a list entry is named in a user-facing note. */
+const ENTRY_LABELS: Record<string, string> = {
+  fills: "fill",
+  strokes: "stroke",
+  masks: "mask",
+  shapes: "shape",
+  trimPaths: "trim path",
+  layers: "layer",
+};
+
+function entryLabel(listKey: string): string {
+  return ENTRY_LABELS[listKey] ?? listKey.replace(/s$/, "");
+}
+
 function describeSegment(path: Path, index: number): string {
   return path
     .slice(0, index + 1)
@@ -78,7 +93,7 @@ export function resolvePath(
         instanceContent = true;
       }
       if (!Array.isArray(list) || list.length === 0) {
-        throw new Error(`${describeSegment(path, i)} not found on this target`);
+        throw new Error(`${describeSegment(path, i)} not found on this layer`);
       }
       let child: AnyProxy = list[index];
       const childType = child === undefined ? undefined : tryRead(() => String(child.type));
@@ -92,14 +107,14 @@ export function resolvePath(
             : list.find((candidate: AnyProxy) => tryRead(() => String(candidate.type)) === shapeHint);
         if (byType !== undefined && shapeHint !== undefined) {
           if (byType !== child) {
-            notes?.push(`matched the target's ${shapeHint.toLowerCase()} shape`);
+            notes?.push(`matched this layer's ${nodeTypeName(shapeHint)} shape`);
           }
           child = byType;
         } else if (child === undefined && list.length === 1) {
           child = list[0];
-          notes?.push("applied to the target's only shape");
+          notes?.push("applied to this layer's only shape");
         } else if (child === undefined) {
-          throw new Error(`${describeSegment(path, i + 1)} not found on this target`);
+          throw new Error(`${describeSegment(path, i + 1)} not found on this layer`);
         }
         // type-mismatch with no better candidate: keep the index child (best effort)
       }
@@ -118,10 +133,12 @@ export function resolvePath(
       const where = describeSegment(path, i);
       if (typeof segment === "number") {
         throw new Error(
-          `${where} not found — target has no ${String(path[i - 1] ?? "entry")} at index ${segment}`,
+          `${where} not found — this layer has no ${entryLabel(
+            String(path[i - 1] ?? "entry"),
+          )} ${segment + 1}`,
         );
       }
-      throw new Error(`${where} not found on this target`);
+      throw new Error(`${where} not found on this layer`);
     }
     current = next;
   }
@@ -204,7 +221,7 @@ function writeTangents(kf: AnyProxy, snap: KfSnap, notes: string[]): void {
     } catch {
       kept = false;
     }
-    if (!kept) notes.push(`motion-path handle (${key}) @ ${snap.frame} not supported by this host`);
+    if (!kept) notes.push(`motion-path handle (${key}) @ ${snap.frame} not supported by Creator`);
   }
 }
 
@@ -228,7 +245,7 @@ function addVerified(prop: AnyProxy, snap: KfSnap, notes: string[] = []): void {
   if (sentinel) sentinel.remove();
   const added = keyframeAt(prop, snap.frame);
   if (!added) {
-    throw new Error(`the host refused a keyframe at ${snap.frame}`);
+    throw new Error(`Creator refused a keyframe at ${snap.frame}`);
   }
   writeTangents(added, snap, notes);
 }
@@ -326,7 +343,7 @@ function applyKeyframes(
       if (alsoAdded(snap.frame)) continue;
       const existing = keyframeAt(prop, snap.frame);
       if (!existing) {
-        notes.push(`no keyframe at ${snap.frame} to remove`);
+        notes.push(`couldn't find a keyframe at ${snap.frame} to remove`);
         continue;
       }
       existing.remove();
@@ -396,7 +413,7 @@ function paintSpec(spec: PaintSnapshot): Record<string, Json> {
     if (spec.opacity) out.opacity = staticOf(spec.opacity, 100);
     return out;
   }
-  throw new Error("this paint can't be re-created (unknown kind)");
+  throw new Error("this fill can't be re-created (unknown kind)");
 }
 
 /**
@@ -442,7 +459,7 @@ function addPaintTo(container: AnyProxy, spec: PaintSnapshot): void {
     container.createFill(plain);
     return;
   }
-  throw new Error("this target can't take fills");
+  throw new Error("this layer can't take fills");
 }
 
 /** Applies keyframes recorded on a spec's animatable onto a fresh property. */
@@ -498,7 +515,7 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: string[
     try {
       addPaintTo(node, fill);
     } catch {
-      notes.push("created node couldn't take a recorded fill");
+      notes.push("the new layer couldn't take a recorded fill");
     }
   }
   for (const stroke of spec.strokes) {
@@ -509,7 +526,7 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: string[
         node.createStroke({ width: staticOf(stroke.width, 1), fill: paintSpec(stroke.fill) });
       }
     } catch {
-      notes.push("created node couldn't take a recorded stroke");
+      notes.push("the new layer couldn't take a recorded stroke");
     }
   }
   for (const mask of spec.masks ?? []) {
@@ -522,7 +539,7 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: string[
       if (typeof node.addMask === "function") node.addMask(maskSpec);
       else if (typeof node.createMask === "function") node.createMask(maskSpec);
     } catch {
-      notes.push("created node couldn't take a recorded mask");
+      notes.push("the new layer couldn't take a recorded mask");
     }
   }
   for (const trim of spec.trims ?? []) {
@@ -534,7 +551,7 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: string[
         }
       }
     } catch {
-      notes.push("created node couldn't take a recorded trim path");
+      notes.push("the new layer couldn't take a recorded trim path");
     }
   }
   for (const child of spec.shapes) {
@@ -548,7 +565,7 @@ export function createShapeFrom(parent: AnyProxy, spec: NodeSnapshot, notes: str
     // A group can't be created empty — create its children on the parent
     // first, then group them (ShapeContainerMixin.createGroup).
     if (typeof parent.createGroup !== "function") {
-      notes.push("this target can't take groups — skipped");
+      notes.push("this layer can't take groups — skipped");
       return;
     }
     const before: AnyProxy[] = Array.isArray(tryRead(() => parent.shapes))
@@ -587,11 +604,11 @@ export function createShapeFrom(parent: AnyProxy, spec: NodeSnapshot, notes: str
   }
   const factoryName = SHAPE_FACTORIES[spec.nodeType];
   if (!factoryName) {
-    notes.push(`can't re-create a ${spec.nodeType.toLowerCase()} — skipped`);
+    notes.push(`can't re-create a ${nodeTypeName(spec.nodeType)} — skipped`);
     return;
   }
   if (typeof parent[factoryName] !== "function") {
-    throw new Error(`this target can't take a ${spec.nodeType.toLowerCase()}`);
+    throw new Error(`this layer can't take a ${nodeTypeName(spec.nodeType)}`);
   }
   const created = parent[factoryName]();
   applyNodeSpec(created, spec, notes);
@@ -738,7 +755,7 @@ export function applyStep(
     case "replace-paint": {
       const { container, marker, index } = splitStructural(target, payload.path, notes);
       if (!removeListEntry(container, marker, index)) {
-        notes.push("couldn't remove the old paint — the new one was added alongside");
+        notes.push("couldn't remove the old fill — the new one was added alongside");
       }
       addPaintTo(container, payload.spec);
       return { notes };
@@ -747,7 +764,7 @@ export function applyStep(
     case "remove-paint": {
       const { container, marker, index } = splitStructural(target, payload.path, notes);
       if (!removeListEntry(container, marker, index)) {
-        notes.push(`no ${marker.slice(0, -1)} at index ${index} to remove`);
+        notes.push(`couldn't find ${entryLabel(marker)} ${index + 1} to remove`);
       }
       return { notes };
     }
@@ -763,7 +780,7 @@ export function applyStep(
       } else if (typeof container.createStroke === "function") {
         container.createStroke(spec);
       } else {
-        throw new Error("this target can't take strokes");
+        throw new Error("this layer can't take strokes");
       }
       return { notes };
     }
@@ -771,7 +788,7 @@ export function applyStep(
     case "add-mask": {
       const { container } = splitStructural(target, payload.path, notes);
       if (typeof container.addMask !== "function") {
-        notes.push("this target can't take masks — skipped");
+        notes.push("this layer can't take masks — skipped");
         return { notes };
       }
       const spec: Record<string, Json> = {
@@ -786,7 +803,7 @@ export function applyStep(
     case "remove-mask": {
       const { container, index } = splitStructural(target, payload.path, notes);
       if (!removeListEntry(container, "masks", index)) {
-        notes.push(`no mask at index ${index} to remove`);
+        notes.push(`couldn't find mask ${index + 1} to remove`);
       }
       return { notes };
     }
@@ -818,7 +835,7 @@ export function applyStep(
     case "add-trim": {
       const { container } = splitStructural(target, payload.path, notes);
       if (typeof container.createTrimPath !== "function") {
-        notes.push("this target can't take trim paths — skipped");
+        notes.push("this layer can't take trim paths — skipped");
         return { notes };
       }
       const created = container.createTrimPath();
@@ -833,7 +850,7 @@ export function applyStep(
       const trims = tryRead(() => container.trimPaths);
       const trim = Array.isArray(trims) ? trims[index] : undefined;
       if (!trim || typeof trim.remove !== "function") {
-        notes.push(`no trim path at index ${index} to remove`);
+        notes.push(`couldn't find trim path ${index + 1} to remove`);
         return { notes };
       }
       trim.remove();
@@ -861,7 +878,7 @@ export function applyStep(
     case "reorder-layers": {
       // Scene-level ops are applied by the playback orchestrator, which owns
       // the scene; reaching applyStep means a legacy selection-mode replay.
-      notes.push("scene-level step doesn't apply to a single target — skipped");
+      notes.push("scene-level step doesn't apply to a single layer — skipped");
       return { notes };
     }
 
@@ -892,7 +909,7 @@ export function reorderChildren(
 ): void {
   const list = tryRead(() => owner[listKey]);
   if (!Array.isArray(list) || list.length < 2) {
-    notes.push("nothing to reorder on this target");
+    notes.push("nothing to reorder on this layer");
     return;
   }
   const current: AnyProxy[] = [...list];
@@ -900,7 +917,7 @@ export function reorderChildren(
     typeof current[0]?.moveBefore !== "function" ||
     typeof current[0]?.moveAfter !== "function"
   ) {
-    notes.push("this target can't reorder shapes — skipped");
+    notes.push("this layer can't reorder shapes — skipped");
     return;
   }
 
@@ -931,7 +948,7 @@ export function reorderChildren(
 
   const after = tryRead(() => owner[listKey]);
   if (Array.isArray(after) && desired.some((shape, i) => after[i] !== shape)) {
-    notes.push("reorder did not fully apply on this target");
+    notes.push("reorder did not fully apply on this layer");
   }
 }
 
@@ -1026,7 +1043,7 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
   const direct = tryRead(() => paint[leaf]);
   if (direct !== undefined && direct !== null && typeof direct === "object") {
     (direct as AnyProxy).staticValue = after;
-    if (remapped) notes.push(`applied to the target's first ${label}`);
+    if (remapped) notes.push(`applied to this layer's first ${label}`);
     return true;
   }
 
@@ -1035,7 +1052,7 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
     const solidColor = tryRead(() => paint.color);
     if (color !== undefined && solidColor !== undefined && solidColor !== null) {
       (solidColor as AnyProxy).staticValue = color;
-      notes.push(`target ${label} is solid — applied the gradient's first color`);
+      notes.push(`this layer's ${label} is solid — applied the gradient's first color`);
       return true;
     }
   }
@@ -1050,7 +1067,7 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
             ? { ...stop, color: after }
             : stop,
         );
-        notes.push(`target ${label} is a gradient — applied the color to every stop`);
+        notes.push(`this layer's ${label} is a gradient — applied the color to every stop`);
         return true;
       }
     }
@@ -1075,12 +1092,12 @@ function resolveTrimProp(target: AnyProxy, path: Path, notes: string[]): AnyProx
   const trims = tryRead(() => container.trimPaths);
   let trim: AnyProxy = Array.isArray(trims) ? trims[index] ?? trims[0] : undefined;
   if (trim && Array.isArray(trims) && trims[index] === undefined) {
-    notes.push("applied to the target's first trim path");
+    notes.push("applied to this layer's first trim path");
   }
   if (!trim) {
     if (typeof container.createTrimPath !== "function") return undefined;
     trim = container.createTrimPath();
-    notes.push("added a trim path to this target");
+    notes.push("added a trim path to this layer");
   }
   return tryRead(() => trim[path[at + 2] as string]);
 }
@@ -1134,7 +1151,7 @@ function applyPaintKeyframesFallback(
       if (Array.isArray(current) && current.length > 0) {
         return convert(
           stopsProp,
-          `target ${label} is a gradient — animated the color onto every stop`,
+          `this layer's ${label} is a gradient — animated the color onto every stop`,
           (color) =>
             current.map((stop) =>
               stop !== null && typeof stop === "object" && !Array.isArray(stop)
@@ -1151,7 +1168,7 @@ function applyPaintKeyframesFallback(
     if (solidColor !== undefined && solidColor !== null) {
       return convert(
         solidColor,
-        `target ${label} is solid — animated the gradient's first color`,
+        `this layer's ${label} is solid — animated the gradient's first color`,
         (stops) => firstStopColor(stops),
       );
     }

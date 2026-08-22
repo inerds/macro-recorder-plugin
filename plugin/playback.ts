@@ -5,6 +5,7 @@ import type { PlaybackStepDebug, TargetProbe } from "../shared/protocol";
 import { RPC_ERRORS } from "../shared/protocol";
 import type { NodeSnapshot, Path } from "../shared/snapshot";
 import { pathKey, propClassOf } from "../shared/snapshot";
+import { nodeTypeName } from "../shared/labels";
 import type { LayerRef, StepPayload } from "../shared/steps";
 import {
   applyNodeSpec,
@@ -19,6 +20,12 @@ import { session } from "./session";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyProxy = any;
+
+/**
+ * Diagnostics for undocumented host calls, collected per step and attached
+ * to the debug payload. Never notes: the user can't act on them.
+ */
+const breadcrumbs: string[] = [];
 
 function tryRead<T>(fn: () => T): T | undefined {
   try {
@@ -298,7 +305,7 @@ function createLayerFromSpec(
   const factoryName = spec.nodeType.startsWith("SCENE") ? "createSceneLayer" : "createShapeLayer";
   const factory = tryRead(() => (scene as AnyProxy)[factoryName]);
   if (typeof factory !== "function") {
-    notes.push(`this scene can't create ${spec.nodeType.toLowerCase()} layers — skipped`);
+    notes.push(`this scene can't create ${nodeTypeName(spec.nodeType)} layers — skipped`);
     return undefined;
   }
   const created = factory.call(scene);
@@ -343,13 +350,14 @@ function nestIntoNewScene(
   const describe = (label: string, value: AnyProxy) => {
     // Debug breadcrumb: the host call semantics are undocumented; every
     // attempt reports what actually came back so traces pin the contract.
+    // This is diagnostics, not a user-facing note — it goes to the trace.
     const kind =
       value === undefined
         ? "undefined"
         : typeof value?.then === "function"
           ? "promise"
           : typeof value;
-    notes.push(
+    breadcrumbs.push(
       `[nest] ${label} -> ${kind}, content=${contentOf(value).length}, top=${sceneLayers().length}`,
     );
   };
@@ -490,7 +498,11 @@ function applySceneOp(
         `couldn't break ${layerLabel(payload.layer)} — rebuilding its layers from the recording`,
       );
     } else if (missing.length > 0) {
-      notes.push(`${layerLabel(payload.layer)} was already broken — rebuilding ${missing.length} missing layer(s)`);
+      notes.push(
+        `${layerLabel(payload.layer)} was already broken — rebuilding ${missing.length} ${
+          missing.length === 1 ? "missing layer" : "missing layers"
+        }`,
+      );
     } else {
       notes.push(`${layerLabel(payload.layer)} was already broken — using its layers`);
     }
@@ -522,7 +534,11 @@ function applySceneOp(
             .map((ref) => resolveLayer(ref))
             .filter((layer): layer is AnyProxy => layer !== undefined);
     if (selection.length > 0) {
-      notes.push(`nesting the ${selection.length} selected layer(s)`);
+      notes.push(
+        `nesting the ${selection.length} selected ${
+          selection.length === 1 ? "layer" : "layers"
+        }`,
+      );
     }
     if (resolved.length === 0) {
       const already = resolveLayer({ id: payload.spec.nodeId });
@@ -545,10 +561,11 @@ function applySceneOp(
             // cosmetic
           }
         }
+        const nested = resolved.length === 1 ? "layer" : "layers";
         notes.push(
           selection.length > 0
-            ? `nested the ${resolved.length} selected layer(s)`
-            : `nested ${resolved.length} layer(s)`,
+            ? `nested the ${resolved.length} selected ${nested}`
+            : `nested ${resolved.length} ${nested}`,
         );
         return;
       }
@@ -561,7 +578,7 @@ function applySceneOp(
   if (payload.op === "remove-layer") {
     const layer = resolveLayer(payload.layer);
     if (!layer || typeof layer.remove !== "function") {
-      notes.push(`${layerLabel(payload.layer)} not found to remove`);
+      notes.push(`couldn't find ${layerLabel(payload.layer)} to remove`);
       return;
     }
     layer.remove();
@@ -711,6 +728,7 @@ export function playbackStep(params: { index: number }): {
 
   const failures: { target: string; message: string }[] = [];
   const notes: { target: string; message: string }[] = [];
+  breadcrumbs.length = 0;
   let before: TargetProbe[] = [];
   let after: TargetProbe[] = [];
 
@@ -731,7 +749,7 @@ export function playbackStep(params: { index: number }): {
     } else if (payload && ref) {
       const layer = resolveLayer(ref);
       if (!layer) {
-        stepNotes.push(`layer "${layerLabel(ref)}" not found — skipped`);
+        stepNotes.push(`couldn't find the layer "${layerLabel(ref)}" — skipped`);
       } else {
         if (playback.debug) before = [probe(layer, label, path)];
         try {
@@ -848,6 +866,7 @@ export function playbackStep(params: { index: number }): {
     after,
   };
   if (path) debug.path = path;
+  if (breadcrumbs.length > 0) debug.breadcrumbs = [...breadcrumbs];
   return { index: params.index, failures, notes, debug };
 }
 

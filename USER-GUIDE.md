@@ -27,7 +27,7 @@ internally, see `README.md`; for what the platform can't do, see
 
 ## 2. Record a macro
 
-1. Press **Record**. No selection is needed — the recorder watches the whole
+1. Click **Record**. No selection is needed — the recorder watches the whole
    active scene.
 2. Edit the animation as you normally would. Everything below is captured:
    - transform changes (position, scale, rotation, skew, opacity) and any
@@ -40,12 +40,12 @@ internally, see `README.md`; for what the platform can't do, see
      reordering, breaking a scene instance apart, nesting layers
 3. Steps appear live in the panel as you work (the recorder samples twice a
    second, so a long drag shows up as a handful of steps — see *Simplify*).
-4. Press **Stop**. If nothing was recorded you return to the list; otherwise
+4. Click **Stop**. If nothing was recorded you return to the list; otherwise
    the **review sheet** opens.
 
 **Discard** (while recording) throws the session away; it asks first if
-steps exist. Deleting the layer you were editing mid-recording stops the
-recording with a notice.
+steps exist. Deleting a layer mid-recording is itself a recorded step —
+recording only stops on its own if the scene goes away, and says so.
 
 ---
 
@@ -57,10 +57,11 @@ The review sheet shows the macro's name and every recorded step.
 |---|---|
 | **Macro name** | Defaults to *Macro N*. Enter saves. |
 | **× on a step** (hover) | Removes the step permanently. |
-| **Eye toggle** | Disables the step: it stays in the macro but playback skips it. Toggle again to re-enable. |
+| **Eye toggle** (*Skip step N during playback*) | Keeps the step in the macro but playback skips it. Click again to re-enable. |
 | **Pencil** | Edits the step's value inline (see §5). |
-| **Pin** | Marks the step as a parameter asked for on every play (see §8). |
-| **Simplify** | Collapses drag micro-steps and keyframe edit chains (see §4). |
+| **Pin** (*Ask for step N's value on every play*) | Marks the step as a parameter (see §8). |
+| **Simplify** | Collapses drag micro-steps and keyframe edit chains (see §4). It shows what it will do: `12 → 5`. |
+| **⊘ Skipped** | Not a control: Creator's plugin API can't perform this action, so playback skips it. |
 | **Save macro** | Stores it (in Creator's plugin storage — it follows your account, not the file). |
 | **Discard** | Drops the recording. |
 
@@ -84,13 +85,14 @@ What it will *not* do:
 - merge a static edit with a keyframe edit on the same property
 - run on its own — it's a button, so you decide
 
-The button is greyed out when there is nothing to simplify.
+When there is nothing to merge the button stays put and says so
+(*Nothing to merge*) rather than disappearing.
 
 ---
 
 ## 5. Edit a step's value
 
-Hover a step and press the **pencil** (only shown for steps with an editable
+Hover a step and click the **pencil** (only shown for steps with an editable
 value). The label becomes an editor:
 
 | Recorded value | Editor |
@@ -110,7 +112,7 @@ way — re-record those.
 
 ## 6. Play a macro
 
-Press **▶** on a macro row. How it's applied depends on what the macro
+Click **▶** on a macro row. How it's applied depends on what the macro
 recorded:
 
 **Macros that touched one layer** apply to **every selected layer** (or, with
@@ -140,21 +142,27 @@ adding one on an occupied frame updates it in place.
 
 ### While it plays
 
-The row shows *Playing step X of Y*. Two things can interrupt:
+The row shows *Playing step X of Y*, and the expanded step list follows
+along. Three things can interrupt it:
 
-- **A step fails** (e.g. "target has no fills"): the row pauses with
-  **Continue** / **Stop**.
-- **Nothing to play on** ("Select a layer first"): press **OK**.
+- **A step fails** (e.g. "Step 3 failed — couldn't find fill 2 to remove"):
+  the row pauses with **Continue** / **Stop**.
+- **Nothing to play on** ("Select a layer first"): click **Dismiss**.
+- **You change your mind**: click **Stop** in the progress row.
 
-Anything deliberately *not* applied — a value the target didn't need, a
+Anything deliberately *not* applied — a value the layer didn't need, a
 fill it doesn't have — is never silent. It's collected as a **note** and
-shown as a toast when the run ends (full list in the browser console).
+shown as a toast when the run ends ("4 steps adapted or skipped — this layer
+can't take masks (3 times) and other reasons"). The full list is logged for
+developers.
 
 ---
 
 ## 7. Play options
 
-Press the **chevron next to ▶** to open the play options.
+Click the **sliders next to ▶** to open the play options. The dialog has
+**Cancel**, and what you choose sticks to the row — the plain ▶ uses it too,
+and the row shows it (`×8 · +4f · @playhead`).
 
 ### At playhead
 
@@ -166,15 +174,16 @@ nothing for a macro with no keyframes.
 
 ### Stagger
 
-Only meaningful with several layers selected. Adds **N frames per layer**:
+Only meaningful with several layers selected, so it is disabled for macros
+that replay as a scene script. Adds **N frames per layer**:
 the first selected layer starts at the playhead, the second N frames later,
 the third 2N later… A cascade in one click. Combine with *At playhead* or
 leave the playhead off to stagger from the recorded frames.
 
-### Repeat ×N
+### Repeat
 
-Runs the macro **N times in a row**. Offsets compound — each repeat applies
-on top of the last — which is the point: a "duplicate, move 40px, rotate 15°"
+Set it to N and the macro runs **N times in a row** (shown as ×N). Offsets
+compound — each repeat applies on top of the last — which is the point: a "duplicate, move 40px, rotate 15°"
 macro played ×8 draws a spiral. Progress counts across all iterations; a
 failure pauses exactly like a single run (Continue resumes the loop, Stop
 ends everything).
@@ -190,7 +199,7 @@ recolor macro, the distance of a slide. Instead of editing the macro:
    the **pin**. The step is now a parameter.
 2. Playing the macro opens a small **form** with one row per pinned step,
    pre-filled with the recorded value.
-3. Change what you want and press **Play**; the macro runs with those values
+3. Change what you want and click **Play**; the macro runs with those values
    (the saved macro is unchanged). **Cancel** returns to the list.
 
 Parameters survive export/import and duplicate. Deleting a pinned step drops
@@ -206,7 +215,7 @@ run (the survivor) and drops pins on steps it merged away.
 | Rename | ⋮ menu → Rename, Enter to commit |
 | Duplicate | ⋮ menu → Duplicate (creates *name copy*) |
 | Export JSON | ⋮ menu → Export JSON — downloads `name.macro.json` |
-| Import | **Import** button in the footer — accepts a `.macro.json`, regenerates ids |
+| Import | **Import** button in the footer — accepts any macro-export `.json`, regenerates ids |
 | Delete | ⋮ menu → Delete, then confirm inline |
 | Expand | click the row to see and edit its steps |
 
@@ -225,7 +234,7 @@ along, so macros can be shared between people and projects.
 - **Select before you play.** One-layer macros apply to every selected layer;
   with nothing selected they fall back to the original layer.
 - **Read the notes toast.** "4 steps adapted or skipped — fills not found on
-  this target" is the macro telling you the target's structure differs.
+  this layer" is the macro telling you the layer's structure differs.
 - **Name layers.** Scene scripts find layers by id, then by **name**, so
   consistent naming makes macros portable across files.
 

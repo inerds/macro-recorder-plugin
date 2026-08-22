@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-22.38";
+export const ENGINE_REV = "2026-08-22.39";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -73,6 +73,8 @@ export interface PlaybackStepDebug {
   path?: Path;
   before: TargetProbe[];
   after: TargetProbe[];
+  /** Sandbox breadcrumbs for undocumented host calls — never user-facing. */
+  breadcrumbs?: string[];
 }
 
 /** Param/result contracts per method (documentation + call-site typing). */

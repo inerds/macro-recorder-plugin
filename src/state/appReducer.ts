@@ -119,12 +119,16 @@ export type AppState =
       mode: "playing";
       macros: Macro[];
       playing: PlayingState;
+      /** Carried through from idle so the expanded step list stays open
+       *  (and can highlight the running step) while the macro plays. */
+      expandedId: string | null;
     }
   /** Pre-play form for a macro with parameters. */
   | {
       mode: "configuring";
       macros: Macro[];
       macroId: string;
+      expandedId: string | null;
       /** Working values, keyed by the pinned step's id. */
       values: Record<string, EditableValue>;
       options: PlayOptions;
@@ -225,7 +229,8 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         return idleState(state.macros, {
           notice: {
             id: newId(),
-            message: "Nothing was recorded",
+            message:
+              "Nothing was recorded — the scene didn't change while recording.",
             tone: "info",
           },
         });
@@ -394,6 +399,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         mode: "configuring",
         macros: state.macros,
         macroId: event.macroId,
+        expandedId: state.expandedId,
         values: event.values,
         options: event.options,
       };
@@ -407,7 +413,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
 
     case "CONFIGURE_CANCEL":
       if (state.mode !== "configuring") return state;
-      return idleState(state.macros);
+      return idleState(state.macros, { expandedId: state.expandedId });
 
     case "PLAY_START":
       // Also from `configuring`: the pre-play form confirms straight into play.
@@ -415,6 +421,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       return {
         mode: "playing",
         macros: state.macros,
+        expandedId: state.expandedId,
         playing: {
           macroId: event.macroId,
           currentStep: 0,
@@ -440,18 +447,47 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         },
       };
 
-    case "PLAY_FAILURE_RESOLVED":
+    case "PLAY_FAILURE_RESOLVED": {
       if (state.mode !== "playing") return state;
-      if (event.action === "stop") {
-        return idleState(state.macros, {
-          expandedId: null,
-        });
+      if (event.action !== "stop") {
+        return { ...state, playing: { ...state.playing, error: null } };
       }
-      return { ...state, playing: { ...state.playing, error: null } };
+      // Stop arrives both from a failed step and from the progress row's own
+      // Stop button. Either way the run is abandoned part-done, and the scene
+      // keeps whatever already landed — say so, since there is no undo.
+      const stopped = state.macros.find((m) => m.id === state.playing.macroId);
+      const at = Math.min(state.playing.currentStep + 1, state.playing.total);
+      return idleState(state.macros, {
+        expandedId: state.expandedId,
+        ...(stopped
+          ? {
+              notice: {
+                id: newId(),
+                message: `Stopped "${stopped.name}" at step ${at} of ${state.playing.total} — earlier steps are still applied`,
+                tone: "info" as const,
+              },
+            }
+          : {}),
+      });
+    }
 
-    case "PLAY_DONE":
+    case "PLAY_DONE": {
       if (state.mode !== "playing") return state;
-      return idleState(state.macros, { justPlayedId: state.playing.macroId });
+      const played = state.macros.find((m) => m.id === state.playing.macroId);
+      return idleState(state.macros, {
+        expandedId: state.expandedId,
+        justPlayedId: state.playing.macroId,
+        ...(played
+          ? {
+              notice: {
+                id: newId(),
+                message: `Played "${played.name}"`,
+                tone: "success" as const,
+              },
+            }
+          : {}),
+      });
+    }
 
     case "PLAY_FLASH_CLEAR":
       if (state.mode !== "idle") return state;

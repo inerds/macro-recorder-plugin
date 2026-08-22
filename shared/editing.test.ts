@@ -48,7 +48,7 @@ describe("withEditedValue", () => {
     const spec = { nodeId: "n", nodeType: "CONTAINER", nodeName: "Star", props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [] };
     const edited = withEditedValue(make({ op: "add-layer", spec }), { kind: "text", value: "Moon" });
     expect(edited.payload).toMatchObject({ spec: { nodeName: "Moon" } });
-    expect(edited.label).toBe('Add layer "Moon"');
+    expect(edited.label).toBe('Add group "Moon"');
   });
 
   it("ignores a kind mismatch", () => {
