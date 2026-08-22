@@ -30,9 +30,10 @@ light. It carries no title; the strip above the reels is the readout:
 | **State word** | READY · RECORDING · REWIND · PLAYING · PAUSED · DONE. |
 | **Counter** | Four digits: steps captured while recording or reviewing, and the step being applied during playback. |
 | **Clock** | Appears while recording (m:ss). |
-| **The reels** | Spin while recording, rewind briefly when you trigger a macro, run forward while it plays, coast to a stop when it ends. Pure confirmation — the lamp and the word always say the same thing, and if your system asks for reduced motion the reels stay still. |
+| **The reels** | Spin while recording, rewind when you trigger a macro, run forward while it plays, coast to a stop when it ends. A highlight travels along the tape between them, so you can see which way it is going. Pure confirmation — the lamp and the word always say the same thing, and if your system asks for reduced motion the reels stay still. |
 
-In a short panel the deck shrinks to a slot; nothing moves anywhere else.
+In a very short panel (under ~400px tall) the deck scales down but keeps
+whole, turning reels; nothing moves anywhere else.
 
 > If a red banner says **Plugin engine is outdated**, remove and re-add the
 > plugin: Creator caches the engine once per load.

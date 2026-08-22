@@ -29,8 +29,13 @@ export interface DeckFlags {
   doneUntil: number;
 }
 
-export const REWIND_MS = 400;
-export const DONE_MS = 600;
+/**
+ * Both windows are long enough to actually register — and both match the
+ * `[data-deck]` animation durations in `index.css` exactly, or the reels stop
+ * mid-turn. Rewind is two fast backwards revolutions (350ms x 2).
+ */
+export const REWIND_MS = 700;
+export const DONE_MS = 900;
 
 export function deriveDeckState(
   input: DeckInput,

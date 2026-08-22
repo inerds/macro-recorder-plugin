@@ -27,8 +27,9 @@ recording, rewinds when a macro is triggered, runs forward while it plays and
 coasts to a stop when it ends, next to a status lamp, a state word, a step
 counter and the Record/Stop keys. The reels are decoration — the lamp and the
 word say the same thing, which is what `prefers-reduced-motion` falls back to.
-Below 520px of panel height a container query collapses the stage to a 56px
-slot. System fonts only; no network assets.
+Below 400px of panel height a container query scales the stage down to a 76px
+strip — the breakpoint is where the macro list stops working, not where the
+deck gets big. System fonts only; no network assets.
 
 ## How the engine works
 

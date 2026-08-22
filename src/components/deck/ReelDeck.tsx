@@ -1,5 +1,8 @@
 import type { DeckState } from "./deckState";
 
+const TAPE_PATH =
+  "M 40 80 C 34 92 30 100 22 104 L 278 104 C 270 100 266 92 260 80";
+
 const R = 44; // flange radius
 const HOLE_R = 12.5;
 const HOLE_AT = 25;
@@ -120,10 +123,22 @@ export function ReelDeck({ state }: { state: DeckState }) {
         {/* Tape path: off the left reel, down over the corner rollers, onto the right. */}
         <path
           className="tape"
-          d="M 40 80 C 34 92 30 100 22 104 L 278 104 C 270 100 266 92 260 80"
+          d={TAPE_PATH}
           fill="none"
           stroke="#3A312B"
           strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* The secondary motion layer. Three-fold symmetric reels can say
+            "turning" but never "which way"; this travelling highlight is what
+            makes rewind read as reverse. */}
+        <path
+          className="tape-shimmer"
+          d={TAPE_PATH}
+          fill="none"
+          stroke="#C6A57B"
+          strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />

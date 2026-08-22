@@ -343,11 +343,28 @@ recording clock, the status lamp and the state word.
   against the card's `p-2.5`), because panel width is the only lever its size
   has.
 - Rotation is the CSS `rotate` property on the reel groups with
-  `transform-box: fill-box; transform-origin: center`; state travels as
-  `data-deck` on `.deck-stage`. The stage `div` carries the dark plate and the
-  SVG only carries the mechanism, so the collapsed deck (`@container panel
-  (max-height: 520px)`, which needs `container: panel / size` on
-  `.panel-root`) can crop the drawing instead of shrinking it.
+  `transform-box: fill-box; transform-origin: center` — so probe it with
+  `getComputedStyle(el).rotate`, NOT `.transform`, which stays `none`. State
+  travels as `data-deck` on `.deck-stage`; the stage `div` carries the dark
+  plate and the SVG only the mechanism.
+- **The collapse threshold is a real breakpoint, not a round number.**
+  `@container panel (max-height: 400px)` (needs `container: panel / size` on
+  `.panel-root`) is set where the *list* stops working — full deck ~195px,
+  list needs ~150px for its header, a row and a peek. It was 520px once,
+  which is exactly the panel height README tells you to develop at, so the
+  hero rendered collapsed at every realistic size and the reels were sliced
+  through the middle. When it does collapse the stage scales the drawing DOWN
+  to 76px (`meet`, letterboxed onto the plate colour) rather than cropping
+  it: a half reel reads as texture and gives the rotation nothing to register
+  against.
+- Three motion layers, per the deck's own rule that no single one is
+  load-bearing: **primary** = reel rotation (linear — a reel is a spinner, the
+  one thing exempt from "never linear"); **secondary** = `.tape-shimmer`, a
+  dashed stroke travelling the tape path, which is the only element that can
+  express *direction* (three-fold symmetric reels cannot); **ambient** = the
+  `::after` warm glow while recording. `REWIND_MS`/`DONE_MS` in `deckState.ts`
+  must stay equal to the `[data-deck]` animation durations in `index.css` or
+  the reels stop mid-turn.
 - Exactly **one** button is named "Stop" while recording, and it is the deck's.
   `RecordingView`'s bottom bar is Discard only. The headless walk-through
   (`scratchpad/drive/walk.mjs`) matches Record and Stop by name, so a second
