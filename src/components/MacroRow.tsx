@@ -1,13 +1,23 @@
 import { Button, Input } from "@lottiefiles/creator-plugins-ui";
-import { Check, Play } from "lucide-react";
-import { useState } from "react";
+import { Check, ChevronRight, Play, Square } from "lucide-react";
+import { useId, useRef, useState } from "react";
 
+import type { EditableValue } from "../../shared/editing";
+import { describePlaybackMode, playbackModeHint } from "../../shared/playbackMode";
+import type { PlayOptions } from "../gateways/types";
 import type { PlayingState } from "../state/appReducer";
 import type { Macro } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
 import { OverflowMenu } from "./OverflowMenu";
 import { PlaybackStatus } from "./PlaybackStatus";
+import { describePlayOptions } from "./playOptionsText";
+import { PlayOptionsPopover } from "./PlayOptionsPopover";
 import { StepList } from "./StepList";
+import { StepListHeader } from "./StepListHeader";
+
+/** Hand-rolled icon buttons (the library Button is too tall for this row). */
+const ICON_BUTTON_CLASS =
+  "press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40";
 
 export interface MacroRowProps {
   macro: Macro;
@@ -20,7 +30,7 @@ export interface MacroRowProps {
   /** Disable play while another macro is playing. */
   playDisabled: boolean;
   onToggleExpand: () => void;
-  onPlay: () => void;
+  onPlay: (options?: PlayOptions) => void;
   onRenameStart: () => void;
   onRenameCommit: (name: string) => void;
   onRenameCancel: () => void;
@@ -30,6 +40,10 @@ export interface MacroRowProps {
   onDeleteCancel: () => void;
   onDeleteConfirm: () => void;
   onDeleteStep: (stepId: string) => void;
+  onSimplify: () => void;
+  onToggleStep: (stepId: string) => void;
+  onEditStep: (stepId: string, value: EditableValue) => void;
+  onToggleParam: (stepId: string) => void;
   onResolveFailure: (action: "continue" | "stop") => void;
 }
 
@@ -52,13 +66,40 @@ export function MacroRow({
   onDeleteCancel,
   onDeleteConfirm,
   onDeleteStep,
+  onSimplify,
+  onToggleStep,
+  onEditStep,
+  onToggleParam,
   onResolveFailure,
 }: MacroRowProps) {
   const [draftName, setDraftName] = useState(macro.name);
+  // Play options belong to the row, not the dialog: the bare ▶ uses whatever
+  // was chosen last, and the row says so.
+  const [options, setOptions] = useState<PlayOptions>({});
+  const panelId = useId();
+  const disclosureRef = useRef<HTMLButtonElement>(null);
+
   const stepCount =
     macro.steps.length === 1 ? "1 step" : `${macro.steps.length} steps`;
+  const optionSummary = describePlayOptions(options);
+  const mode = describePlaybackMode(macro);
 
   const isPlayingThis = playing !== null;
+
+  // Playback indices count ENABLED steps and keep climbing across repeats;
+  // the list renders every step, so map back to its own index.
+  const enabled = macro.steps.filter((step) => step.disabled !== true);
+  let activeIndex: number | undefined;
+  if (playing && enabled.length > 0) {
+    const step = enabled[playing.currentStep % enabled.length];
+    const index = step ? macro.steps.indexOf(step) : -1;
+    if (index >= 0) activeIndex = index;
+  }
+
+  /** Renaming is a detour: hand focus back to the row it started from. */
+  const restoreFocus = () => {
+    queueMicrotask(() => disclosureRef.current?.focus());
+  };
 
   return (
     <li
@@ -73,11 +114,17 @@ export function MacroRow({
             value={draftName}
             autoFocus
             aria-label="Macro name"
-            className="h-7 min-w-0 flex-1"
+            className="h-6 min-w-0 flex-1"
             onChange={(event) => setDraftName(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") onRenameCommit(draftName);
-              if (event.key === "Escape") onRenameCancel();
+              if (event.key === "Enter") {
+                onRenameCommit(draftName);
+                restoreFocus();
+              }
+              if (event.key === "Escape") {
+                onRenameCancel();
+                restoreFocus();
+              }
             }}
             onBlur={() => onRenameCommit(draftName)}
             data-testid="rename-input"
@@ -85,48 +132,87 @@ export function MacroRow({
           <Button
             size="icon"
             variant="ghost"
+            className="press size-6 shrink-0"
             aria-label="Confirm rename"
-            className="size-7 shrink-0"
-            onClick={() => onRenameCommit(draftName)}
+            // The input's blur would unmount this button before its click
+            // ever landed; keep focus where it is until the click resolves.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              onRenameCommit(draftName);
+              restoreFocus();
+            }}
           >
-            <Check className="size-3.5" />
+            <Check className="size-3.5!" strokeWidth={2.5} />
           </Button>
         </div>
       ) : (
-        <div
-          role="button"
-          tabIndex={0}
-          className="flex w-full cursor-pointer items-center gap-1.5 rounded-md p-2 text-left hover:bg-accent/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-          aria-expanded={expanded}
-          onClick={onToggleExpand}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              onToggleExpand();
+        <div className="flex items-center gap-1.5 p-2">
+          <button
+            type="button"
+            ref={disclosureRef}
+            className="press flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] text-left hover:bg-accent/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            onClick={onToggleExpand}
+          >
+            <ChevronRight
+              className={`size-3.5 shrink-0 text-muted-foreground transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
+                expanded ? "rotate-90" : ""
+              }`}
+              strokeWidth={2.5}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-12 font-medium" title={macro.name}>
+                  {macro.name}
+                </span>
+                {optionSummary && (
+                  <span
+                    className="max-w-[40%] shrink-0 truncate text-10 tabular-nums text-muted-foreground"
+                    title={optionSummary}
+                    data-testid="play-options-summary"
+                  >
+                    {/* The badge truncates; the announcement never does. */}
+                    <span className="sr-only">Play options: </span>
+                    {optionSummary}
+                  </span>
+                )}
+              </span>
+              <span className="block text-11 text-muted-foreground">{stepCount}</span>
+            </span>
+          </button>
+          {/* Stays mounted across the run, swapping glyph and action: an
+              unmounting Play button would drop the focus that pressed it. */}
+          <button
+            type="button"
+            className={ICON_BUTTON_CLASS}
+            aria-label={isPlayingThis ? `Stop ${macro.name}` : `Play ${macro.name}`}
+            disabled={!isPlayingThis && playDisabled}
+            onClick={() =>
+              isPlayingThis ? onResolveFailure("stop") : onPlay(options)
             }
-          }}
-        >
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-12 font-medium" title={macro.name}>
-              {macro.name}
-            </p>
-            <p className="text-10 text-muted-foreground">{stepCount}</p>
-          </div>
+            data-testid="play-button"
+          >
+            {isPlayingThis ? (
+              <Square className="size-3 fill-current" strokeWidth={2.5} />
+            ) : (
+              <Play className="size-3.5 translate-x-[0.5px] fill-current" />
+            )}
+          </button>
           {!isPlayingThis && (
             <>
-              <button
-                type="button"
-                className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-secondary-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
-                aria-label={`Play ${macro.name}`}
+              <PlayOptionsPopover
+                macroName={macro.name}
                 disabled={playDisabled}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onPlay();
+                sceneScript={mode.mode === "scene"}
+                value={options}
+                onChange={setOptions}
+                onPlay={(next) => {
+                  setOptions(next);
+                  onPlay(next);
                 }}
-                data-testid="play-button"
-              >
-                <Play className="size-3.5 fill-current" />
-              </button>
+              />
               <OverflowMenu
                 macroName={macro.name}
                 onRename={() => {
@@ -152,21 +238,36 @@ export function MacroRow({
         <div className="px-2 pb-2">
           <ConfirmInline
             message={`Delete "${macro.name}"? This can't be undone.`}
-            confirmLabel="Delete"
+            confirmLabel="Delete macro"
             onConfirm={onDeleteConfirm}
             onCancel={onDeleteCancel}
           />
         </div>
       )}
 
-      {expanded && !isPlayingThis && (
-        <div className="border-t border-border px-1 py-1.5">
+      {expanded && (
+        <div id={panelId} className="inline-enter border-t border-border px-1 py-1.5">
           {macro.steps.length === 0 ? (
             <p className="px-2 py-3 text-center text-11 text-muted-foreground">
-              This macro has no steps.
+              No steps left. Delete this macro, or record a new one.
             </p>
           ) : (
-            <StepList steps={macro.steps} onDeleteStep={onDeleteStep} />
+            <>
+              <StepListHeader
+                steps={macro.steps}
+                onSimplify={onSimplify}
+                hints={[playbackModeHint(mode), "Changes save automatically"]}
+              />
+              <StepList
+                steps={macro.steps}
+                onDeleteStep={onDeleteStep}
+                onToggleStep={onToggleStep}
+                onEditStep={onEditStep}
+                onToggleParam={onToggleParam}
+                paramIds={(macro.params ?? []).map((param) => param.stepId)}
+                activeIndex={activeIndex}
+              />
+            </>
           )}
         </div>
       )}

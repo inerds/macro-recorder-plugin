@@ -13,10 +13,11 @@ export function ImportButton({ onFile }: ImportButtonProps) {
       <Button
         size="sm"
         variant="ghost"
+        className="press"
         onClick={() => inputRef.current?.click()}
         data-testid="import-button"
       >
-        <Upload className="size-3.5" aria-hidden />
+        <Upload className="size-3.5!" strokeWidth={2.5} aria-hidden />
         Import
       </Button>
       <input

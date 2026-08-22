@@ -43,6 +43,34 @@ and is the practical substitute.
   plugin interface. The document already has the property; this is purely a
   membrane gap. Worth filing.
 
+## Motion-path bezier handles (spatial tangents) — CONFIRMED
+
+**What:** Bending a position keyframe's motion path on the canvas (the
+curve handles between two position keyframes) is invisible to the plugin:
+recordings capture the keyframes' frames/values/easing but not the curve,
+and replays produce straight-line motion between them.
+
+**Why (evidence, 2026-08-22, engine rev 2026-08-22.38):**
+- The typings' `Keyframe<T>` interface has `id/frame/value/easing/remove`;
+  `inTangent`/`outTangent` appear only in a doc example
+  (`plugin-api-ref.d.ts:496-497`).
+- Runtime introspection of a live **position** keyframe proxy, full
+  prototype chain (trace `2026-08-21T21-53-02-401_record.json`,
+  `debug.keyframeIntrospection` on the first keyframe tick): surface is
+  exactly `easing, frame, id, remove, value`. Probes for `inTangent`,
+  `outTangent`, `spatial`, `tangents` all return undefined.
+- The Lottie document models them (`i`/`o` arrays on position keyframes per
+  the spec) — this is a proxy gap, not a format gap.
+
+**What the user sees:** a recording of a curved motion replays as linear
+motion between the same keyframes; no step or note mentions the curve
+(nothing observable to report on).
+
+**Path to lift:** host exposes `inTangent`/`outTangent` on keyframe proxies.
+The engine already reads and writes them defensively (`KfSnap.inTangent/
+outTangent`, applier read-back verification with a note on refusal), so a
+host that adds them starts recording/replaying curves with no code change.
+
 ## Nesting layers programmatically — CONFIRMED
 
 **What:** Replaying a "nest layers into a new scene" macro onto a selection

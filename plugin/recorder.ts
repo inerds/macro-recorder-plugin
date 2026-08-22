@@ -18,6 +18,113 @@ type AnyProxy = any;
  * toJson miss them). Exists to locate fill opacity, which the typings omit
  * and no probe has found under an expected name.
  */
+/**
+ * Dev-only: the real property surface of one keyframe proxy (own names up
+ * the prototype chain), so a trace shows whether the host exposes spatial
+ * tangents (`inTangent`/`outTangent`) the typings omit. Prefers a position
+ * keyframe; falls back to the first keyframe of any animated property.
+ */
+function introspectKeyframe(node: AnyProxy): Json {
+  const candidates = ["position", "scale", "rotation", "opacity"];
+  for (const name of candidates) {
+    try {
+      const prop: AnyProxy = node[name];
+      const list = prop?.keyframes;
+      if (!Array.isArray(list) || list.length === 0) continue;
+      const kf: AnyProxy = list[0];
+      const names = new Set<string>();
+      let obj: AnyProxy = kf;
+      for (let depth = 0; obj && depth < 5; depth++) {
+        for (const own of Object.getOwnPropertyNames(obj)) names.add(own);
+        obj = Object.getPrototypeOf(obj);
+      }
+      const values: Record<string, Json> = {};
+      for (const key of ["inTangent", "outTangent", "easing", "spatial", "tangents"]) {
+        try {
+          values[key] = toJson(kf[key]);
+        } catch (error) {
+          values[key] = `threw: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+      return { property: name, keyframeProps: [...names].sort(), values };
+    } catch {
+      // try the next property
+    }
+  }
+  return "no animated property on the probe node";
+}
+
+/** Own property names up the prototype chain — host getters are often non-enumerable. */
+function surfaceOf(obj: AnyProxy): string[] {
+  const names = new Set<string>();
+  let cursor: AnyProxy = obj;
+  for (let depth = 0; cursor && depth < 5; depth++) {
+    for (const name of Object.getOwnPropertyNames(cursor)) names.add(name);
+    cursor = Object.getPrototypeOf(cursor);
+  }
+  return [...names].sort();
+}
+
+/**
+ * Dev-only: the first RECTANGLE shape's real surface plus every plausible
+ * home for corner rounding — the typings list `roundness` only as a creation
+ * option, and no trace has ever seen `rect.roundness.staticValue` leave 0.
+ */
+function introspectRectangle(root: AnyProxy): Json {
+  const find = (node: AnyProxy, depth: number): AnyProxy | undefined => {
+    try {
+      if (node.type === "RECTANGLE") return node;
+      const shapes = node.shapes;
+      if (Array.isArray(shapes) && depth < 6) {
+        for (const child of shapes) {
+          const hit = find(child, depth + 1);
+          if (hit) return hit;
+        }
+      }
+    } catch {
+      // unreadable subtree
+    }
+    return undefined;
+  };
+  const layers = tryReadLayers(root) ?? [root];
+  let rect: AnyProxy | undefined;
+  for (const layer of layers) {
+    rect = find(layer, 0);
+    if (rect) break;
+  }
+  if (!rect) return "no rectangle in scene";
+  const probes: Record<string, Json> = {};
+  for (const key of ["roundness", "radius", "cornerRadius", "corners", "borderRadius", "modifiers", "effects"]) {
+    try {
+      const value: AnyProxy = rect[key];
+      probes[key] =
+        value === undefined
+          ? "undefined"
+          : value !== null && typeof value === "object"
+            ? { surface: surfaceOf(value), staticValue: toJson(tryReadValue(() => value.staticValue)), value: toJson(tryReadValue(() => value.value)) }
+            : toJson(value);
+    } catch (error) {
+      probes[key] = `threw: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  const parentSurface = (() => {
+    try {
+      return surfaceOf(rect.parent);
+    } catch {
+      return "unreadable";
+    }
+  })();
+  return { rectProps: surfaceOf(rect), probes, parentSurface };
+}
+
+function tryReadValue<T>(fn: () => T): T | undefined {
+  try {
+    return fn();
+  } catch {
+    return undefined;
+  }
+}
+
 function introspectPaint(node: AnyProxy): Json {
   const out: Record<string, Json> = {};
   try {
@@ -112,6 +219,8 @@ export function recordStart(params: { debug?: boolean }): {
   nodeId: string;
   nodeName?: string;
   paintIntrospection?: Json;
+  keyframeIntrospection?: Json;
+  shapeIntrospection?: Json;
 } {
   // Whole-scene recording: no selection required — every layer is watched.
   const scene = creator.activeScene;
@@ -130,6 +239,8 @@ export function recordStart(params: { debug?: boolean }): {
     nodeId: string;
     nodeName?: string;
     paintIntrospection?: Json;
+  keyframeIntrospection?: Json;
+  shapeIntrospection?: Json;
   } = { nodeId: snapshot.sceneId ?? "scene" };
   const sceneName = ((): string | undefined => {
     try {
@@ -149,7 +260,11 @@ export function recordStart(params: { debug?: boolean }): {
       }
     })();
     const probe = nodes[0] ?? (Array.isArray(snapshot.layers) ? scene.layers?.[0] : undefined);
-    if (probe) result.paintIntrospection = introspectPaint(probe);
+    if (probe) {
+      result.paintIntrospection = introspectPaint(probe);
+      result.keyframeIntrospection = introspectKeyframe(probe);
+      result.shapeIntrospection = introspectRectangle(scene);
+    }
   }
   return result;
 }
@@ -176,9 +291,40 @@ function collectDelta(): { steps: MacroStep[]; debug?: RecordDebug } {
   // Only carry the (large) snapshot pair when it says something: a tick that
   // produced no steps and no diff is noise.
   if (recording.debug && steps.length > 0) {
-    return { steps, debug: { prev, next } };
+    const debug: RecordDebug = { prev, next };
+    // The record.start probe only sees keyframes that already exist; the
+    // first position keyframe this session creates is the better witness.
+    if (!recording.keyframeProbed) {
+      const kfStep = payloads.find(
+        (p) => p.op === "keyframes" && p.path.length === 1 && p.path[0] === "position",
+      );
+      const layerId = kfStep && "layer" in kfStep ? kfStep.layer?.id : undefined;
+      const layer = layerId
+        ? (tryReadLayers(recording.scene) ?? []).find((l) => {
+            try {
+              return String(l.id) === layerId;
+            } catch {
+              return false;
+            }
+          })
+        : undefined;
+      if (layer) {
+        debug.keyframeIntrospection = introspectKeyframe(layer);
+        recording.keyframeProbed = true;
+      }
+    }
+    return { steps, debug };
   }
   return { steps };
+}
+
+function tryReadLayers(scene: AnyProxy): AnyProxy[] | undefined {
+  try {
+    const layers = scene.layers;
+    return Array.isArray(layers) ? layers : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function recordTick(seq: number): {

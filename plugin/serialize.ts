@@ -108,6 +108,11 @@ export function serializeAnimatable(prop: AnyProxy): AnimatableSnapshot {
       if (typeof id === "string") snap.id = id;
       const easing = tryRead(() => toJson(kf.easing));
       if (easing !== undefined && easing !== null) snap.easing = easing;
+      // Motion-path handles: present only on spatial (position) keyframes.
+      const inTangent = tryRead(() => toJson(kf.inTangent));
+      if (inTangent !== undefined && inTangent !== null) snap.inTangent = inTangent;
+      const outTangent = tryRead(() => toJson(kf.outTangent));
+      if (outTangent !== undefined && outTangent !== null) snap.outTangent = outTangent;
       return snap;
     });
   });

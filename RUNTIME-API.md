@@ -17,6 +17,27 @@ introspect first (the record-start debug probe dumps surfaces into traces).
 | image layers (from drops) | *(absent)* | generic layer surface works |
 | `RECTANGLE` `ELLIPSE` `POLYGON` `STAR` `PATH` `GROUP` | ✓ | shape stack members |
 
+## `creator.timeline.currentFrame` — VERIFIED readable from the sandbox
+
+Trace 2026-08-21T21-45-57-555 (rev .36): `playback.begin` with
+`atPlayhead: true` returned `frameOffset: 16` with the playhead parked at
+frame 16, and the keyframes landed at 16/63 (recorded 0/47). Stagger
+cascaded per selected target (+10 each).
+
+## Keyframe spatial tangents — NOT EXPOSED (verified 2026-08-22)
+
+Live position-keyframe proxy surface (trace 2026-08-21T21-53-02-401, rev
+.38): `easing, frame, id, remove, value` — nothing else. The typings' example
+writing `positionKeyframe.inTangent/outTangent` does not reflect the runtime.
+See LIMITATIONS.md. The engine's defensive read/write of `KfSnap.inTangent/
+outTangent` stays so a future host lights it up automatically.
+
+Also verified there: `rect.roundness` IS a full Animatable (`addKeyframes,
+clearKeyframes, getKeyframeAt, getValueAt, isAnimated, keyframes,
+staticValue`) despite the `Rectangle` typing omitting it; no other
+rounding-shaped property (`radius`, `cornerRadius`, `corners`, `modifiers`)
+exists on the rectangle or its layer.
+
 ## Methods that EXIST but are untyped
 
 - Every node/shape: `toJSON()` (raw Lottie document — how fill/stroke opacity

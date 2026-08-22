@@ -12,6 +12,8 @@ export interface RecordingSession {
   firstSnapshot: SceneSnapshot;
   /** Dev diagnostics opted into at record.start. */
   debug: boolean;
+  /** Debug: the keyframe-surface probe has already run this session. */
+  keyframeProbed?: boolean;
 }
 
 export interface PlaybackSession {
@@ -34,6 +36,11 @@ export interface PlaybackSession {
   origins: Record<string, Json>;
   /** Per-target current values at begin, per pathKey. */
   baselines: Record<string, Json>[];
+  /** Keyframe frame shift: currentFrame − the macro's earliest keyframe
+   *  (apply-at-playhead). 0 when not requested. */
+  frameOffsetBase: number;
+  /** Extra frame shift per target index (targets mode cascade). */
+  staggerFrames: number;
   /** Dev diagnostics opted into at playback.begin. */
   debug: boolean;
 }

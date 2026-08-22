@@ -38,10 +38,12 @@ export function PlaybackStatus({
           )}
           <Button
             size="sm"
-            variant="destructive"
+            // Nothing ran, so nothing is being abandoned — "Dismiss" is not a
+            // destructive act and shouldn't be dressed as one.
+            variant={preRun ? "default" : "destructive"}
             onClick={() => onResolveFailure("stop")}
           >
-            {preRun ? "OK" : "Stop"}
+            {preRun ? "Dismiss" : "Stop"}
           </Button>
         </div>
       </div>
@@ -50,14 +52,29 @@ export function PlaybackStatus({
 
   return (
     <div
-      className="flex items-center gap-2 px-2 py-1 text-12 text-muted-foreground"
+      className="flex items-center gap-2 py-1 text-12 text-muted-foreground"
       data-testid="playback-progress"
     >
-      <Spinner className="size-3.5" />
-      <span>
+      <Spinner className="size-3.5" role="presentation" aria-hidden aria-label={undefined} />
+      {/* The live region is the sentence alone. With the button inside it,
+          every progress tick re-announced "Stop" too. */}
+      <span
+        className="min-w-0 flex-1 truncate"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         Playing step {Math.min(playing.currentStep + 1, playing.total)} of{" "}
         {playing.total}…
       </span>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => onResolveFailure("stop")}
+        data-testid="playback-stop-button"
+      >
+        Stop
+      </Button>
     </div>
   );
 }

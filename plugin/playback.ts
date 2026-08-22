@@ -5,6 +5,7 @@ import type { PlaybackStepDebug, TargetProbe } from "../shared/protocol";
 import { RPC_ERRORS } from "../shared/protocol";
 import type { NodeSnapshot, Path } from "../shared/snapshot";
 import { pathKey, propClassOf } from "../shared/snapshot";
+import { nodeTypeName } from "../shared/labels";
 import type { LayerRef, StepPayload } from "../shared/steps";
 import {
   applyNodeSpec,
@@ -19,6 +20,12 @@ import { session } from "./session";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyProxy = any;
+
+/**
+ * Diagnostics for undocumented host calls, collected per step and attached
+ * to the debug payload. Never notes: the user can't act on them.
+ */
+const breadcrumbs: string[] = [];
 
 function tryRead<T>(fn: () => T): T | undefined {
   try {
@@ -298,7 +305,7 @@ function createLayerFromSpec(
   const factoryName = spec.nodeType.startsWith("SCENE") ? "createSceneLayer" : "createShapeLayer";
   const factory = tryRead(() => (scene as AnyProxy)[factoryName]);
   if (typeof factory !== "function") {
-    notes.push(`this scene can't create ${spec.nodeType.toLowerCase()} layers — skipped`);
+    notes.push(`this scene can't create ${nodeTypeName(spec.nodeType)} layers — skipped`);
     return undefined;
   }
   const created = factory.call(scene);
@@ -343,13 +350,14 @@ function nestIntoNewScene(
   const describe = (label: string, value: AnyProxy) => {
     // Debug breadcrumb: the host call semantics are undocumented; every
     // attempt reports what actually came back so traces pin the contract.
+    // This is diagnostics, not a user-facing note — it goes to the trace.
     const kind =
       value === undefined
         ? "undefined"
         : typeof value?.then === "function"
           ? "promise"
           : typeof value;
-    notes.push(
+    breadcrumbs.push(
       `[nest] ${label} -> ${kind}, content=${contentOf(value).length}, top=${sceneLayers().length}`,
     );
   };
@@ -490,7 +498,11 @@ function applySceneOp(
         `couldn't break ${layerLabel(payload.layer)} — rebuilding its layers from the recording`,
       );
     } else if (missing.length > 0) {
-      notes.push(`${layerLabel(payload.layer)} was already broken — rebuilding ${missing.length} missing layer(s)`);
+      notes.push(
+        `${layerLabel(payload.layer)} was already broken — rebuilding ${missing.length} ${
+          missing.length === 1 ? "missing layer" : "missing layers"
+        }`,
+      );
     } else {
       notes.push(`${layerLabel(payload.layer)} was already broken — using its layers`);
     }
@@ -522,7 +534,11 @@ function applySceneOp(
             .map((ref) => resolveLayer(ref))
             .filter((layer): layer is AnyProxy => layer !== undefined);
     if (selection.length > 0) {
-      notes.push(`nesting the ${selection.length} selected layer(s)`);
+      notes.push(
+        `nesting the ${selection.length} selected ${
+          selection.length === 1 ? "layer" : "layers"
+        }`,
+      );
     }
     if (resolved.length === 0) {
       const already = resolveLayer({ id: payload.spec.nodeId });
@@ -545,10 +561,11 @@ function applySceneOp(
             // cosmetic
           }
         }
+        const nested = resolved.length === 1 ? "layer" : "layers";
         notes.push(
           selection.length > 0
-            ? `nested the ${resolved.length} selected layer(s)`
-            : `nested ${resolved.length} layer(s)`,
+            ? `nested the ${resolved.length} selected ${nested}`
+            : `nested ${resolved.length} ${nested}`,
         );
         return;
       }
@@ -561,7 +578,7 @@ function applySceneOp(
   if (payload.op === "remove-layer") {
     const layer = resolveLayer(payload.layer);
     if (!layer || typeof layer.remove !== "function") {
-      notes.push(`${layerLabel(payload.layer)} not found to remove`);
+      notes.push(`couldn't find ${layerLabel(payload.layer)} to remove`);
       return;
     }
     layer.remove();
@@ -575,11 +592,34 @@ function applySceneOp(
 // RPC surface
 // ---------------------------------------------------------------------------
 
+/** The lowest frame any keyframe payload in the macro touches. */
+export function earliestKeyframe(steps: MacroStep[]): number | undefined {
+  let min: number | undefined;
+  const see = (frame: number) => {
+    if (typeof frame === "number" && Number.isFinite(frame) && (min === undefined || frame < min)) {
+      min = frame;
+    }
+  };
+  for (const step of steps) {
+    const payload = payloadOf(step);
+    if (!payload || payload.op !== "keyframes") continue;
+    for (const snap of payload.added) see(snap.frame);
+    for (const snap of payload.removed) see(snap.frame);
+    for (const change of payload.changed) {
+      see(change.before.frame);
+      see(change.after.frame);
+    }
+  }
+  return min;
+}
+
 export function playbackBegin(params: {
   steps: MacroStep[];
   sourceNodeId?: string;
+  atPlayhead?: boolean;
+  staggerFrames?: number;
   debug?: boolean;
-}): { total: number; targetCount: number } {
+}): { total: number; targetCount: number; frameOffset?: number } {
   const selection = ((): AnyProxy[] => {
     try {
       return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
@@ -591,6 +631,24 @@ export function playbackBegin(params: {
   const analysis = chooseMode(params.steps, selection.length);
   const mode = analysis.mode;
 
+  // Apply at playhead: slide the recorded motion so its first keyframe
+  // lands where the user parked the playhead. A macro without keyframes has
+  // nothing to slide; a host without a readable timeline gets no shift.
+  let frameOffsetBase = 0;
+  if (params.atPlayhead) {
+    const currentFrame = tryRead(() => creator.timeline.currentFrame);
+    const earliest = earliestKeyframe(params.steps);
+    if (typeof currentFrame === "number" && Number.isFinite(currentFrame) && earliest !== undefined) {
+      frameOffsetBase = currentFrame - earliest;
+    }
+  }
+  const staggerFrames =
+    typeof params.staggerFrames === "number" && Number.isFinite(params.staggerFrames)
+      ? params.staggerFrames
+      : 0;
+  const timing = { frameOffsetBase, staggerFrames };
+  const frameOffsetResult = frameOffsetBase !== 0 ? { frameOffset: frameOffsetBase } : {};
+
   if (mode === "scene") {
     session.playback = {
       mode,
@@ -600,10 +658,11 @@ export function playbackBegin(params: {
       steps: params.steps,
       origins: {},
       baselines: [],
+      ...timing,
       debug: params.debug === true,
     };
     session.recording = null;
-    return { total: params.steps.length, targetCount: 1 };
+    return { total: params.steps.length, targetCount: 1, ...frameOffsetResult };
   }
 
   let targets = selection;
@@ -645,11 +704,12 @@ export function playbackBegin(params: {
     steps: params.steps,
     origins,
     baselines,
+    ...timing,
     debug: params.debug === true,
   };
   session.recording = null;
 
-  return { total: params.steps.length, targetCount: targets.length };
+  return { total: params.steps.length, targetCount: targets.length, ...frameOffsetResult };
 }
 
 export function playbackStep(params: { index: number }): {
@@ -668,6 +728,7 @@ export function playbackStep(params: { index: number }): {
 
   const failures: { target: string; message: string }[] = [];
   const notes: { target: string; message: string }[] = [];
+  breadcrumbs.length = 0;
   let before: TargetProbe[] = [];
   let after: TargetProbe[] = [];
 
@@ -688,13 +749,17 @@ export function playbackStep(params: { index: number }): {
     } else if (payload && ref) {
       const layer = resolveLayer(ref);
       if (!layer) {
-        stepNotes.push(`layer "${layerLabel(ref)}" not found — skipped`);
+        stepNotes.push(`couldn't find the layer "${layerLabel(ref)}" — skipped`);
       } else {
         if (playback.debug) before = [probe(layer, label, path)];
         try {
           // Scene scripts reproduce the recorded result exactly: no origins,
           // so values pass through verbatim.
-          const outcome = applyStep(layer, step.payload, { origins: {}, baselines: {} });
+          const outcome = applyStep(layer, step.payload, {
+            origins: {},
+            baselines: {},
+            frameOffset: playback.frameOffsetBase,
+          });
           stepNotes.push(...outcome.notes);
         } catch (error) {
           failures.push({
@@ -771,6 +836,8 @@ export function playbackStep(params: { index: number }): {
         const outcome = applyStep(nodeFor(target, i), step.payload, {
           origins: playback.origins,
           baselines: playback.baselines[i] ?? {},
+          // Cascade: each selected layer's motion starts later than the last.
+          frameOffset: playback.frameOffsetBase + i * playback.staggerFrames,
         });
         for (const message of outcome.notes) {
           notes.push({ target: nameOf(i), message });
@@ -799,6 +866,7 @@ export function playbackStep(params: { index: number }): {
     after,
   };
   if (path) debug.path = path;
+  if (breadcrumbs.length > 0) debug.breadcrumbs = [...breadcrumbs];
   return { index: params.index, failures, notes, debug };
 }
 

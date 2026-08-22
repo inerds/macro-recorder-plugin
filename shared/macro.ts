@@ -9,6 +9,14 @@ export interface MacroStep {
   payload: unknown;
   /** false = observable but the plugin API cannot replay it (e.g. reorder). */
   replayable?: false;
+  /** true = the user switched this step off; playback skips it. */
+  disabled?: true;
+}
+
+/** A step whose value the user is asked for on every play (gizmo knob). */
+export interface MacroParam {
+  stepId: string;
+  label: string;
 }
 
 export interface Macro {
@@ -18,6 +26,8 @@ export interface Macro {
   steps: MacroStep[];
   /** The recorded layer — replay falls back to it when nothing is selected. */
   source?: { nodeId: string; nodeName?: string };
+  /** Steps exposed as parameters on apply (feature 4). */
+  params?: MacroParam[];
 }
 
 const STEP_KINDS: readonly string[] = [
@@ -64,12 +74,31 @@ export function parseImportedMacro(json: string, makeId: () => string): Macro {
     throw new Error("File is not a valid macro");
   }
   const source = parsed as Macro & { mode?: unknown };
+  const idMap = new Map<string, string>();
+  const steps = source.steps.map((step) => {
+    const id = makeId();
+    if (typeof step.id === "string") idMap.set(step.id, id);
+    const copy: MacroStep = { ...step, id };
+    if (copy.disabled !== true) delete copy.disabled;
+    return copy;
+  });
   const macro: Macro = {
     id: makeId(),
     name: source.name,
     createdAt: Date.now(),
-    steps: source.steps.map((step) => ({ ...step, id: makeId() })),
+    steps,
   };
+  if (Array.isArray(source.params)) {
+    // Param pins reference step ids, which were just regenerated — remap.
+    const params: MacroParam[] = [];
+    for (const param of source.params as unknown[]) {
+      if (typeof param !== "object" || param === null) continue;
+      const { stepId, label } = param as Record<string, unknown>;
+      const mapped = typeof stepId === "string" ? idMap.get(stepId) : undefined;
+      if (mapped && typeof label === "string") params.push({ stepId: mapped, label });
+    }
+    if (params.length > 0) macro.params = params;
+  }
   if (
     source.source &&
     typeof source.source === "object" &&

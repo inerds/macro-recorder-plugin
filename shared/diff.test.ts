@@ -928,3 +928,42 @@ describe("diffScene — nest detection and instance content", () => {
     ]);
   });
 });
+
+describe("diffSnapshots — motion-path handles", () => {
+  it("a tangent-only edit on a position keyframe is a change, not a no-op", () => {
+    const before = makeNode({
+      props: { position: anim({ x: 0, y: 0 }, [kf(0, { x: 0, y: 0 }), kf(30, { x: 100, y: 0 })]) },
+    });
+    const after = makeNode({
+      props: {
+        position: anim({ x: 0, y: 0 }, [
+          { ...kf(0, { x: 0, y: 0 }), outTangent: { x: 30, y: -40 } },
+          { ...kf(30, { x: 100, y: 0 }), inTangent: { x: -30, y: -40 } },
+        ]),
+      },
+    });
+    const steps = diffSnapshots(before, after);
+    expect(steps).toHaveLength(1);
+    expect(steps[0]).toMatchObject({
+      op: "keyframes",
+      path: ["position"],
+      added: [],
+      removed: [],
+    });
+    const changed = (steps[0] as Extract<StepPayload, { op: "keyframes" }>).changed;
+    expect(changed.map((c) => c.after.frame)).toEqual([0, 30]);
+    expect(changed[0]!.after.outTangent).toEqual({ x: 30, y: -40 });
+  });
+
+  it("a dragged keyframe keeps its handles through move re-pairing", () => {
+    const k = { ...kf(30, { x: 100, y: 0 }), inTangent: { x: -30, y: 0 } };
+    const before = makeNode({ props: { position: anim({ x: 0, y: 0 }, [k]) } });
+    const after = makeNode({ props: { position: anim({ x: 0, y: 0 }, [{ ...k, frame: 45 }]) } });
+    const steps = diffSnapshots(before, after);
+    expect(steps[0]).toMatchObject({ op: "keyframes", added: [], removed: [] });
+    expect((steps[0] as Extract<StepPayload, { op: "keyframes" }>).changed[0]!.after).toMatchObject({
+      frame: 45,
+      inTangent: { x: -30, y: 0 },
+    });
+  });
+});

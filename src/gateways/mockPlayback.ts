@@ -1,5 +1,11 @@
 import type { Macro, StepResult } from "../types";
-import type { PlaybackGateway, PlaybackRun } from "./types";
+import {
+  enabledSteps,
+  repeatCount,
+  type PlaybackGateway,
+  type PlaybackRun,
+  type PlayOptions,
+} from "./types";
 
 export type PlaybackScenario = "pass" | "fail-step-3" | "no-selection";
 
@@ -20,7 +26,9 @@ export class MockPlaybackGateway implements PlaybackGateway {
     this.scenario = scenario;
   }
 
-  run(macro: Macro, onEvent: (event: StepResult) => void): PlaybackRun {
+  run(macro: Macro, onEvent: (event: StepResult) => void, options?: PlayOptions): PlaybackRun {
+    const steps = enabledSteps(macro);
+    const total = steps.length * repeatCount(options);
     let cancelled = false;
     let pendingFailure: ((action: "continue" | "stop") => void) | null = null;
     const scenario = this.scenario;
@@ -43,7 +51,7 @@ export class MockPlaybackGateway implements PlaybackGateway {
         return;
       }
 
-      for (let i = 0; i < macro.steps.length; i++) {
+      for (let i = 0; i < total; i++) {
         if (cancelled) return;
         onEvent({ kind: "progress", stepIndex: i });
         await sleep(stepMs);

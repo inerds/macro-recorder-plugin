@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { Json } from "./json";
-import { labelOf } from "./labels";
+import type { MacroStep } from "./macro";
+import { labelOf, sharedLayerName } from "./labels";
 import type { AnimatableSnapshot, KfSnap, PaintSnapshot, Path } from "./snapshot";
 import { buildStep, kindOf, type StepPayload } from "./steps";
 
@@ -239,6 +240,36 @@ describe("labelOf — structure", () => {
     );
   });
 
+  it("says node types the way a user would (SCENE_LAYER is a scene)", () => {
+    expect(
+      labelOf({
+        op: "add-layer",
+        spec: { ...shapeSpec("SCENE_LAYER"), nodeName: "Intro" },
+      }),
+    ).toBe('Add scene "Intro"');
+    expect(labelOf({ op: "add-shape", parentPath: [], spec: shapeSpec("CONTAINER") })).toBe(
+      "Add group",
+    );
+    // Unknown types still read as English rather than SCREAMING_SNAKE.
+    expect(labelOf({ op: "add-shape", parentPath: [], spec: shapeSpec("SOME_NEW_THING") })).toBe(
+      "Add some new thing",
+    );
+  });
+
+  it("says property names the way a user would (blendMode is a blend mode)", () => {
+    expect(
+      labelOf({ op: "set-plain", path: ["blendMode"], before: "NORMAL", after: "MULTIPLY" }),
+    ).toBe("Layer · blend mode NORMAL → MULTIPLY");
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["fontSize"],
+        before: 12,
+        after: 18,
+      }),
+    ).toBe("font size 12 → 18");
+  });
+
   it("labels a removed shape and a plain-flag change", () => {
     expect(labelOf({ op: "remove-shape", path: ["shapes", 0], shapeType: "STAR" })).toBe(
       "Remove star",
@@ -308,5 +339,48 @@ describe("buildStep", () => {
     for (const [payload, kind] of cases) {
       expect(buildStep(payload).kind).toBe(kind);
     }
+  });
+});
+
+describe("sharedLayerName", () => {
+  const bound = (id: string, name?: string): MacroStep =>
+    buildStep({
+      op: "set-static",
+      path: ["opacity"],
+      before: 1,
+      after: 0.5,
+      ...(name === undefined ? { layer: { id } } : { layer: { id, name } }),
+    });
+  const unbound = (): MacroStep =>
+    buildStep({ op: "set-static", path: ["opacity"], before: 1, after: 0.5 });
+  const sceneOp = (): MacroStep =>
+    buildStep({ op: "remove-layer", layer: { id: "l1", name: "Rect" } });
+
+  it("returns the one layer name every bound step shares", () => {
+    expect(sharedLayerName([bound("l1", "Rect"), bound("l1", "Rect")])).toBe("Rect");
+  });
+
+  it("returns '' when the bound steps name different layers", () => {
+    expect(sharedLayerName([bound("l1", "Rect"), bound("l2", "Star")])).toBe("");
+  });
+
+  it("returns '' when no step carries a layer binding", () => {
+    expect(sharedLayerName([])).toBe("");
+    expect(sharedLayerName([unbound(), unbound()])).toBe("");
+  });
+
+  it("ignores scene ops, which name their layer inside the label", () => {
+    expect(sharedLayerName([bound("l1", "Rect"), sceneOp()])).toBe("Rect");
+    expect(sharedLayerName([sceneOp()])).toBe("");
+  });
+
+  it("ignores steps with no binding, but not bound steps with no name", () => {
+    expect(sharedLayerName([bound("l1", "Rect"), unbound()])).toBe("Rect");
+    expect(sharedLayerName([bound("l1", "Rect"), bound("l1")])).toBe("");
+  });
+
+  it("matches the prefix labelOf actually emits", () => {
+    const step = bound("l1", "Rect");
+    expect(step.label.startsWith(`${sharedLayerName([step])} ${DOT} `)).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { Button } from "@lottiefiles/creator-plugins-ui";
+import { useEffect, useId } from "react";
 
 export interface ConfirmInlineProps {
   message: string;
@@ -8,7 +9,11 @@ export interface ConfirmInlineProps {
   destructive?: boolean;
 }
 
-/** Compact inline confirmation — fits the 300px panel without a dialog. */
+/**
+ * Compact inline confirmation — fits the 300px panel without a dialog. It is
+ * NOT an alertdialog: nothing here traps focus or blocks the rest of the
+ * panel, so it announces itself as a plain labelled group instead.
+ */
 export function ConfirmInline({
   message,
   confirmLabel,
@@ -16,25 +21,44 @@ export function ConfirmInline({
   onCancel,
   destructive = true,
 }: ConfirmInlineProps) {
+  const messageId = useId();
+
+  // Escape cancels from anywhere while this is up — the keypress rarely
+  // happens inside the two buttons.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
   return (
     <div
-      className="flex flex-col gap-2 rounded-md border border-border bg-muted p-2"
-      role="alertdialog"
-      aria-label={message}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onCancel();
-      }}
+      className="inline-enter flex flex-col gap-2 rounded-md bg-muted p-2 shadow-[0_1px_2px_-1px_oklch(0_0_0/0.08),0_2px_6px_-2px_oklch(0_0_0/0.12)] dark:shadow-[0_1px_2px_-1px_oklch(0_0_0/0.4),0_2px_6px_-2px_oklch(0_0_0/0.5)]"
+      role="group"
+      aria-labelledby={messageId}
     >
-      <p className="text-12 text-foreground">{message}</p>
+      <p id={messageId} role="alert" className="text-12 text-foreground">
+        {message}
+      </p>
       <div className="flex justify-end gap-1.5">
-        <Button size="sm" variant="ghost" onClick={onCancel}>
+        {/* Focus lands on the safe choice: this prompt appears unbidden, and
+            a stray Enter must not be the one that deletes something. */}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="press"
+          onClick={onCancel}
+          autoFocus
+        >
           Cancel
         </Button>
         <Button
           size="sm"
+          className="press"
           variant={destructive ? "destructive" : "default"}
           onClick={onConfirm}
-          autoFocus
         >
           {confirmLabel}
         </Button>

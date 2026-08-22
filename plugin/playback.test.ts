@@ -345,7 +345,7 @@ describe("nest-layers replay", () => {
     });
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
-    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layer(s)"]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layers"]);
     expect(scene.layers.map((l: Any) => l.name)).toEqual(["Keep", "Nested Scene 5"]);
     expect(scene.layers[1].scene.layers).toEqual([a, b]);
   });
@@ -596,5 +596,65 @@ describe("nest via createSceneLayer + shiftTo (real-host shape)", () => {
     });
     const r0 = playbackStep({ index: 0 });
     expect((r0.notes ?? []).some((n: Any) => n.message.includes("rebuilding the scene layer"))).toBe(true);
+  });
+});
+
+describe("apply at playhead + stagger", () => {
+  function kfStep(layer: Any) {
+    return step({
+      op: "keyframes",
+      path: ["rotation"],
+      added: [{ frame: 10, value: 0 }, { frame: 40, value: 90 }],
+      removed: [],
+      changed: [],
+      layer,
+    });
+  }
+
+  it("slides the macro's earliest keyframe onto the playhead and cascades across targets", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    const c = scene.addLayer(makeNode("C", {}, ids));
+    stubCreator(scene, [a, b, c]);
+    (globalThis as Any).creator.timeline = { currentFrame: 100 };
+
+    const begin = playbackBegin({
+      steps: [kfStep({ id: "REC", name: "Rec" })] as Any,
+      atPlayhead: true,
+      staggerFrames: 5,
+    });
+    expect(begin).toMatchObject({ total: 1, targetCount: 3, frameOffset: 90 });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(a.rotation.keyframes.map((k: Any) => k.frame)).toEqual([100, 130]);
+    expect(b.rotation.keyframes.map((k: Any) => k.frame)).toEqual([105, 135]);
+    expect(c.rotation.keyframes.map((k: Any) => k.frame)).toEqual([110, 140]);
+  });
+
+  it("applies the playhead shift in scene mode too, and none without a readable timeline", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    stubCreator(scene, []);
+    (globalThis as Any).creator.timeline = { currentFrame: 50 };
+    // two pre-existing layers touched → scene script
+    const steps = [kfStep({ id: a.id, name: "A" }), kfStep({ id: b.id, name: "B" })] as Any;
+
+    playbackBegin({ steps, atPlayhead: true });
+    playbackStep({ index: 0 });
+    playbackStep({ index: 1 });
+    expect(a.rotation.keyframes.map((k: Any) => k.frame)).toEqual([50, 80]);
+    expect(b.rotation.keyframes.map((k: Any) => k.frame)).toEqual([50, 80]);
+    playbackEnd();
+
+    delete (globalThis as Any).creator.timeline;
+    const c = scene.addLayer(makeNode("C", {}, ids));
+    stubCreator(scene, [c]);
+    const begin = playbackBegin({ steps: [kfStep({ id: "REC" })] as Any, atPlayhead: true });
+    expect(begin.frameOffset).toBeUndefined();
+    playbackStep({ index: 0 });
+    expect(c.rotation.keyframes.map((k: Any) => k.frame)).toEqual([10, 40]);
   });
 });

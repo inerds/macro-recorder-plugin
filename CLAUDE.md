@@ -2,7 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`README.md` is the product-level document: what the plugin does, the three ways to
+`USER-GUIDE.md` is the end-user feature walkthrough — update it when a
+user-facing behaviour changes. `README.md` is the product-level document: what the plugin does, the three ways to
 run it, the playback modes, and the accepted v1 limitations. Read it first. This
 file covers what the README leaves out — the invariants that make the code the
 shape it is, and the commands the README doesn't list.
@@ -209,6 +210,32 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   add+remove guard (legacy macros), move re-pairing in the differ, collision
   upsert (occupant gives way), per-entry fault tolerance.
 
+## v3.1 pro-workflow layer (simplify / edit / play options / params)
+
+Where each piece lives and the invariants worth keeping:
+
+- `shared/simplify.ts` is pure and order-preserving. A run is keyed by
+  (layer id, pathKey); structural/scene ops and disabled steps are barriers,
+  and a static edit never merges with a keyframe edit on the same path (the
+  value's meaning changed). `foldKeyframes` is the net-delta algebra —
+  extend it with a test per new case, it's easy to get a sign wrong.
+- `shared/editing.ts` is the single definition of "editable": the review
+  row, the macro detail and the parameter form must all go through
+  `editableValueOf`/`withEditedValue` so a value kind that's editable in one
+  place is editable everywhere (and relabeled the same way).
+- Disabled steps never reach the sandbox: `enabledSteps` in
+  `src/gateways/types.ts` filters client-side, so playback indices are into
+  the ENABLED list. Repeat ×N is also purely client-side (one
+  begin/steps/end pass per iteration; progress = iteration×len + index).
+- The only sandbox part is the frame shift: `playbackBegin` computes
+  `frameOffsetBase = currentFrame − earliestKeyframe(steps)` (0 when the
+  host has no readable timeline or the macro has no keyframes) and
+  `applyKeyframes` shifts the payload ONCE up front so matching and
+  placement both see shifted frames. Stagger is `+ i × staggerFrames` per
+  target in targets mode only.
+- Params reference step ids; anything that regenerates ids (import,
+  duplicate) or removes steps (delete, simplify) must remap or drop pins.
+
 ## Open threads (as of last update)
 
 - Nesting-from-selection: CONFIRMED platform limitation (see LIMITATIONS.md
@@ -218,7 +245,25 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
 - Never live-verified yet: mask add/remove/edit replay; scene-layer reorder
   replay. (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md.)
 - Repeat-applying an offsets macro to the same layer compounds by design —
-  user hasn't decided whether that should stay.
+  now formalized as the Repeat ×N play option.
+- v3.1 live status: at-playhead, stagger and repeat verified in traces
+  (2026-08-21T21-45-57-555, 2026-08-22T14-25-27-048; `timeline.currentFrame`
+  IS readable). Repeat ×N on a keyframe-only macro is idempotent by design —
+  keyframe steps converge to the same absolute frames/values each pass;
+  compounding only happens through static transform offsets.
+  Simplify/edit/disable and params are verified in the standalone UI (headless
+  walk-through, see below) but not yet seen in a Creator trace.
+- Rectangle corner roundness: `rect.roundness` is a real Animatable (probe in
+  RUNTIME-API.md) but every trace shows `static: 0` and none contains a
+  roundness edit. Unresolved until a recording that only changes a corner
+  radius lands — then either a registry fix or a LIMITATIONS.md entry.
+- UI verification without the Chrome extension: a puppeteer-core driver
+  (session scratchpad `drive/walk.mjs`, not in the repo) walks record →
+  review (simplify/skip/edit/pin) → save → play options → configure sheet →
+  playback against the standalone mock engine and asserts keyboard reach,
+  live-region announcements, no horizontal overflow and label widths at
+  260/320px. Demo mode emits real StepPayloads precisely so this is possible
+  — keep `mockRecorder.ts` on `buildStep`.
 - A persistent Monitor task watches `traces/` during dev sessions; audited
   traces are appended to `traces/.processed` (the /triage-traces skill skips
   those).

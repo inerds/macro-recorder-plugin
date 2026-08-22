@@ -31,9 +31,34 @@ export interface PlaybackRun {
   cancel(): void;
 }
 
-/** Replays a macro against the current selection. */
+/** Per-run choices made in the play-options popover. */
+export interface PlayOptions {
+  /** Slide keyframes so the macro's first one lands on the playhead. */
+  atPlayhead?: boolean;
+  /** Frames added per selected layer (cascade). */
+  staggerFrames?: number;
+  /** Run the whole macro this many times; offsets compound. */
+  repeat?: number;
+}
+
+/**
+ * Replays a macro against the current selection. Disabled steps are skipped
+ * here (the sandbox only sees enabled ones) and `repeat` loops the run; the
+ * events report indices into the ENABLED steps, offset by iteration.
+ */
 export interface PlaybackGateway {
-  run(macro: Macro, onEvent: (event: StepResult) => void): PlaybackRun;
+  run(macro: Macro, onEvent: (event: StepResult) => void, options?: PlayOptions): PlaybackRun;
+}
+
+/** The steps a run actually sends to the engine. */
+export function enabledSteps(macro: Macro): MacroStep[] {
+  return macro.steps.filter((step) => step.disabled !== true);
+}
+
+/** Iterations a run performs for the given options (≥ 1). */
+export function repeatCount(options?: PlayOptions): number {
+  const n = options?.repeat;
+  return typeof n === "number" && Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
 }
 
 /** Persists saved macros. localStorage standalone, creator.clientStorage in Creator. */
