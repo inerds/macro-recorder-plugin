@@ -336,6 +336,12 @@ recording clock, the status lamp and the state word.
   `@media (prefers-reduced-motion: reduce) { .reel { animation: none } }` an
   acceptable fallback rather than a loss. Keep that invariant when adding
   states.
+- The deck has **no title block**: the panel's name is the sr-only `<h1>` at
+  the root, and the card spends that height on the reels instead. What sits
+  above the stage is a thin instrument strip — lamp + state word on the left,
+  clock + step counter on the right. The stage is full-bleed (`-mx-2.5`
+  against the card's `p-2.5`), because panel width is the only lever its size
+  has.
 - Rotation is the CSS `rotate` property on the reel groups with
   `transform-box: fill-box; transform-origin: center`; state travels as
   `data-deck` on `.deck-stage`. The stage `div` carries the dark plate and the

@@ -42,26 +42,39 @@ export function DeckTransport({
   const live = state === "recording" || state === "playing";
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2">
+      {/* A thin instrument strip, not a title block: the panel's name is the
+          sr-only h1 at the root, and every pixel spent repeating it here is a
+          pixel taken off the reels. */}
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          {/* The document's h1 is the sr-only one at the panel root. */}
-          <p className="truncate text-24 font-semibold leading-none tracking-tight">
-            Macro Recorder
-          </p>
-          <p className="instrument mt-1 truncate">Record. Play. Automate.</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
           <span className="lamp" data-on={lamp ?? "off"} aria-hidden />
           {/* Not a live region: the state label repeats what the toasts and
               the recording announcements already say. */}
-          <span className="instrument">{deckLabel(state)}</span>
+          <span className="instrument truncate">{deckLabel(state)}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {startedAt !== null && (
+            <span
+              className="mono text-11 tracking-tight"
+              role="timer"
+              aria-label="Recording time"
+            >
+              {elapsed}
+            </span>
+          )}
+          <span
+            className="mono rounded-[6px] border border-border bg-muted px-1 py-0.5 text-12 leading-none"
+            aria-label="Steps captured"
+          >
+            {counterText(stepCount)}
+          </span>
         </div>
       </div>
 
       {stage}
 
-      <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
+      <div className="flex items-center gap-1.5">
         <Button
           size="sm"
           className="press key key-red"
@@ -91,21 +104,6 @@ export function DeckTransport({
         </Button>
 
         <div className="ml-auto flex items-center gap-1">
-          {startedAt !== null && (
-            <span
-              className="mono text-11 tracking-tight"
-              role="timer"
-              aria-label="Recording time"
-            >
-              {elapsed}
-            </span>
-          )}
-          <span
-            className="mono rounded-[6px] border border-border bg-muted px-1 py-0.5 text-12 leading-none"
-            aria-label="Steps captured"
-          >
-            {counterText(stepCount)}
-          </span>
           <span
             className={`flex h-4 items-end gap-0.5 ${live ? "meter-live" : ""}`}
             aria-hidden

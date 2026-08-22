@@ -23,12 +23,18 @@ export function Deck() {
         : 0;
 
   return (
-    <div className="card flex flex-col gap-2.5 p-3">
+    <div className="card flex flex-col gap-2 overflow-hidden p-2.5">
       <DeckTransport
         state={deckState}
         stepCount={stepCount}
         startedAt={state.mode === "recording" ? state.startedAt : null}
-        stage={<ReelDeck state={deckState} />}
+        // Full-bleed: the plate runs to the card's edges, so the reels get
+        // the panel's whole width instead of the width minus two paddings.
+        stage={
+          <div className="deck-bleed -mx-2.5">
+            <ReelDeck state={deckState} />
+          </div>
+        }
         // Recording is only reachable from rest: mid-review or mid-playback
         // the key is dead, not a second way to lose work.
         recordDisabled={state.mode !== "idle"}

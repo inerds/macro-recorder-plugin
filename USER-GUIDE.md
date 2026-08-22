@@ -21,7 +21,7 @@ internally, see `README.md`; for what the platform can't do, see
    macros; it starts empty.
 
 Every screen is topped by the **deck** — the panel's transport and its status
-light:
+light. It carries no title; the strip above the reels is the readout:
 
 | On the deck | What it means |
 |---|---|

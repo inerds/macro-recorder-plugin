@@ -189,7 +189,6 @@ body::before {
 .deck-stage {
   position: relative;
   aspect-ratio: 300 / 120;
-  max-height: 116px;
   overflow: hidden;
   border-radius: 10px;
   background: var(--deck);
@@ -203,6 +202,15 @@ body::before {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Run to the card's edges: the panel width is the only lever the stage has,
+   so it spends all of it. The card clips the corners. */
+.deck-bleed .deck-stage {
+  border-radius: 0;
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px var(--deck-edge);
 }
 
 /* Rotation happens in the reel group's OWN box, not the SVG's user space. */
