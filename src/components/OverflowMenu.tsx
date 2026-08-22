@@ -4,7 +4,7 @@ import {
   DropdownRoot,
   DropdownTrigger,
 } from "@lottiefiles/creator-plugins-ui";
-import { MoreVertical } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useRef } from "react";
 
 export interface OverflowMenuProps {
@@ -36,10 +36,10 @@ export function OverflowMenu({
       <DropdownTrigger
         ref={triggerRef}
         aria-label={`More actions for ${macroName}`}
-        className="press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+        className="press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-border bg-card text-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         data-testid="macro-overflow-trigger"
       >
-        <MoreVertical className="size-3.5" strokeWidth={2.5} />
+        <MoreHorizontal className="size-3.5" strokeWidth={2.5} />
       </DropdownTrigger>
       {/* "self": the destination mounts its own autofocused control (the
           rename input, the delete confirmation) and the default focus restore

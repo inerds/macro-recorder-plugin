@@ -290,6 +290,63 @@ Two subtleties worth knowing before changing it:
 the last `onStep` emission. It is not a full replay of the session; the UI has
 already accumulated the earlier ones.
 
+## The skin — one committed look, and how it wins
+
+`src/theme/vintageTokens.ts` exports `VINTAGE_TOKENS`, passed to the library's
+`ThemeProvider` in `app.tsx`. That provider writes every `--*` key of its
+`tokens` prop as an **inline custom property on `<html>`**, which outranks both
+`:root` and `.dark` in the library's `theme.css`. Consequences, all
+load-bearing:
+
+- `VINTAGE_TOKENS` **must stay a module-level constant**. The provider removes
+  and re-applies the whole set whenever the object identity changes; building
+  it in a render would repaint the panel on every render.
+- It must override *every* key `theme.css` defines (`--chart-*` and
+  `--sidebar-*` included) or an unset one falls back to library teal.
+- Creator's pushed theme is **observed, not applied**: `useTheme()` still
+  listens to the `change:theme` relay so the host theme is inspectable, but
+  nothing reads its `isDark`/`tokens`. There is no `dark` class toggle any
+  more, and no transition freeze — there is no theme flip to freeze.
+- All CSS lives in `src/styles/index.css`; the build inlines one file. No
+  network assets, system font stacks only (`--font-sans`, `--font-mono` are
+  overridden too).
+- Small red text uses `--ink-red-text` (#B5301F, 5.2:1), never `--primary`
+  (#C8382B) — that one is for fills. Muted body copy is `--muted-foreground`
+  (#6B635B); instrument labels are `--label-fg` (#5E564F).
+- `.key`, `.card`, `.instrument`, `.mono`, `.lamp` are the skin's vocabulary.
+  `.key` is written as `.key.key` on purpose: the library's `Button` merges
+  its `size="sm"` utilities (`h-6 px-3 rounded font-normal`) onto the same
+  element via `tailwind-merge`, and a single class would lose on source order
+  alone.
+
+## The deck
+
+`src/components/deck/` — rendered once in `app.tsx`, above the mode switch, on
+**every** screen. It owns the Record/Stop transport, the step counter, the
+recording clock, the status lamp and the state word.
+
+- `deckState.ts` is pure and table-tested: `deriveDeckState(input, flags, now)`
+  over `{mode, playbackError}` plus two timestamps. `rewind` and `done` are
+  deliberately **not** reducer state — they are decorations with a stopwatch,
+  and the reducer has no business knowing about them. `useDeckState` owns the
+  flags in a ref and is keyed on the single boolean "is playing", so React's
+  double-invoked mount effects can't swallow an edge.
+- **The reels never carry information on their own.** Every state they show is
+  also the lamp's colour and the label's word, which is what makes
+  `@media (prefers-reduced-motion: reduce) { .reel { animation: none } }` an
+  acceptable fallback rather than a loss. Keep that invariant when adding
+  states.
+- Rotation is the CSS `rotate` property on the reel groups with
+  `transform-box: fill-box; transform-origin: center`; state travels as
+  `data-deck` on `.deck-stage`. The stage `div` carries the dark plate and the
+  SVG only carries the mechanism, so the collapsed deck (`@container panel
+  (max-height: 520px)`, which needs `container: panel / size` on
+  `.panel-root`) can crop the drawing instead of shrinking it.
+- Exactly **one** button is named "Stop" while recording, and it is the deck's.
+  `RecordingView`'s bottom bar is Discard only. The headless walk-through
+  (`scratchpad/drive/walk.mjs`) matches Record and Stop by name, so a second
+  one breaks it.
+
 ## UI state
 
 `src/state/appReducer.ts` is a single discriminated union over

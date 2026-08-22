@@ -12,6 +12,24 @@ handshake times out and the app falls back to mock gateways + the DebugStrip.
 **`USER-GUIDE.md`** is the end-user walkthrough of every feature (recording,
 review, simplify/edit/disable, play options, parameters, import/export).
 
+## What the panel looks like
+
+One committed skin: warm cream surfaces, dark-ink outlines, red as the only
+action colour, and compact uppercase instrument labels — retro audio hardware
+with a modern list under it. It does **not** follow Creator's light/dark
+theme. `src/theme/vintageTokens.ts` exports `VINTAGE_TOKENS`, which the
+library's `ThemeProvider` writes as inline custom properties on `<html>`,
+overriding every token `theme.css` defines; `useTheme()` still observes
+Creator's theme messages but applies nothing.
+
+Every screen is topped by the **deck**: a reel-to-reel stage that spins while
+recording, rewinds when a macro is triggered, runs forward while it plays and
+coasts to a stop when it ends, next to a status lamp, a state word, a step
+counter and the Record/Stop keys. The reels are decoration — the lamp and the
+word say the same thing, which is what `prefers-reduced-motion` falls back to.
+Below 520px of panel height a container query collapses the stage to a 56px
+slot. System fonts only; no network assets.
+
 ## How the engine works
 
 - `shared/` — pure plain-data logic, used by both sides and fully unit-tested:
@@ -111,7 +129,6 @@ Open http://localhost:5173 and size the window/viewport to ~300×520. The
 **Dev tools** strip at the bottom (dev builds only) reaches every UI state:
 
 - **Seed 3 / Clear** — populate or empty the saved-macro list (localStorage)
-- **Light/Dark** — theme toggle (inside Creator the host theme drives this)
 - **Recorder** — mock recording scenario: short burst (6 steps), long (20), silent (0 steps)
 - **Playback** — mock playback scenario: all pass, fail at step 3, no selection
 - **Emit step** — push one step manually while recording

@@ -9,6 +9,19 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-22 — Vintage reel-to-reel skin
+
+| Issue | Fix |
+|---|---|
+| First cut of the reels read as small dark discs — no brushed metal, no visible cut-outs, tape path and nameplate lost against the deck. | Reel artwork rebuilt: r44 brushed-metal flanges (radial gradient + concentric brushing rings) with three large cut-outs over a grooved tape pack, dark hub with six screws and spindle, corner rollers, a light two-line `MACRO-REC / MR-300` nameplate, and a tape path reel → roller → roller → reel. Same `.reel`/`.tape`/`.deck-furniture` hooks, so the state choreography is unchanged. |
+| The panel looked like a generic SaaS list: library defaults, a teal accent nobody chose, and a look that changed under it whenever Creator pushed a theme. | One committed cream-and-ink skin. `VINTAGE_TOKENS` (`src/theme/vintageTokens.ts`) overrides every key the library's `theme.css` defines and is handed to `ThemeProvider`, which writes them inline on `<html>` — above both `:root` and `.dark`, so Creator's light and dark themes both land on the same panel. |
+| Nothing in the panel said what the recorder was doing except a small bar that only existed while recording; playback had no panel-level state at all. | A reel-to-reel **deck** on every screen: two reels that spin while recording, rewind for 400ms when a macro is triggered, run forward while it plays and coast to a stop when it ends — plus a status lamp (red moving / amber paused) and a word (READY / RECORDING / REWIND / PLAYING / PAUSED / DONE). Derivation is pure and table-tested (`src/components/deck/deckState.ts`). |
+| Record and Stop moved between screens: Record lived in a header that vanished while recording, Stop lived in a bar that only existed then. | Both are keys on the deck, on every screen, in the same place. `RecordingView`'s bottom bar is Discard alone, so there is exactly one button named "Stop" while recording. |
+| Buttons were flat rectangles with no press affordance beyond a scale. | `.key` — ink outline, 10px radius, a hard 1.5px drop shadow the key travels into on `:active`. Doubled selectors (`.key.key`) so the recipe beats the library's `size="sm"` utilities, which land on the same element through `tailwind-merge`. |
+| Import sat in the footer next to a macro count, unrelated to the list it adds to; the footer said nothing else. | Import moved onto the **SAVED MACROS** section header; the footer is an instrument readout of what the panel holds (`N macros · M steps`). |
+| The theme hook toggled a `dark` class and froze every transition around the flip — machinery for a theme switch that no longer exists. | `useTheme` still listens to Creator's theme relay (so the host theme stays observable) but applies nothing; the class toggle, the freeze effect and the DebugStrip's Light/Dark button are gone. |
+| A tall deck would have crowded the step list in a short panel. | `container: panel / size` on the panel root plus `@container panel (max-height: 520px)`: the stage drops to a 56px slot showing the same reels cropped, and the nameplate, rollers and rivets are hidden. Under `prefers-reduced-motion` the reels do not turn at all — the lamp and label carry every state on their own. |
+
 ## 2026-08-22 — UI, accessibility and copy pass
 
 | Issue | Fix |

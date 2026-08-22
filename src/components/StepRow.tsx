@@ -12,7 +12,7 @@ import {
   Pin,
   Shapes,
   Scissors,
-  X,
+  Trash2,
 } from "lucide-react";
 import { useRef, useState } from "react";
 
@@ -113,13 +113,15 @@ export function StepRow({
 
   return (
     <li
-      className={`group relative flex min-h-7 items-center gap-1.5 rounded-sm px-2 text-12 ${
-        active ? "bg-accent text-accent-foreground" : "bg-background text-foreground"
+      className={`group relative flex min-h-7 items-center gap-1.5 rounded-[8px] px-2 text-12 ${
+        active
+          ? "bg-accent text-accent-foreground shadow-[inset_2px_0_0_var(--primary)]"
+          : "bg-background text-foreground"
       }`}
       aria-current={active ? "step" : undefined}
       data-testid="step-row"
     >
-      <span className="w-5 shrink-0 text-end text-10 tabular-nums text-muted-foreground">
+      <span className="mono w-5 shrink-0 text-end text-10 text-muted-foreground">
         {index + 1}
       </span>
       <Icon
@@ -274,7 +276,7 @@ export function StepRow({
               data-step-action="delete"
               onClick={() => onDelete(step.id)}
             >
-              <X className="size-3.5" strokeWidth={2.5} />
+              <Trash2 className="size-3.5" strokeWidth={2.5} />
             </button>
           )}
         </span>

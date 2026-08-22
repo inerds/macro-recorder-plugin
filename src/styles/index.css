@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "@lottiefiles/creator-plugins-ui/theme.css";
 
+/* Vestigial: the panel wears one committed skin and never flips to dark.
+   Kept so the library's own `dark:` utilities stay parseable. */
 @custom-variant dark (&:is(.dark *));
 
 html,
@@ -16,6 +18,296 @@ body {
   font-family: var(--font-sans);
   min-width: 260px;
 }
+
+/* Paper grain. A fixed, multiplied turbulence tile — it has to sit UNDER the
+   panel's own shadows (which are ink on cream) but over the flat background,
+   hence the stacking pair with #root. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* The panel is the height container for the deck's collapse rule. It is a
+   flex column of exactly 100% height, so `size` containment has the definite
+   block size it needs and nothing here can grow it. */
+.panel-root {
+  container: panel / size;
+}
+
+/* ---------------------------------------------------------------- type --- */
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Machine-panel labels: small, wide, and never in the ink used for body copy. */
+.instrument {
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--label-fg);
+}
+
+.instrument-red {
+  color: var(--ink-red-text);
+}
+
+/* -------------------------------------------------------------- surface --- */
+
+/* A card is a sheet of paper on the panel: hairline ink edge, one soft drop,
+   one 1px highlight along the top so it reads as raised rather than drawn. */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 1px rgba(42, 38, 35, 0.04),
+    0 2px 6px -2px rgba(42, 38, 35, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* A recoverable problem, not a failure — amber, not the action red. */
+.warn-box {
+  border: 1px solid color-mix(in srgb, var(--lamp-amber) 70%, transparent);
+  background: color-mix(in srgb, var(--lamp-amber) 16%, transparent);
+  border-radius: 10px;
+}
+
+/* ----------------------------------------------------------------- keys --- */
+
+/*
+ * A key is a physical button: ink outline, a hard 1.5px drop that it travels
+ * into when pressed. Doubled selectors on purpose — the library's Button
+ * merges `size="sm"` utilities (`h-6 rounded font-normal`) into the same
+ * element, and a single class would lose to them on nothing but source order.
+ */
+.key.key {
+  height: 26px;
+  padding-inline: 8px;
+  gap: 5px;
+  border: 1px solid var(--ink);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 1.5px 0 var(--ink);
+  transition:
+    translate 120ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    color 150ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.key.key svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The key's own travel replaces `.press`'s scale — pressing a key is a
+   downward stroke, not a shrink. */
+.key.key:active:not(:disabled) {
+  translate: 0 1.5px;
+  scale: 1;
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.key.key:disabled {
+  opacity: 0.4;
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+.key-red.key-red {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.key-red.key-red:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.key-outline.key-outline {
+  background: var(--card);
+  color: var(--ink);
+}
+
+.key-outline.key-outline:hover:not(:disabled) {
+  background: var(--secondary);
+}
+
+/* ---------------------------------------------------------------- lamps --- */
+
+.lamp {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 999px;
+  background: #59504A;
+  box-shadow: inset 0 0 0 1px rgba(42, 38, 35, 0.35);
+  transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.lamp[data-on="red"] {
+  background: #E04A38;
+  box-shadow:
+    inset 0 0 0 1px rgba(42, 38, 35, 0.2),
+    0 0 7px rgba(224, 74, 56, 0.75);
+}
+
+.lamp[data-on="amber"] {
+  background: var(--lamp-amber);
+  box-shadow:
+    inset 0 0 0 1px rgba(42, 38, 35, 0.2),
+    0 0 7px rgba(217, 164, 65, 0.75);
+}
+
+/* ----------------------------------------------------------------- deck --- */
+
+/*
+ * The stage carries the dark panel itself (background, radius, inset shadow)
+ * and the SVG only carries the mechanism. That way the collapsed deck — where
+ * `meet` letterboxes the drawing — still shows an unbroken dark plate.
+ */
+.deck-stage {
+  position: relative;
+  aspect-ratio: 300 / 120;
+  max-height: 116px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--deck);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px var(--deck-edge),
+    0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.deck-stage svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Rotation happens in the reel group's OWN box, not the SVG's user space. */
+.reel {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.tape {
+  opacity: 0.5;
+  transition: opacity 250ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.deck-stage[data-deck="recording"] .tape,
+.deck-stage[data-deck="playing"] .tape,
+.deck-stage[data-deck="rewind"] .tape {
+  opacity: 1;
+}
+
+@keyframes reel-cw {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes reel-ccw {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: -360deg;
+  }
+}
+
+/* Recording: the reels turn at different rates because tape is moving from
+   one to the other. Playback: locked together, faster. */
+.deck-stage[data-deck="recording"] .reel-left {
+  animation: reel-cw 2.6s linear infinite;
+}
+
+.deck-stage[data-deck="recording"] .reel-right {
+  animation: reel-cw 2.2s linear infinite;
+}
+
+.deck-stage[data-deck="playing"] .reel-left,
+.deck-stage[data-deck="playing"] .reel-right {
+  animation: reel-cw 1.6s linear infinite;
+}
+
+.deck-stage[data-deck="rewind"] .reel-left,
+.deck-stage[data-deck="rewind"] .reel-right {
+  animation: reel-ccw 400ms cubic-bezier(0.2, 0, 0, 1) 1;
+}
+
+.deck-stage[data-deck="done"] .reel-left,
+.deck-stage[data-deck="done"] .reel-right {
+  animation: reel-cw 600ms cubic-bezier(0.1, 0.6, 0.2, 1) 1;
+}
+
+/* Level meter beside the transport: `.record-pulse` bars, offset so they read
+   as a signal rather than a blink. */
+.meter-bar {
+  width: 2px;
+  border-radius: 1px;
+  background: var(--ink);
+  opacity: 0.25;
+  transition: opacity 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.meter-live .meter-bar {
+  opacity: 1;
+  background: var(--primary);
+}
+
+/*
+ * Height guard. Below this the deck is decoration competing with the list it
+ * introduces: keep the reels (they carry state) and drop the furniture.
+ */
+@container panel (max-height: 520px) {
+  .deck-stage {
+    aspect-ratio: auto;
+    height: 56px;
+  }
+
+  /* Not a smaller deck — the same deck seen through a shorter slot. The SVG
+     keeps its natural width and the stage crops it (what `slice` would do, if
+     preserveAspectRatio were settable from CSS). */
+  .deck-stage svg {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: auto;
+    translate: 0 -50%;
+  }
+
+  .deck-furniture {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------- feedback --- */
 
 @keyframes record-pulse {
   0%,
@@ -128,5 +420,15 @@ body {
   .enter-2,
   .enter-3 {
     animation: none;
+  }
+
+  /* The reels stop entirely. The lamp and the state label are what actually
+     carry deck state — the spinning is confirmation, never the message. */
+  .reel {
+    animation: none !important;
+  }
+
+  .key.key {
+    transition-property: background-color, color, border-color, opacity;
   }
 }

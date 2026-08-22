@@ -40,12 +40,12 @@ export function TraceStrip({ kind }: { kind: "rpc" | "mock" }) {
     <div className="flex items-center gap-2 border-t border-border bg-muted/40 px-2 py-1 text-10 text-muted-foreground">
       <span
         className={`inline-block size-1.5 rounded-full ${
-          status.lastError ? "bg-destructive" : "bg-emerald-500"
+          status.lastError ? "bg-destructive" : "bg-[color:var(--lamp-amber)]"
         }`}
         aria-hidden
       />
-      <span className="font-medium">{kind === "rpc" ? "engine" : "mock"}</span>
-      <span>{status.events} events</span>
+      <span className="instrument">{kind === "rpc" ? "engine" : "mock"}</span>
+      <span className="mono">{status.events} events</span>
       {status.dropped > 0 && <span>({status.dropped} dropped)</span>}
       <span className="truncate" title={label}>
         {label}

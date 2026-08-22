@@ -35,7 +35,7 @@ export function ConfirmInline({
 
   return (
     <div
-      className="inline-enter flex flex-col gap-2 rounded-md bg-muted p-2 shadow-[0_1px_2px_-1px_oklch(0_0_0/0.08),0_2px_6px_-2px_oklch(0_0_0/0.12)] dark:shadow-[0_1px_2px_-1px_oklch(0_0_0/0.4),0_2px_6px_-2px_oklch(0_0_0/0.5)]"
+      className="inline-enter flex flex-col gap-2 rounded-[10px] border border-border bg-muted p-2 shadow-[0_1px_2px_-1px_rgba(42,38,35,0.12),0_2px_6px_-2px_rgba(42,38,35,0.16)]"
       role="group"
       aria-labelledby={messageId}
     >
@@ -48,7 +48,7 @@ export function ConfirmInline({
         <Button
           size="sm"
           variant="ghost"
-          className="press"
+          className="press key key-outline"
           onClick={onCancel}
           autoFocus
         >
@@ -56,7 +56,7 @@ export function ConfirmInline({
         </Button>
         <Button
           size="sm"
-          className="press"
+          className="press key key-red"
           variant={destructive ? "destructive" : "default"}
           onClick={onConfirm}
         >

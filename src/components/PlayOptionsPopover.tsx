@@ -103,7 +103,7 @@ export function PlayOptionsPopover({
       <DialogTrigger
         aria-label={`Play options for ${macroName}`}
         disabled={disabled}
-        className="press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+        className="press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-border bg-card text-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
         data-testid="play-options-trigger"
       >
         <SlidersHorizontal className="size-3.5" strokeWidth={2.5} />
@@ -112,7 +112,7 @@ export function PlayOptionsPopover({
         className="w-[calc(100%-1.5rem)] max-w-[280px] gap-2"
         data-testid="play-options"
       >
-        <DialogTitle className="text-12 font-medium">Play options</DialogTitle>
+        <DialogTitle className="instrument">Play options</DialogTitle>
         <DialogDescription className="sr-only">
           Choose how this macro is applied on this run.
         </DialogDescription>
@@ -185,14 +185,14 @@ export function PlayOptionsPopover({
           <Button
             size="sm"
             variant="ghost"
-            className="press"
+            className="press key key-outline"
             onClick={() => close(true)}
           >
             Cancel
           </Button>
           <Button
             size="sm"
-            className="press"
+            className="press key key-red"
             onClick={() => {
               close(false);
               onPlay(normalize({ atPlayhead, staggerFrames, repeat }));

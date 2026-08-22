@@ -71,18 +71,18 @@ export function ConfigureSheet({
 
   return (
     <form
-      className="flex h-full flex-col"
+      className="flex min-h-0 flex-1 flex-col"
       data-testid="configure-sheet"
       onSubmit={(event) => {
         event.preventDefault();
         onPlay();
       }}
     >
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3">
+      <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
         <div className="enter-1">
           {/* tabIndex -1: focus lands on the first field (below), but the
               heading stays a programmatic focus target. */}
-          <h2 tabIndex={-1} className="text-12 font-medium">
+          <h2 tabIndex={-1} className="text-14 font-medium">
             Set values for &ldquo;{macro.name}&rdquo;
           </h2>
           {/* One supporting line. The playback-mode hint is already on the
@@ -107,7 +107,7 @@ export function ConfigureSheet({
               <div key={param.stepId} className="flex flex-col gap-1.5">
                 <label
                   htmlFor={fieldId}
-                  className="text-11 text-muted-foreground"
+                  className="instrument truncate"
                   title={param.label}
                 >
                   {param.label}
@@ -134,12 +134,17 @@ export function ConfigureSheet({
           size="sm"
           type="button"
           variant="ghost"
-          className="press"
+          className="press key key-outline"
           onClick={onCancel}
         >
           Cancel
         </Button>
-        <Button size="sm" type="submit" className="press" data-testid="configure-play-button">
+        <Button
+          size="sm"
+          type="submit"
+          className="press key key-red"
+          data-testid="configure-play-button"
+        >
           Play
         </Button>
       </div>

@@ -15,12 +15,17 @@ import { PlayOptionsPopover } from "./PlayOptionsPopover";
 import { StepList } from "./StepList";
 import { StepListHeader } from "./StepListHeader";
 
-/** Hand-rolled icon buttons (the library Button is too tall for this row). */
+/**
+ * Hand-rolled icon buttons (the library Button is too tall for this row).
+ * Squared-off outlined keys, to match the transport without its height.
+ */
 const ICON_BUTTON_CLASS =
-  "press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40";
+  "press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-border bg-card text-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40";
 
 export interface MacroRowProps {
   macro: Macro;
+  /** Position in the list — shown as the deck-style two-digit macro ID. */
+  index: number;
   expanded: boolean;
   renaming: boolean;
   confirmingDelete: boolean;
@@ -49,6 +54,7 @@ export interface MacroRowProps {
 
 export function MacroRow({
   macro,
+  index,
   expanded,
   renaming,
   confirmingDelete,
@@ -92,8 +98,8 @@ export function MacroRow({
   let activeIndex: number | undefined;
   if (playing && enabled.length > 0) {
     const step = enabled[playing.currentStep % enabled.length];
-    const index = step ? macro.steps.indexOf(step) : -1;
-    if (index >= 0) activeIndex = index;
+    const position = step ? macro.steps.indexOf(step) : -1;
+    if (position >= 0) activeIndex = position;
   }
 
   /** Renaming is a detour: hand focus back to the row it started from. */
@@ -103,9 +109,7 @@ export function MacroRow({
 
   return (
     <li
-      className={`rounded-md border border-border ${
-        justPlayed ? "success-flash" : ""
-      }`}
+      className={`card overflow-hidden ${justPlayed ? "success-flash" : ""}`}
       data-testid="macro-row"
     >
       {renaming ? (
@@ -147,6 +151,14 @@ export function MacroRow({
         </div>
       ) : (
         <div className="flex items-center gap-1.5 p-2">
+          {/* Outside the disclosure on purpose: the button's accessible name
+              is the macro, not a catalogue number. */}
+          <span
+            className="mono shrink-0 text-14 font-semibold leading-none text-[color:var(--ink-red-text)]"
+            aria-hidden
+          >
+            {String(index + 1).padStart(2, "0")}
+          </span>
           <button
             type="button"
             ref={disclosureRef}
@@ -164,7 +176,7 @@ export function MacroRow({
             />
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate text-12 font-medium" title={macro.name}>
+                <span className="truncate text-14 font-medium" title={macro.name}>
                   {macro.name}
                 </span>
                 {optionSummary && (
@@ -195,7 +207,10 @@ export function MacroRow({
             data-testid="play-button"
           >
             {isPlayingThis ? (
-              <Square className="size-3 fill-current" strokeWidth={2.5} />
+              <Square
+                className="size-3 fill-current text-[color:var(--ink-red-text)]"
+                strokeWidth={2.5}
+              />
             ) : (
               <Play className="size-3.5 translate-x-[0.5px] fill-current" />
             )}

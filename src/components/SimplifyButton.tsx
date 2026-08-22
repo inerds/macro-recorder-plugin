@@ -29,7 +29,7 @@ export function SimplifyButton({ steps, onSimplify }: SimplifyButtonProps) {
       <Button
         size="sm"
         variant="ghost"
-        className="press h-6 px-1.5 text-11 aria-disabled:cursor-default aria-disabled:opacity-50"
+        className="press key key-outline aria-disabled:cursor-default aria-disabled:opacity-50"
         aria-disabled={!canSimplify}
         aria-describedby={hintId}
         onClick={() => {
@@ -43,7 +43,7 @@ export function SimplifyButton({ steps, onSimplify }: SimplifyButtonProps) {
         <Wand2 className="size-3!" strokeWidth={2.5} aria-hidden />
         Simplify
         {canSimplify && (
-          <span className="tabular-nums text-muted-foreground" aria-hidden>
+          <span className="mono opacity-70" aria-hidden>
             {steps.length} → {simplified}
           </span>
         )}

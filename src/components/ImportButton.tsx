@@ -13,7 +13,7 @@ export function ImportButton({ onFile }: ImportButtonProps) {
       <Button
         size="sm"
         variant="ghost"
-        className="press"
+        className="press key key-outline"
         onClick={() => inputRef.current?.click()}
         data-testid="import-button"
       >

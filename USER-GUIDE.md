@@ -20,6 +20,20 @@ internally, see `README.md`; for what the platform can't do, see
 2. Open **Macro Recorder** from the plugins menu. The panel lists your saved
    macros; it starts empty.
 
+Every screen is topped by the **deck** — the panel's transport and its status
+light:
+
+| On the deck | What it means |
+|---|---|
+| **Record** / **Stop** keys | Start and stop recording, from any screen. Record is dead while a recording, review or playback is in progress. |
+| **Status lamp** | Dark at rest, red while tape is moving (recording, rewind, playing), amber while a run is paused waiting for your decision. |
+| **State word** | READY · RECORDING · REWIND · PLAYING · PAUSED · DONE. |
+| **Counter** | Four digits: steps captured while recording or reviewing, and the step being applied during playback. |
+| **Clock** | Appears while recording (m:ss). |
+| **The reels** | Spin while recording, rewind briefly when you trigger a macro, run forward while it plays, coast to a stop when it ends. Pure confirmation — the lamp and the word always say the same thing, and if your system asks for reduced motion the reels stay still. |
+
+In a short panel the deck shrinks to a slot; nothing moves anywhere else.
+
 > If a red banner says **Plugin engine is outdated**, remove and re-add the
 > plugin: Creator caches the engine once per load.
 
@@ -27,8 +41,8 @@ internally, see `README.md`; for what the platform can't do, see
 
 ## 2. Record a macro
 
-1. Click **Record**. No selection is needed — the recorder watches the whole
-   active scene.
+1. Click **Record** on the deck. No selection is needed — the recorder
+   watches the whole active scene.
 2. Edit the animation as you normally would. Everything below is captured:
    - transform changes (position, scale, rotation, skew, opacity) and any
      property on child shapes (size, roundness, points, path geometry…)
@@ -40,11 +54,12 @@ internally, see `README.md`; for what the platform can't do, see
      reordering, breaking a scene instance apart, nesting layers
 3. Steps appear live in the panel as you work (the recorder samples twice a
    second, so a long drag shows up as a handful of steps — see *Simplify*).
-4. Click **Stop**. If nothing was recorded you return to the list; otherwise
-   the **review sheet** opens.
+4. Click **Stop** on the deck (the same key you started from — the deck stays
+   put while the list below it changes). If nothing was recorded you return to
+   the list; otherwise the **review sheet** opens.
 
-**Discard** (while recording) throws the session away; it asks first if
-steps exist. Deleting a layer mid-recording is itself a recorded step —
+**Discard** at the bottom of the recording screen throws the session away; it
+asks first if steps exist. Deleting a layer mid-recording is itself a recorded step —
 recording only stops on its own if the scene goes away, and says so.
 
 ---
@@ -215,7 +230,7 @@ run (the survivor) and drops pins on steps it merged away.
 | Rename | ⋮ menu → Rename, Enter to commit |
 | Duplicate | ⋮ menu → Duplicate (creates *name copy*) |
 | Export JSON | ⋮ menu → Export JSON — downloads `name.macro.json` |
-| Import | **Import** button in the footer — accepts any macro-export `.json`, regenerates ids |
+| Import | **Import** button on the **Saved macros** header — accepts any macro-export `.json`, regenerates ids |
 | Delete | ⋮ menu → Delete, then confirm inline |
 | Expand | click the row to see and edit its steps |
 

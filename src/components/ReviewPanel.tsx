@@ -23,6 +23,9 @@ export interface ReviewPanelProps {
   onDiscard: () => void;
 }
 
+/** Long enough for a sentence-shaped name, short enough to stay one line. */
+const NAME_LIMIT = 50;
+
 /** Post-recording review: name the macro, prune steps, save or discard. */
 export function ReviewPanel({
   name,
@@ -42,15 +45,26 @@ export function ReviewPanel({
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
   return (
-    <div className="flex h-full flex-col" data-testid="review-panel">
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="review-panel">
       <h2 className="sr-only">Review recording</h2>
-      <main className="flex-1 overflow-y-auto overflow-x-hidden px-1 py-3">
+      <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1 py-3">
+        <p className="instrument instrument-red enter-1 px-2 pb-2">
+          &larr; Review &amp; save
+        </p>
         <div className="enter-1 flex flex-col gap-1.5 px-2">
-          <Label htmlFor="macro-name">Macro name</Label>
+          <div className="flex items-baseline justify-between gap-2">
+            <Label htmlFor="macro-name" className="instrument">
+              Macro name
+            </Label>
+            <span className="mono text-10 text-muted-foreground" aria-hidden>
+              {name.length} / {NAME_LIMIT}
+            </span>
+          </div>
           <Input
             id="macro-name"
             value={name}
             autoFocus
+            maxLength={NAME_LIMIT}
             onChange={(event) => onNameChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !isEmpty) onSave();
@@ -101,7 +115,7 @@ export function ReviewPanel({
         <Button
           size="sm"
           variant="ghost"
-          className="press"
+          className="press key key-outline"
           onClick={() => {
             if (isEmpty) onDiscard();
             else setConfirmingDiscard(true);
@@ -112,7 +126,7 @@ export function ReviewPanel({
         </Button>
         <Button
           size="sm"
-          className="press"
+          className="press key key-red"
           onClick={onSave}
           disabled={isEmpty}
           data-testid="save-macro-button"

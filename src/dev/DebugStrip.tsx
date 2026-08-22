@@ -41,8 +41,6 @@ export interface DebugStripProps {
   mockRecorder: MockRecorderGateway;
   mockPlayback: MockPlaybackGateway;
   store: MacroStore;
-  isDark: boolean;
-  onToggleTheme: () => void;
   onStoreChanged: () => void;
 }
 
@@ -51,8 +49,6 @@ export function DebugStrip({
   mockRecorder,
   mockPlayback,
   store,
-  isDark,
-  onToggleTheme,
   onStoreChanged,
 }: DebugStripProps) {
   const [open, setOpen] = useState(false);
@@ -87,31 +83,39 @@ export function DebugStrip({
         className="flex w-full cursor-pointer items-center justify-between px-3 py-1 text-muted-foreground hover:text-foreground"
         onClick={() => setOpen((o) => !o)}
       >
-        <span>Dev tools</span>
+        <span className="instrument">Dev tools</span>
         {open ? <ChevronDown className="size-3" /> : <ChevronUp className="size-3" />}
       </button>
       {open && (
         <div className="flex flex-col gap-2 px-3 pb-2">
           <div className="flex flex-wrap gap-1.5">
-            <Button size="sm" variant="outline" onClick={() => void seed()}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="press key key-outline"
+              onClick={() => void seed()}
+            >
               Seed 3
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => void clear()}>
-              Clear
-            </Button>
-            <Button size="sm" variant="outline" onClick={onToggleTheme}>
-              {isDark ? "Light" : "Dark"}
             </Button>
             <Button
               size="sm"
               variant="outline"
+              className="press key key-outline"
+              onClick={() => void clear()}
+            >
+              Clear
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="press key key-outline"
               onClick={() => mockRecorder.emitNow()}
             >
               Emit step
             </Button>
           </div>
           <label className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Recorder</span>
+            <span className="instrument">Recorder</span>
             <select
               className="rounded border border-input bg-background px-1 py-0.5 text-11"
               value={recScenario}
@@ -127,7 +131,7 @@ export function DebugStrip({
             </select>
           </label>
           <label className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Playback</span>
+            <span className="instrument">Playback</span>
             <select
               className="rounded border border-input bg-background px-1 py-0.5 text-11"
               value={playScenario}

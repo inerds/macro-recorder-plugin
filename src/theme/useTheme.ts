@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 
 export interface ThemeState {
+  /** What Creator says it is showing — observed, never applied. */
   isDark: boolean;
-  /** Creator-pushed CSS variable overrides, if any. */
+  /** Creator-pushed CSS variable overrides, if any — observed, never applied. */
   tokens: Record<string, string>;
-  toggle: () => void;
 }
 
 interface ThemeMessage {
@@ -15,11 +15,11 @@ interface ThemeMessage {
 }
 
 /**
- * Theme source of truth:
- * - Inside Creator, a theme pluginMessage (change:theme relay) drives dark
- *   mode and token overrides.
- * - Standalone (dev in a browser tab), falls back to prefers-color-scheme
- *   with a manual toggle (used by the DebugStrip).
+ * The panel wears ONE committed skin (see `vintageTokens.ts`), so this hook no
+ * longer drives anything: it keeps listening to Creator's theme relay purely
+ * so the current host theme is observable (diagnostics, and a future
+ * "match Creator" escape hatch). It does not toggle the `dark` class and does
+ * not apply the pushed tokens — `ThemeProvider` gets VINTAGE_TOKENS instead.
  */
 export function useTheme(): ThemeState {
   const [isDark, setIsDark] = useState<boolean>(
@@ -45,20 +45,5 @@ export function useTheme(): ThemeState {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  // Flipping the theme repaints every token at once; without this the panel
-  // smears through each element's own transition on the way there.
-  useEffect(() => {
-    const freeze = document.createElement("style");
-    freeze.textContent = "*,*::before,*::after{transition:none !important}";
-    document.head.appendChild(freeze);
-    document.documentElement.classList.toggle("dark", isDark);
-    void document.body.offsetHeight; // force the repaint while frozen
-    const frame = requestAnimationFrame(() => freeze.remove());
-    return () => {
-      cancelAnimationFrame(frame);
-      freeze.remove();
-    };
-  }, [isDark, tokens]);
-
-  return { isDark, tokens, toggle: () => setIsDark((d) => !d) };
+  return { isDark, tokens };
 }

@@ -17,7 +17,7 @@ export function PlaybackStatus({
     const preRun = playing.error.stepIndex === 0 && playing.currentStep === 0;
     return (
       <div
-        className="flex flex-col gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2"
+        className="warn-box flex flex-col gap-1.5 p-2"
         role="alert"
         data-testid="playback-error"
       >
@@ -31,6 +31,7 @@ export function PlaybackStatus({
             <Button
               size="sm"
               variant="ghost"
+              className="press key key-outline"
               onClick={() => onResolveFailure("continue")}
             >
               Continue
@@ -38,6 +39,7 @@ export function PlaybackStatus({
           )}
           <Button
             size="sm"
+            className="press key key-red"
             // Nothing ran, so nothing is being abandoned — "Dismiss" is not a
             // destructive act and shouldn't be dressed as one.
             variant={preRun ? "default" : "destructive"}
@@ -52,7 +54,7 @@ export function PlaybackStatus({
 
   return (
     <div
-      className="flex items-center gap-2 py-1 text-12 text-muted-foreground"
+      className="flex items-center gap-2 py-1 text-11 text-muted-foreground"
       data-testid="playback-progress"
     >
       <Spinner className="size-3.5" role="presentation" aria-hidden aria-label={undefined} />
@@ -70,6 +72,7 @@ export function PlaybackStatus({
       <Button
         size="sm"
         variant="ghost"
+        className="press key key-outline"
         onClick={() => onResolveFailure("stop")}
         data-testid="playback-stop-button"
       >

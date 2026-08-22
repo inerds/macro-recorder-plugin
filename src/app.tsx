@@ -9,13 +9,13 @@ import { DebugStrip } from "./dev/DebugStrip";
 import { TraceStrip } from "./dev/TraceStrip";
 import type { GatewaysBundle } from "./gateways";
 import { ConfigureSheet } from "./components/ConfigureSheet";
-import { Header } from "./components/Header";
-import { ImportButton } from "./components/ImportButton";
+import { Deck } from "./components/deck/Deck";
 import { MacroList } from "./components/MacroList";
 import { RecordingView } from "./components/RecordingView";
 import { ReviewPanel } from "./components/ReviewPanel";
 import { useApp } from "./state/AppContext";
 import { useTheme } from "./theme/useTheme";
+import { VINTAGE_TOKENS } from "./theme/vintageTokens";
 
 /**
  * Bridges reducer notices to the component library's toast system — and to
@@ -71,7 +71,8 @@ function NoticeToasts() {
 
 function Panel({ gateways }: { gateways: GatewaysBundle }) {
   const { state, actions } = useApp();
-  const theme = useTheme();
+  // Observed only — the panel wears one committed skin (see vintageTokens.ts).
+  useTheme();
   // ToastProvider has no offset prop and its viewport is pinned to bottom-0,
   // so the footer makes room for itself while a toast is up.
   const { toasts } = useToast();
@@ -87,8 +88,8 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
       : undefined;
 
   return (
-    <ThemeProvider tokens={theme.tokens}>
-      <div className="flex h-full flex-col overflow-x-hidden bg-background text-foreground">
+    <ThemeProvider tokens={VINTAGE_TOKENS}>
+      <div className="panel-root flex h-full flex-col overflow-x-hidden bg-background text-foreground">
         <h1 className="sr-only">Macro Recorder</h1>
         {gateways.staleEngine && (
           <div
@@ -113,12 +114,14 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             recording and playback are simulated. Reload the plugin to retry.
           </div>
         )}
+        {/* One transport for every screen. */}
+        <div className="shrink-0 p-2 pb-0">
+          <Deck />
+        </div>
         {state.mode === "recording" ? (
           <RecordingView
-            startedAt={state.startedAt}
             steps={state.steps}
             confirmingDiscard={state.confirmingDiscard}
-            onStop={actions.stopRecording}
             onDiscardRequest={actions.requestDiscard}
             onDiscardCancel={actions.cancelDiscard}
             onDiscardConfirm={actions.confirmDiscard}
@@ -148,25 +151,25 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
           />
         ) : (
           <>
-            <Header
-              onRecord={actions.startRecording}
-              recordDisabled={state.mode === "playing"}
-            />
-            <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
               <MacroList
                 playing={state.mode === "playing" ? state.playing : null}
               />
             </main>
             <footer
-              className={`flex items-center justify-between border-t border-border px-3 py-2 transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
+              className={`flex items-center justify-between gap-2 border-t border-border px-3 py-2 transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
                 toasts.length > 0 ? "pb-12" : ""
               }`}
             >
-              <ImportButton onFile={actions.importFile} />
-              <span className="text-10 text-muted-foreground">
+              {/* Instrument-style totals: this panel has no storage quota to
+                  report, so it reports what it holds. */}
+              <span className="instrument truncate">
                 {state.macros.length === 1
                   ? "1 macro"
                   : `${state.macros.length} macros`}
+                {" · "}
+                {state.macros.reduce((sum, macro) => sum + macro.steps.length, 0)}
+                {" steps"}
               </span>
             </footer>
           </>
@@ -177,8 +180,6 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             mockRecorder={gateways.mocks.recorder}
             mockPlayback={gateways.mocks.playback}
             store={gateways.store}
-            isDark={theme.isDark}
-            onToggleTheme={theme.toggle}
             onStoreChanged={actions.reloadMacros}
           />
         )}

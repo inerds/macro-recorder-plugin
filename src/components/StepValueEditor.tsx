@@ -87,7 +87,7 @@ export function StepValueEditor({
             value={value.value}
             onChange={(next) => onChange({ kind: "number", value: next })}
             decimals={2}
-            className="h-6 w-24"
+            className="mono h-6 w-24"
           />
         </label>
       );
@@ -137,7 +137,7 @@ export function StepValueEditor({
             value={hex}
             aria-label={`${label} — hex`}
             spellCheck={false}
-            className="h-6 w-24 font-mono text-11 uppercase"
+            className="mono h-6 w-24 text-11 uppercase"
             onChange={(event) => {
               const rgb = hexToRgb(event.target.value);
               if (rgb) onChange({ kind: "color", value: rgb });
@@ -153,7 +153,7 @@ export function StepValueEditor({
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
           {keys.map((key, index) => (
             <label key={key} className="flex min-w-0 items-center gap-1">
-              <span className="text-10 uppercase text-muted-foreground">
+              <span className="instrument">
                 {key}
                 <span className="sr-only"> {label}</span>
               </span>
@@ -168,7 +168,7 @@ export function StepValueEditor({
                   })
                 }
                 decimals={2}
-                className="h-6 w-16 min-w-0"
+                className="mono h-6 w-16 min-w-0"
               />
             </label>
           ))}
