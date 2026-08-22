@@ -1,9 +1,10 @@
 # Macro Recorder v3.1 — pro-workflow features (from tool-landscape evaluation)
 
 > **Status (2026-08-22):** all four features implemented on branch
-> `v3.1-pro-workflow` (unit-tested + QuickJS smoke; live verification in
-> Creator still pending — see the Verification section). User-facing
-> documentation in `USER-GUIDE.md`.
+> `v3.1-pro-workflow` and merged to `main` on 2026-08-22. At-playhead, stagger
+> and repeat are live-verified in Creator traces; simplify/edit/disable and
+> params are verified in the standalone UI. A UI/accessibility/copy pass
+> followed (IMPROVEMENTS.md). User-facing documentation in `USER-GUIDE.md`.
 
 ## Context
 

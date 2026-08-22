@@ -92,7 +92,7 @@ When there is nothing to merge the button stays put and says so
 
 ## 5. Edit a step's value
 
-Hover a step and click the **pencil** (only shown for steps with an editable
+Hover or focus a step and click the **pencil** (only shown for steps with an editable
 value). The label becomes an editor:
 
 | Recorded value | Editor |

@@ -70,7 +70,7 @@ review, simplify/edit/disable, play options, parameters, import/export).
     edit chains into one net delta (`shared/simplify.ts`). Manual, never
     automatic. *Disable* a step (eye toggle) and playback skips it; *edit* a
     step's value inline (numbers, vectors, colors, text, new-layer names).
-  - *Play options* (chevron next to Play): **At playhead** slides the macro so
+  - *Play options* (sliders button next to Play): **At playhead** slides the macro so
     its earliest keyframe lands on `creator.timeline.currentFrame`;
     **Stagger** adds N frames per selected layer (cascade); **Repeat ×N** runs
     the macro N times — offsets compound, which is the point (spirals, steps).

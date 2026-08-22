@@ -246,12 +246,24 @@ Where each piece lives and the invariants worth keeping:
   replay. (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md.)
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
-- v3.1 live status: at-playhead, stagger and repeat verified in one trace
-  (2026-08-21T21-45-57-555; `timeline.currentFrame` IS readable). Note that
-  Repeat ×N on a keyframe-only macro is idempotent by design — keyframe
-  steps converge to the same absolute frames/values each pass; compounding
-  only happens through static transform offsets. Simplify/edit/disable and
-  params not yet seen in a trace.
+- v3.1 live status: at-playhead, stagger and repeat verified in traces
+  (2026-08-21T21-45-57-555, 2026-08-22T14-25-27-048; `timeline.currentFrame`
+  IS readable). Repeat ×N on a keyframe-only macro is idempotent by design —
+  keyframe steps converge to the same absolute frames/values each pass;
+  compounding only happens through static transform offsets.
+  Simplify/edit/disable and params are verified in the standalone UI (headless
+  walk-through, see below) but not yet seen in a Creator trace.
+- Rectangle corner roundness: `rect.roundness` is a real Animatable (probe in
+  RUNTIME-API.md) but every trace shows `static: 0` and none contains a
+  roundness edit. Unresolved until a recording that only changes a corner
+  radius lands — then either a registry fix or a LIMITATIONS.md entry.
+- UI verification without the Chrome extension: a puppeteer-core driver
+  (session scratchpad `drive/walk.mjs`, not in the repo) walks record →
+  review (simplify/skip/edit/pin) → save → play options → configure sheet →
+  playback against the standalone mock engine and asserts keyboard reach,
+  live-region announcements, no horizontal overflow and label widths at
+  260/320px. Demo mode emits real StepPayloads precisely so this is possible
+  — keep `mockRecorder.ts` on `buildStep`.
 - A persistent Monitor task watches `traces/` during dev sessions; audited
   traces are appended to `traces/.processed` (the /triage-traces skill skips
   those).
