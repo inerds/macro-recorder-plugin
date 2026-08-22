@@ -15,11 +15,30 @@ export function MacroList({ playing }: MacroListProps) {
   const { state, actions } = useApp();
   const macros = state.macros;
 
+  // The totals used to live in a dedicated footer below the list — one more
+  // border, one more row of chrome, for two numbers that fit next to the
+  // section label just as well.
+  const totalSteps = macros.reduce((sum, macro) => sum + macro.steps.length, 0);
+  // "3 · 11 steps" rather than "3 macros · 11 steps" — the label right
+  // beside it already says "macros", so the count doesn't need to repeat
+  // the word to stay legible, and the panel is narrow enough that it matters.
+  const counts = `${macros.length} · ${totalSteps === 1 ? "1 step" : `${totalSteps} steps`}`;
+
   // The section label doubles as the shelf Import belongs on: importing is
   // adding to this list, not a panel-wide utility.
   const header = (
     <div className="flex items-center justify-between gap-2 px-1 pb-1 pt-1">
-      <span className="instrument truncate">Saved macros</span>
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        {/* The section label always wins the space fight — the counts
+            beside it are the part that gives way (truncates) if the row
+            gets tight, never the label that names it. */}
+        <span className="instrument shrink-0">Saved macros</span>
+        {macros.length > 0 && (
+          <span className="mono min-w-0 truncate text-10 text-muted-foreground tabular-nums">
+            {counts}
+          </span>
+        )}
+      </span>
       <ImportButton onFile={actions.importFile} />
     </div>
   );
@@ -60,7 +79,7 @@ export function MacroList({ playing }: MacroListProps) {
   return (
     <div className="p-2">
       {header}
-      <ul className="flex flex-col gap-2" data-testid="macro-list">
+      <ul className="flex flex-col gap-1.5" data-testid="macro-list">
         {macros.map((macro, index) => (
           <MacroRow
             key={macro.id}

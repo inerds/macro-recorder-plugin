@@ -253,10 +253,9 @@ Where each piece lives and the invariants worth keeping:
   compounding only happens through static transform offsets.
   Simplify/edit/disable and params are verified in the standalone UI (headless
   walk-through, see below) but not yet seen in a Creator trace.
-- Rectangle corner roundness: `rect.roundness` is a real Animatable (probe in
-  RUNTIME-API.md) but every trace shows `static: 0` and none contains a
-  roundness edit. Unresolved until a recording that only changes a corner
-  radius lands — then either a registry fix or a LIMITATIONS.md entry.
+- Rectangle corner roundness: filed in LIMITATIONS.md (dead `roundness`
+  proxy — always 0, edits produce empty ticks). Registry entry stays so a
+  host fix lights up by itself.
 - UI verification without the Chrome extension: a puppeteer-core driver
   (session scratchpad `drive/walk.mjs`, not in the repo) walks record →
   review (simplify/skip/edit/pin) → save → play options → configure sheet →
@@ -336,25 +335,34 @@ recording clock, the status lamp and the state word.
   `@media (prefers-reduced-motion: reduce) { .reel { animation: none } }` an
   acceptable fallback rather than a loss. Keep that invariant when adding
   states.
-- The deck has **no title block**: the panel's name is the sr-only `<h1>` at
-  the root, and the card spends that height on the reels instead. What sits
-  above the stage is a thin instrument strip — lamp + state word on the left,
-  clock + step counter on the right. The stage is full-bleed (`-mx-2.5`
-  against the card's `p-2.5`), because panel width is the only lever its size
-  has.
+- **The hero is ONE chassis, not a card holding a plate.** It has no title
+  block (the panel's name is the sr-only `<h1>`) and no cream frame:
+  `.deck-chassis` *is* the faceplate, with `.deck-window` bezelled into it and
+  the transport row — lamp + state word, RECORD, STOP, LCD counter — sitting
+  directly on it. Controls on a dark ground need the `.key-plate` /
+  `.key-plate-red` variant (light keycap, dark bezel) rather than `.key`,
+  which is cream-surface only. The recording clock lives on the faceplate
+  between the reels: the transport row cannot fit it, and the state word is
+  the reduced-motion state channel so it is the last thing allowed to
+  truncate. Two nested surfaces cost two sets of padding — that collapse is
+  what took the hero from 203px to 156px on a 300x520 panel.
+- Deck CSS lives in **`src/styles/deck.css`**, imported from `index.css`
+  (Vite still inlines one stylesheet). Anything reused outside the hero —
+  `.key`, `.card`, `.instrument`, `.mono` — stays in `index.css`.
 - Rotation is the CSS `rotate` property on the reel groups with
   `transform-box: fill-box; transform-origin: center` — so probe it with
   `getComputedStyle(el).rotate`, NOT `.transform`, which stays `none`. State
   travels as `data-deck` on `.deck-stage`; the stage `div` carries the dark
   plate and the SVG only the mechanism.
 - **The collapse threshold is a real breakpoint, not a round number.**
-  `@container panel (max-height: 400px)` (needs `container: panel / size` on
-  `.panel-root`) is set where the *list* stops working — full deck ~195px,
-  list needs ~150px for its header, a row and a peek. It was 520px once,
+  `@container panel (max-height: 352px)` (needs `container: panel / size` on
+  `.panel-root`) is set where the *list* stops working — hero ~156px, list
+  needs ~150px for its header, a row and a peek. Re-derive it whenever the
+  hero's height changes. It was 520px once,
   which is exactly the panel height README tells you to develop at, so the
   hero rendered collapsed at every realistic size and the reels were sliced
   through the middle. When it does collapse the stage scales the drawing DOWN
-  to 76px (`meet`, letterboxed onto the plate colour) rather than cropping
+  to 72px (`meet`, letterboxed onto the plate colour) rather than cropping
   it: a half reel reads as texture and gives the rotation nothing to register
   against.
 - Three motion layers, per the deck's own rule that no single one is
@@ -363,7 +371,7 @@ recording clock, the status lamp and the state word.
   dashed stroke travelling the tape path, which is the only element that can
   express *direction* (three-fold symmetric reels cannot); **ambient** = the
   `::after` warm glow while recording. `REWIND_MS`/`DONE_MS` in `deckState.ts`
-  must stay equal to the `[data-deck]` animation durations in `index.css` or
+  must stay equal to the `[data-deck]` animation durations in `deck.css` or
   the reels stop mid-turn.
 - Exactly **one** button is named "Stop" while recording, and it is the deck's.
   `RecordingView`'s bottom bar is Discard only. The headless walk-through

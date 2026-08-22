@@ -11,7 +11,7 @@ export interface DeckTransportProps {
   stepCount: number;
   /** Set only while recording — the clock runs from here. */
   startedAt: number | null;
-  /** The reel stage, rendered between the nameplate and the keys. */
+  /** The reel stage, recessed into the chassis above the transport row. */
   stage: ReactNode;
   recordDisabled: boolean;
   stopDisabled: boolean;
@@ -19,14 +19,18 @@ export interface DeckTransportProps {
   onStop: () => void;
 }
 
-const METER_BARS = [4, 7, 10, 7, 5];
-
 /** The counter is a four-digit mechanical readout: it never changes width. */
 function counterText(count: number): string {
   return String(Math.min(9999, Math.max(0, count))).padStart(4, "0");
 }
 
-/** Nameplate, state lamp, and the two keys that drive the whole panel. */
+/**
+ * The window and the one row of controls under it.
+ *
+ * Everything lives on the dark chassis: lamp + state word, the two keys, and
+ * a recessed readout. There is no second strip above the window — the word it
+ * used to carry now sits beside the keys, where it costs no extra row.
+ */
 export function DeckTransport({
   state,
   stepCount,
@@ -39,61 +43,50 @@ export function DeckTransport({
 }: DeckTransportProps) {
   const elapsed = useElapsed(startedAt);
   const lamp = deckLamp(state);
-  const live = state === "recording" || state === "playing";
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* A thin instrument strip, not a title block: the panel's name is the
-          sr-only h1 at the root, and every pixel spent repeating it here is a
-          pixel taken off the reels. */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="lamp" data-on={lamp ?? "off"} aria-hidden />
-          {/* Not a live region: the state label repeats what the toasts and
-              the recording announcements already say. */}
-          <span className="instrument truncate">{deckLabel(state)}</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {startedAt !== null && (
-            <span
-              className="mono text-11 tracking-tight"
-              role="timer"
-              aria-label="Recording time"
-            >
-              {elapsed}
-            </span>
-          )}
-          <span
-            className="mono rounded-[6px] border border-border bg-muted px-1 py-0.5 text-12 leading-none"
-            aria-label="Steps captured"
-          >
-            {counterText(stepCount)}
+    <>
+      {/* The window is cut INTO the faceplate: the bezel is the chassis
+          material, so there is no second card edge to pay for. */}
+      <div className="deck-window">
+        {stage}
+        {/* The clock is mounted on the faceplate between the reels, where a
+            deck's counter actually lives. It is the one readout that only
+            exists while tape runs, and it is the reason the row would not
+            fit: "RECORDING" and a running clock cannot share 274px with two
+            keys and a counter. Outside the stage, so never aria-hidden. */}
+        {startedAt !== null && (
+          <span className="deck-clock" role="timer" aria-label="Recording time">
+            {elapsed}
           </span>
-        </div>
+        )}
       </div>
 
-      {stage}
+      <div className="deck-row">
+        {/* Not a live region: the state label repeats what the toasts and the
+            recording announcements already say. It is, however, the whole
+            story under prefers-reduced-motion — never aria-hidden. */}
+        <span className="deck-status">
+          <span className="lamp" data-on={lamp ?? "off"} aria-hidden />
+          <span className="deck-word">{deckLabel(state)}</span>
+        </span>
 
-      <div className="flex items-center gap-1.5">
         <Button
           size="sm"
-          className="press key key-red"
+          className="key-plate key-plate-red"
           aria-label="Record"
           data-testid="record-button"
           disabled={recordDisabled}
           onClick={onRecord}
         >
-          <span
-            className="grid size-3 shrink-0 place-items-center rounded-full border border-current"
-            aria-hidden
-          >
-            <span className="size-1.5 rounded-full bg-current" />
+          <span className="key-dot" aria-hidden>
+            <span />
           </span>
           Record
         </Button>
         <Button
           size="sm"
-          className="press key key-outline"
+          className="key-plate"
           aria-label="Stop"
           data-testid="stop-button"
           disabled={stopDisabled}
@@ -103,24 +96,13 @@ export function DeckTransport({
           Stop
         </Button>
 
-        <div className="ml-auto flex items-center gap-1">
-          <span
-            className={`flex h-4 items-end gap-0.5 ${live ? "meter-live" : ""}`}
-            aria-hidden
-          >
-            {METER_BARS.map((height, index) => (
-              <span
-                key={index}
-                className={`meter-bar ${live ? "record-pulse" : ""}`}
-                style={{
-                  height: `${height}px`,
-                  animationDelay: `${index * 120}ms`,
-                }}
-              />
-            ))}
+        {/* Four digits behind a recessed pane; the width never changes. */}
+        <span className="lcd">
+          <span className="lcd-count" aria-label="Steps captured">
+            {counterText(stepCount)}
           </span>
-        </div>
+        </span>
       </div>
-    </div>
+    </>
   );
 }

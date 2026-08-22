@@ -150,29 +150,20 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             onCancel={actions.cancelConfigure}
           />
         ) : (
-          <>
-            <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-              <MacroList
-                playing={state.mode === "playing" ? state.playing : null}
-              />
-            </main>
-            <footer
-              className={`flex items-center justify-between gap-2 border-t border-border px-3 py-2 transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
-                toasts.length > 0 ? "pb-12" : ""
-              }`}
-            >
-              {/* Instrument-style totals: this panel has no storage quota to
-                  report, so it reports what it holds. */}
-              <span className="instrument truncate">
-                {state.macros.length === 1
-                  ? "1 macro"
-                  : `${state.macros.length} macros`}
-                {" · "}
-                {state.macros.reduce((sum, macro) => sum + macro.steps.length, 0)}
-                {" steps"}
-              </span>
-            </footer>
-          </>
+          // The footer that used to sit below this list carried only a
+          // totals line ("N macros · M steps") — folded into the "Saved
+          // macros" header row instead (MacroList.tsx) so the list keeps the
+          // whole row of chrome that footer cost. Its other job, clearing
+          // the bottom-centre toast, moves to this <main> directly.
+          <main
+            className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
+              toasts.length > 0 ? "pb-12" : ""
+            }`}
+          >
+            <MacroList
+              playing={state.mode === "playing" ? state.playing : null}
+            />
+          </main>
         )}
         {import.meta.env.DEV && <TraceStrip kind={gateways.kind} />}
         {import.meta.env.DEV && gateways.mocks && (

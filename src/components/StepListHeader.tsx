@@ -35,8 +35,10 @@ export function StepListHeader({
         </p>
         <SimplifyButton steps={steps} onSimplify={onSimplify} />
       </div>
+      {/* Truncated to one line — full text still lives in the DOM and in the
+          title tooltip, so nothing load-bearing is lost, just the wrap. */}
       {hints.map((hint) => (
-        <p key={hint} className="text-11 text-muted-foreground">
+        <p key={hint} className="truncate text-11 leading-tight text-muted-foreground" title={hint}>
           {hint}
         </p>
       ))}

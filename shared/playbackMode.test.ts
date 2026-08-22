@@ -82,7 +82,7 @@ describe("describePlaybackMode", () => {
 describe("playbackModeHint", () => {
   it("names the selection for targets mode and the layer count for scene mode", () => {
     expect(playbackModeHint({ mode: "targets", layerCount: 1 })).toBe(
-      "Applies to the selected layers (or the recorded layer if nothing is selected)",
+      "Applies to selected layers, or the recorded one",
     );
     expect(playbackModeHint({ mode: "scene", layerCount: 3 })).toBe(
       "Scene script — finds 3 layers by name",

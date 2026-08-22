@@ -113,7 +113,7 @@ export function MacroRow({
       data-testid="macro-row"
     >
       {renaming ? (
-        <div className="flex items-center gap-1.5 p-2">
+        <div className="flex items-center gap-1.5 p-1.5">
           <Input
             value={draftName}
             autoFocus
@@ -150,7 +150,7 @@ export function MacroRow({
           </Button>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5 p-2">
+        <div className="flex items-center gap-1.5 p-1.5">
           {/* Outside the disclosure on purpose: the button's accessible name
               is the macro, not a catalogue number. */}
           <span
@@ -174,24 +174,27 @@ export function MacroRow({
               strokeWidth={2.5}
               aria-hidden
             />
-            <span className="min-w-0 flex-1">
-              <span className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate text-14 font-medium" title={macro.name}>
-                  {macro.name}
-                </span>
-                {optionSummary && (
-                  <span
-                    className="max-w-[40%] shrink-0 truncate text-10 tabular-nums text-muted-foreground"
-                    title={optionSummary}
-                    data-testid="play-options-summary"
-                  >
-                    {/* The badge truncates; the announcement never does. */}
-                    <span className="sr-only">Play options: </span>
-                    {optionSummary}
-                  </span>
-                )}
+            {/* Name, step count and (if set) play options share one line —
+                the row used to stack them, which cost it a whole line of
+                height for information that fits beside the name just fine. */}
+            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="truncate text-14 font-medium" title={macro.name}>
+                {macro.name}
               </span>
-              <span className="block text-11 text-muted-foreground">{stepCount}</span>
+              <span className="mono shrink-0 text-10 text-muted-foreground tabular-nums">
+                {stepCount}
+              </span>
+              {optionSummary && (
+                <span
+                  className="max-w-[30%] shrink-0 truncate text-10 tabular-nums text-muted-foreground"
+                  title={optionSummary}
+                  data-testid="play-options-summary"
+                >
+                  {/* The badge truncates; the announcement never does. */}
+                  <span className="sr-only">Play options: </span>
+                  {optionSummary}
+                </span>
+              )}
             </span>
           </button>
           {/* Stays mounted across the run, swapping glyph and action: an
@@ -261,17 +264,21 @@ export function MacroRow({
       )}
 
       {expanded && (
-        <div id={panelId} className="inline-enter border-t border-border px-1 py-1.5">
+        <div id={panelId} className="inline-enter border-t border-border px-1 py-1">
           {macro.steps.length === 0 ? (
             <p className="px-2 py-3 text-center text-11 text-muted-foreground">
               No steps left. Delete this macro, or record a new one.
             </p>
           ) : (
             <>
+              {/* "Changes save automatically" used to run here as a second
+                  sentence — expendable prose that cost every expanded row a
+                  full line. The playback-mode hint below is the one that
+                  matters (what the macro will touch when it replays). */}
               <StepListHeader
                 steps={macro.steps}
                 onSimplify={onSimplify}
-                hints={[playbackModeHint(mode), "Changes save automatically"]}
+                hints={[playbackModeHint(mode)]}
               />
               <StepList
                 steps={macro.steps}

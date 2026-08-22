@@ -9,6 +9,16 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-23 — Compaction pass: one-chassis hero, denser list
+
+| Issue | Fix |
+|---|---|
+| The hero cost 203px — **39% of a 300x520 panel** — because it was a cream card *containing* a dark plate, plus a cream status strip above it: two surfaces, two sets of padding, and a strip repeating what the plate could say itself. | The hero is now a single dark chassis (`.deck-chassis`) with the reel window bezelled into it and the transport row — lamp + state word, RECORD, STOP, LCD counter — sitting directly on the faceplate. New `.key-plate` variant for light keycaps on the dark ground; the clock moved onto the faceplate between the reels, where the transport row has no space for it and where it reads as a real deck counter. **203px → 156px** with the reels no smaller (stage 110px, reel 102px). |
+| A macro row spent 56px on one name because the step count sat on its own second line, and an expanded macro spent **80px** of header — a count, a button and two full sentences of prose — before showing a single 26px step. | Name, step count and the play-options badge share one line; the expendable "Changes save automatically" hint is gone and the playback-mode hint is one truncating line. **Row 56px → 38px, step header 80px → 42px.** |
+| The footer existed to print "N macros · M steps" and cost a border and 31px for it. | Folded into the "Saved macros" header row, which had space beside the label. The toast-clearance padding that footer secretly carried moved onto the scrolling `<main>`, or bottom-centre toasts would have covered the last row. |
+| "Applies to the selected layers (or the recorded layer if nothing is selected)" no longer fit on one line, so the density pass truncated it mid-word. | Shortened at the source to "Applies to selected layers, or the recorded one" — same meaning, fits at 300px, no ellipsis. |
+| Net effect | The macro list went from 224px to **302px** of the same panel: room for ~6 rows where 3 fit before, and an expanded macro now shows 4 steps plus the next row instead of one or two. |
+
 ## 2026-08-22 — Vintage reel-to-reel skin
 
 | Issue | Fix |

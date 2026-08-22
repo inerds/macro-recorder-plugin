@@ -28,11 +28,11 @@ light. It carries no title; the strip above the reels is the readout:
 | **Record** / **Stop** keys | Start and stop recording, from any screen. Record is dead while a recording, review or playback is in progress. |
 | **Status lamp** | Dark at rest, red while tape is moving (recording, rewind, playing), amber while a run is paused waiting for your decision. |
 | **State word** | READY · RECORDING · REWIND · PLAYING · PAUSED · DONE. |
-| **Counter** | Four digits: steps captured while recording or reviewing, and the step being applied during playback. |
-| **Clock** | Appears while recording (m:ss). |
+| **Counter** | The four-digit readout on the right of the transport row: steps captured while recording or reviewing, and the step being applied during playback. |
+| **Clock** | The small readout between the reels; appears while recording (m:ss). |
 | **The reels** | Spin while recording, rewind when you trigger a macro, run forward while it plays, coast to a stop when it ends. A highlight travels along the tape between them, so you can see which way it is going. Pure confirmation — the lamp and the word always say the same thing, and if your system asks for reduced motion the reels stay still. |
 
-In a very short panel (under ~400px tall) the deck scales down but keeps
+In a very short panel (under ~352px tall) the deck scales down but keeps
 whole, turning reels; nothing moves anywhere else.
 
 > If a red banner says **Plugin engine is outdated**, remove and re-add the
@@ -262,6 +262,8 @@ Confirmed platform limits live in `LIMITATIONS.md` with evidence. The ones
 you are most likely to meet:
 
 - **Per-fill opacity** isn't exposed to plugins — it records nothing.
+- **Rectangle corner roundness** isn't wired to the property the plugin can
+  read — corner-radius edits record nothing.
 - **Motion-path curves** (bezier handles between position keyframes) aren't
   exposed either — curved motion replays as straight lines between the same
   keyframes.
