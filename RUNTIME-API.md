@@ -36,7 +36,9 @@ Also verified there: `rect.roundness` IS a full Animatable (`addKeyframes,
 clearKeyframes, getKeyframeAt, getValueAt, isAnimated, keyframes,
 staticValue`) despite the `Rectangle` typing omitting it; no other
 rounding-shaped property (`radius`, `cornerRadius`, `corners`, `modifiers`)
-exists on the rectangle or its layer.
+exists on the rectangle or its layer. **But it is a dead proxy**: its
+`staticValue` is 0 on every rectangle ever seen, rounded or not, and a
+corner-radius drag produces no snapshot change (LIMITATIONS.md, 2026-08-23).
 
 ## Methods that EXIST but are untyped
 

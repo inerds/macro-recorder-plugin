@@ -43,6 +43,40 @@ and is the practical substitute.
   plugin interface. The document already has the property; this is purely a
   membrane gap. Worth filing.
 
+## Rectangle corner roundness — CONFIRMED (dead proxy)
+
+**What:** Changing a rectangle's corner radius in Creator's UI is invisible
+to the plugin: recordings capture nothing, and the value cannot be read
+back to replay it.
+
+**Why (evidence, 2026-08-22/23, engine rev 2026-08-22.39):**
+- The `Rectangle` typing lists `roundness` only as a *creation option*
+  (`RectangleOptions.roundness`, `plugin-api-ref.d.ts:1276`), not as a
+  property of a live rectangle.
+- Runtime introspection (trace `2026-08-21T21-53-02-401_record.json`,
+  `shapeIntrospection`): the live rectangle proxy DOES expose `roundness`
+  as a full Animatable (`addKeyframes, clearKeyframes, getKeyframeAt,
+  getValueAt, isAnimated, keyframes, staticValue`) — but `staticValue` reads
+  `0` on every rectangle in every one of 140+ traces, including rectangles
+  that visibly have rounded corners. No other rounding-shaped property
+  (`radius`, `cornerRadius`, `corners`, `modifiers`, `effects`) exists on the
+  shape or its layer.
+- Trace `2026-08-22T17-50-45-658_record.json`: an 8-second recording on a
+  scene of three rectangles produced **16 empty polling ticks** — zero
+  observable change through the API — while the user reported editing
+  roundness. (Assumption to re-check: that this session was the roundness
+  drag; every other reported edit type has produced steps in the same setup.)
+
+**What the user sees:** dragging a corner radius during a recording adds no
+step; a macro can't round corners on replay. The engine keeps `roundness`
+in the RECTANGLE registry (`shared/snapshot.ts`) so a host that starts
+reporting it records automatically.
+
+**Path to lift:** host wires the rectangle's corner radius to the exposed
+`roundness` Animatable (or exposes whichever property it really lives in).
+The registry entry and the `shapeIntrospection` debug probe already exist
+to confirm it the day it changes.
+
 ## Motion-path bezier handles (spatial tangents) — CONFIRMED
 
 **What:** Bending a position keyframe's motion path on the canvas (the
