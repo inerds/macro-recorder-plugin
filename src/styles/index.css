@@ -36,9 +36,18 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/*
+ * NO z-index here. `position: relative` alone is enough to lift #root above
+ * the fixed grain overlay (both sit at stacking level 0, and #root comes
+ * later in the DOM), while adding a z-index would create a stacking context
+ * that buries every portalled popover: Base UI renders menus into a portal
+ * div AFTER #root whose positioner is `z-auto`, and the menu's own `z-50`
+ * does nothing because that element is `position: static`. With z-index: 1
+ * here the whole panel painted on top of the open dropdown, so clicks
+ * hit-tested to the row underneath and the menu looked dead.
+ */
 #root {
   position: relative;
-  z-index: 1;
 }
 
 /* The panel is the height container for the deck's collapse rule. It is a
@@ -46,6 +55,23 @@ body::before {
    block size it needs and nothing here can grow it. */
 .panel-root {
   container: panel / size;
+}
+
+/*
+ * Dialogs are centred by layout — their resting `transform` is `none`. The
+ * component library still ships shadcn's translate-based entrance
+ * (`slide-in-from-left-1/2`, `slide-in-from-top-[48%]`), which assumes the
+ * dialog is centred BY that same transform. Mismatched, it starts the panel
+ * 50%/48% of its own size up and to the left and flies it in diagonally from
+ * outside the panel. Zero the translate and the intended zoom + fade is what
+ * is left: a modal should arrive where it lives, not travel to it.
+ */
+[role="dialog"],
+[role="alertdialog"] {
+  --tw-enter-translate-x: 0;
+  --tw-enter-translate-y: 0;
+  --tw-exit-translate-x: 0;
+  --tw-exit-translate-y: 0;
 }
 
 /* ---------------------------------------------------------------- type --- */

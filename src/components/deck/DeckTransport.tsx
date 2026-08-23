@@ -55,19 +55,9 @@ export function DeckTransport({
             exists while tape runs, and it is the reason the row would not
             fit: "RECORDING" and a running clock cannot share 274px with two
             keys and a counter. Outside the stage, so never aria-hidden. */}
-        {startedAt !== null && (
-          <span className="deck-clock" role="timer" aria-label="Recording time">
-            {elapsed}
-          </span>
-        )}
-        {/* Indicators live on the faceplate, in the window corners a round
-            reel can never reach. Not a live region: the state label repeats
-            what the toasts already say. It is, however, the whole story
-            under prefers-reduced-motion — never aria-hidden. */}
-        <span className="deck-status">
-          <span className="lamp" data-on={lamp ?? "off"} aria-hidden />
-          <span className="deck-word">{deckLabel(state)}</span>
-        </span>
+        {/* The tape counter stays on the faceplate, in a window corner a round
+            reel can never reach — that is where a deck's counter lives, and
+            it costs the transport bar no width. */}
         <span className="lcd">
           <span className="lcd-count" aria-label="Steps captured">
             {counterText(stepCount)}
@@ -76,9 +66,19 @@ export function DeckTransport({
       </div>
 
       <div className="deck-row">
+        {/* Status sits in the row's first track and the clock in its third,
+            both 1fr, so the key pair in the middle `auto` track stays centred
+            on the chassis no matter how wide either readout gets. Not a live
+            region: the state label repeats what the toasts already say. It
+            is, however, the whole story under prefers-reduced-motion —
+            never aria-hidden. */}
+        <span className="deck-status">
+          <span className="lamp" data-on={lamp ?? "off"} aria-hidden />
+          <span className="deck-word">{deckLabel(state)}</span>
+        </span>
+
         {/* Both keys in one grid so they are exactly equal width whatever
-            their labels say, and the grid is the row's only child so it
-            centres on the chassis rather than on the leftover space. */}
+            their labels say. */}
         <span className="deck-keys">
           <Button
             size="sm"
@@ -108,6 +108,12 @@ export function DeckTransport({
             Stop
           </Button>
         </span>
+
+        {startedAt !== null && (
+          <span className="deck-clock" role="timer" aria-label="Recording time">
+            {elapsed}
+          </span>
+        )}
       </div>
     </>
   );

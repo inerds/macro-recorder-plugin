@@ -346,17 +346,38 @@ recording clock, the status lamp and the state word.
   the reduced-motion state channel so it is the last thing allowed to
   truncate. Two nested surfaces cost two sets of padding — that collapse is
   what took the hero from 203px to 156px on a 300x520 panel.
-- **The transport row's only child is the key pair.** `.deck-keys` is an
-  auto-flow column grid with `grid-auto-columns: 1fr`, so RECORD and STOP are
-  exactly equal width whatever their labels say, and being the row's sole
-  child is what lets them centre on the CHASSIS rather than on whatever space
-  the readouts left over. The status legend and the step counter live on the
-  faceplate instead, in the window corners a round reel can never reach —
-  that is not decoration, it is the only arrangement that fits: at 300px the
-  row is 290px, an equal pair is ~120px, and true centring demands equal
-  gutters, which "RECORDING" does not fit inside. Both readouts get a
-  recessed dark pane; without one the legend sits on bright reel metal and
-  stops being readable the moment a flange turns under it.
+- **Never give `#root` a z-index.** `position: relative` alone lifts it above
+  the fixed paper-grain overlay. A z-index there creates a stacking context
+  that buries every portalled popover: Base UI renders menus into a portal
+  div after `#root` whose positioner is `z-auto`, and the menu's own `z-50`
+  does nothing because that element is `position: static`. The symptom is a
+  dropdown that opens, looks fine, and ignores clicks — because the panel is
+  painted on top of it and `elementFromPoint` returns the row underneath. A
+  scripted `.click()` still "works" (it skips hit-testing), so this bug hides
+  from naive automation; probe it with `document.elementFromPoint`.
+- **Dialogs must not slide.** The component library centres `DialogContent`
+  by layout (resting `transform: none`) but still ships shadcn's
+  translate-based entrance (`slide-in-from-left-1/2`,
+  `slide-in-from-top-[48%]`), which assumes the dialog is centred BY that
+  transform. Mismatched, it flies in diagonally from ~138px left and ~121px
+  up — outside the panel. `index.css` zeroes `--tw-enter/exit-translate-*`
+  for `[role="dialog"]`, leaving the intended zoom + fade.
+- **The transport row is `1fr auto 1fr`.** Status legend in the first track,
+  key pair in the middle, recording clock in the third. Equal outer tracks
+  are what keep the keys centred on the CHASSIS rather than on the space the
+  readouts left over. It only fits because the `REC` legend shrank the pair
+  to ~122px, leaving ~84px per gutter against the ~73px the legend needs; at
+  <=286px the legend gives up tracking and size (never letters — it is the
+  reduced-motion state channel) to stay clear of the keys.
+- `.deck-keys` is an auto-flow column grid with `grid-auto-columns: 1fr`, so
+  RECORD and STOP are exactly equal width whatever their labels say. The step
+  counter stays on the faceplate, in a window corner a round reel can never
+  reach, where it costs the transport bar no width — and it keeps the
+  recessed dark pane, without which a readout on bright reel metal stops
+  being legible the moment a flange turns under it.
+- The faceplate's lower legend is the package version, injected as
+  `__APP_VERSION__` by `vite.config.ts` (declared in `src/vite-env.d.ts`), so
+  it can never drift from what shipped.
 - **The Record key's visible legend is `REC`, its accessible name is
   `Record`** (aria-label). Consequence for the headless driver: `walk.mjs`
   finds the key by aria-label, but its FIRST assertion matches `/record/i`

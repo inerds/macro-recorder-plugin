@@ -226,7 +226,7 @@ export function ReelDeck({ state }: { state: DeckState }) {
             fill="#6E675F"
             fontFamily="var(--font-mono)"
           >
-            MR-300
+            {`V${__APP_VERSION__}`}
           </text>
         </g>
 
