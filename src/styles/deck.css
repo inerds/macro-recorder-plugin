@@ -35,11 +35,35 @@
     #151312 100%
   );
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    /* A four-sided chamfer, not two edges: top catches the light, bottom
+       falls into shadow, and the sides differ because the lamp is slightly
+       left. That asymmetry is what gives the faceplate thickness. */
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.75),
     inset 0 0 0 1px var(--deck-edge),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
-    0 1px 0 rgba(255, 255, 255, 0.55),
-    0 1px 3px rgba(24, 20, 16, 0.28);
+    /* Plate thickness: a 2-3px lower edge over the cream, then contact. */
+    0 2px 0 #0A0908,
+    0 3px 0 #15120F,
+    0 5px 8px -2px rgba(0, 0, 0, 0.45);
+}
+
+/* Chamfer: one light from the top-left catches the upper edge and the left
+   wall, the right wall and lower edge fall away. Shadows only, so it never
+   covers the controls. */
+.deck-chassis::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 4px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 1px 0 0 rgba(255, 255, 255, 0.05),
+    inset -1px 0 0 rgba(0, 0, 0, 0.45),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6);
 }
 
 /* Fine horizontal grain, the way a bead-blasted faceplate takes the light. */
@@ -49,11 +73,20 @@
   inset: 0;
   pointer-events: none;
   opacity: 0.5;
-  background: repeating-linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.022) 0 1px,
-    transparent 1px 3px
-  );
+  /* Brushed grain, plus one broad raking highlight on the same diagonal as
+     the window's specular sweep — same lamp, same angle, one object. */
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.022) 0 1px,
+      transparent 1px 3px
+    ),
+    linear-gradient(
+      100deg,
+      transparent 0 20%,
+      rgba(255, 255, 255, 0.05) 45%,
+      transparent 70%
+    );
 }
 
 /* ---------------------------------------------------------------- lamps --- */
@@ -66,8 +99,8 @@
   background: #4A433D;
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.18),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.7),
-    0 0 0 1px rgba(255, 255, 255, 0.07);
+    inset 0 0 0 1px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
   transition:
     background-color 200ms cubic-bezier(0.2, 0, 0, 1),
     box-shadow 200ms cubic-bezier(0.2, 0, 0, 1);
@@ -78,7 +111,8 @@
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.4),
     inset 0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 0 8px rgba(224, 74, 56, 0.85);
+    0 0 8px rgba(224, 74, 56, 0.85),
+    0 0 14px 2px rgba(224, 74, 56, 0.3);
 }
 
 .lamp[data-on="amber"] {
@@ -86,7 +120,8 @@
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.4),
     inset 0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 0 8px rgba(217, 164, 65, 0.85);
+    0 0 8px rgba(217, 164, 65, 0.85),
+    0 0 14px 2px rgba(217, 164, 65, 0.3);
 }
 
 /* --------------------------------------------------------- reel window --- */
@@ -102,6 +137,36 @@
   box-shadow:
     0 0 0 1px #0C0B0A,
     0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+/*
+ * The glass. Without a surface you look AT the mechanism; with one you look
+ * THROUGH it, which is most of what separates a rendered object from a
+ * drawing. One specular band rakes the pane on the faceplate's light angle,
+ * and a corner vignette sinks the reels behind it. Alpha is capped
+ * deliberately: the reels' legibility was hard-won and a prettier sheen is
+ * not worth dimming them.
+ */
+.deck-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      118deg,
+      transparent 0 38%,
+      rgba(255, 255, 255, 0.085) 44%,
+      rgba(255, 255, 255, 0.11) 50%,
+      transparent 57%
+    ),
+    radial-gradient(
+      120% 90% at 50% 45%,
+      transparent 55%,
+      rgba(0, 0, 0, 0.45) 100%
+    );
 }
 
 /*
@@ -128,7 +193,28 @@
     inset 0 0 0 1px rgba(0, 0, 0, 0.75);
 }
 
+/* Glass: a specular sweep from the top-left, a faint second catch low-right,
+   a vignette into the corners, and a lit lip. Above the mechanism, below
+   nothing interactive. */
+.deck-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.07) 26%, rgba(255, 255, 255, 0) 44%),
+    linear-gradient(112deg, transparent 60%, rgba(255, 255, 255, 0.035) 78%, transparent 92%),
+    radial-gradient(130% 95% at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.42) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+}
+
 .deck-stage svg {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
@@ -204,6 +290,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 0;
   opacity: 0;
   transition: opacity 300ms cubic-bezier(0.2, 0, 0, 1);
   background: radial-gradient(
@@ -347,6 +434,7 @@
  * the same press travel as `.key`.
  */
 .key-plate.key-plate {
+  position: relative;
   height: 24px;
   flex: none;
   gap: 5px;
@@ -359,16 +447,30 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #241F1B;
-  background: linear-gradient(180deg, #F4EFE6 0%, #DBD4C7 100%);
+  background: linear-gradient(180deg, #F8F4EC 0%, #E6DFD2 55%, #D6CEC0 100%);
+  /* Face edge + the base line the cap sits on; the wall is the ::after. */
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     inset 0 0 0 1px rgba(18, 15, 12, 0.45),
-    0 1.5px 0 #0B0A09,
-    0 2px 2px rgba(0, 0, 0, 0.4);
+    0 3px 0 #0B0A09,
+    0 4px 3px rgba(0, 0, 0, 0.45);
   transition:
-    transform 90ms cubic-bezier(0.2, 0, 0, 1),
-    box-shadow 90ms cubic-bezier(0.2, 0, 0, 1),
-    background 150ms cubic-bezier(0.2, 0, 0, 1);
+    transform 70ms ease-out,
+    box-shadow 70ms ease-out,
+    background 70ms ease-out;
+}
+
+/* The cap's side wall: the travel the press takes away. */
+.key-plate.key-plate::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  pointer-events: none;
+  background: linear-gradient(180deg, #BDB5A7, #8E8679);
+  transition: height 70ms ease-out;
 }
 
 /* The library forces `[&_svg]:size-4`; a keycap glyph is smaller than that. */
@@ -381,12 +483,19 @@
   background: linear-gradient(180deg, #FFFCF5 0%, #E6DFD2 100%);
 }
 
+/* Pressed: the cap travels down onto its base AND the face darkens, so the
+   state reads without motion. */
 .key-plate.key-plate:active:not(:disabled) {
-  transform: translateY(1.5px);
+  transform: translateY(2px);
+  background: linear-gradient(180deg, #E2DBCD 0%, #CFC7B8 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 2px 3px rgba(0, 0, 0, 0.22),
     inset 0 0 0 1px rgba(18, 15, 12, 0.5),
-    0 0 0 #0B0A09;
+    0 1px 0 #0B0A09;
+}
+
+.key-plate.key-plate:active:not(:disabled)::after {
+  height: 1px;
 }
 
 /* Unlit, not translucent: `disabled:opacity-50` on a dark chassis is the
@@ -399,21 +508,41 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     inset 0 0 0 1px rgba(0, 0, 0, 0.65),
-    0 1.5px 0 #0B0A09;
+    0 3px 0 #0B0A09;
+}
+
+.key-plate.key-plate:disabled::after {
+  background: linear-gradient(180deg, #3A3531, #221F1C);
 }
 
 .key-plate-red.key-plate-red:not(:disabled) {
   color: #FFF3EE;
-  background: linear-gradient(180deg, #DA5140 0%, #B02A1E 100%);
+  background: linear-gradient(180deg, #E0574A 0%, #C8382B 60%, #B3301F 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
     inset 0 0 0 1px rgba(18, 15, 12, 0.55),
-    0 1.5px 0 #0B0A09,
-    0 2px 2px rgba(0, 0, 0, 0.4);
+    0 3px 0 #0B0A09,
+    0 4px 3px rgba(0, 0, 0, 0.45);
+}
+
+.key-plate-red.key-plate-red:not(:disabled)::after {
+  background: linear-gradient(180deg, #8F2B20, #671D15);
+}
+
+.key-plate-red.key-plate-red:active:not(:disabled) {
+  background: linear-gradient(180deg, #BE3428 0%, #9E2A1E 100%);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(18, 15, 12, 0.6),
+    0 1px 0 #0B0A09;
 }
 
 .key-plate-red.key-plate-red:hover:not(:disabled) {
   background: linear-gradient(180deg, #E45C4A 0%, #BC3124 100%);
+}
+
+.key-plate-red.key-plate-red:active:not(:disabled) {
+  background: linear-gradient(180deg, #A8291D 0%, #8E1F15 100%);
 }
 
 /* The record dot, drawn rather than imported: it inherits the cap's ink. */
@@ -439,6 +568,8 @@
 
 /* A recessed window in the faceplate with lit legends behind it. */
 .lcd {
+  position: relative;
+  overflow: hidden;
   display: flex;
   height: 18px;
   flex: none;
@@ -457,6 +588,20 @@
   line-height: 1;
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
+}
+
+/* Scanlines: amber digits behind glass, not amber text on a dark box. The
+   2px period sits under a 10px digit, so it textures without eating strokes. */
+.lcd::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.28) 0 1px,
+    transparent 1px 2px
+  );
 }
 
 .lcd-count {
@@ -509,6 +654,15 @@
     padding: 0 5px;
     font-size: 9px;
     letter-spacing: 0.03em;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 0 0 1px rgba(18, 15, 12, 0.45),
+      0 2px 0 #0B0A09,
+      0 3px 3px rgba(0, 0, 0, 0.45);
+  }
+
+  .key-plate.key-plate::after {
+    height: 2px;
   }
 
   .lcd {
@@ -542,5 +696,11 @@
   .reel,
   .tape-shimmer {
     animation: none !important;
+  }
+
+  /* The press still darkens the face and drops the wall — instantly. */
+  .key-plate.key-plate,
+  .key-plate.key-plate::after {
+    transition: none;
   }
 }

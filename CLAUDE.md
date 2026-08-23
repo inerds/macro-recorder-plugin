@@ -431,6 +431,11 @@ recording clock, the status lamp and the state word.
   (`scratchpad/drive/walk.mjs`) matches Record and Stop by name, so a second
   one breaks it.
 
+- Pseudo-element budget on the hero is fully spent: `.deck-chassis::before`
+  (scanline grain) / `::after` (chamfer bevel); `.deck-stage::before`
+  (glass sheen, z 2 above the SVG at z 1) / `::after` (recording glow, z 0);
+  `.key-plate::after` (keycap side wall). A new layer needs a new element.
+
 ## UI state
 
 `src/state/appReducer.ts` is a single discriminated union over
