@@ -193,25 +193,6 @@
     inset 0 0 0 1px rgba(0, 0, 0, 0.75);
 }
 
-/* Glass: a specular sweep from the top-left, a faint second catch low-right,
-   a vignette into the corners, and a lit lip. Above the mechanism, below
-   nothing interactive. */
-.deck-stage::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 2;
-  background:
-    linear-gradient(112deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.07) 26%, rgba(255, 255, 255, 0) 44%),
-    linear-gradient(112deg, transparent 60%, rgba(255, 255, 255, 0.035) 78%, transparent 92%),
-    radial-gradient(130% 95% at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.42) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
-}
-
 .deck-stage svg {
   position: relative;
   z-index: 1;
@@ -539,10 +520,6 @@
 
 .key-plate-red.key-plate-red:hover:not(:disabled) {
   background: linear-gradient(180deg, #E45C4A 0%, #BC3124 100%);
-}
-
-.key-plate-red.key-plate-red:active:not(:disabled) {
-  background: linear-gradient(180deg, #A8291D 0%, #8E1F15 100%);
 }
 
 /* The record dot, drawn rather than imported: it inherits the cap's ink. */

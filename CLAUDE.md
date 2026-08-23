@@ -348,6 +348,19 @@ recording clock, the status lamp and the state word.
   the reduced-motion state channel so it is the last thing allowed to
   truncate. Two nested surfaces cost two sets of padding — that collapse is
   what took the hero from 203px to 156px on a 300x520 panel.
+- **One light source: high, slightly left.** Every highlight in the deck sits
+  on a top edge, every occlusion on a bottom edge, and the two specular
+  sweeps (`.deck-window::after`'s glass band at 118deg and
+  `.deck-chassis::before`'s raking highlight at 100deg) run the same diagonal.
+  That consistency — not any single gradient — is what makes the chassis,
+  glass, caps, lamp and LCD read as one moulded object. Adding a bottom
+  highlight or a sweep on a different angle quietly undoes the whole effect,
+  so match the lamp before adding a surface.
+- **The window has glass over it.** `.deck-window::after` is a specular band
+  plus a corner vignette, `pointer-events: none`, at `z-index: 2`. Its alpha
+  is capped at .11 on purpose: the reels' legibility cost real work (see the
+  collapse-threshold note) and a prettier sheen is not worth dimming them.
+  Verify reel width and deg/250ms after touching it.
 - **Never give `#root` a z-index.** `position: relative` alone lifts it above
   the fixed paper-grain overlay. A z-index there creates a stacking context
   that buries every portalled popover: Base UI renders menus into a portal
@@ -432,9 +445,11 @@ recording clock, the status lamp and the state word.
   one breaks it.
 
 - Pseudo-element budget on the hero is fully spent: `.deck-chassis::before`
-  (scanline grain) / `::after` (chamfer bevel); `.deck-stage::before`
-  (glass sheen, z 2 above the SVG at z 1) / `::after` (recording glow, z 0);
-  `.key-plate::after` (keycap side wall). A new layer needs a new element.
+  (scanline grain + raking highlight) / `::after` (chamfer bevel);
+  `.deck-window::after` (the one glass layer — never add a second sheen on
+  `.deck-stage`, the reels dim under two); `.deck-stage::after` (recording
+  glow, z 0, under the SVG at z 1); `.key-plate::after` (keycap side wall);
+  `.lcd::after` (phosphor scanlines). A new layer needs a new element.
 
 ## UI state
 
