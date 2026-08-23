@@ -251,8 +251,10 @@ Where each piece lives and the invariants worth keeping:
   IS readable). Repeat ×N on a keyframe-only macro is idempotent by design —
   keyframe steps converge to the same absolute frames/values each pass;
   compounding only happens through static transform offsets.
-  Simplify/edit/disable and params are verified in the standalone UI (headless
-  walk-through, see below) but not yet seen in a Creator trace.
+  Simplify is live-verified too (trace 2026-08-23T07-54-20-321: Macro 1
+  collapsed 15 → 5 steps, replayed clean). Edit/disable and params are
+  verified in the standalone UI (headless walk-through, see below) but not
+  yet seen in a Creator trace.
 - Rectangle corner roundness: filed in LIMITATIONS.md (dead `roundness`
   proxy — always 0, edits produce empty ticks). Registry entry stays so a
   host fix lights up by itself.
