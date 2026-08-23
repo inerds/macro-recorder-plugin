@@ -22,7 +22,10 @@
   gap: 4px;
   padding: 5px;
   overflow: hidden;
-  border-radius: 12px;
+  /* Square: the chassis runs to the panel edges, and a radius there would
+     leave four slivers of cream paper in the corners. The bottom edge below
+     does the separating that a gap used to do. */
+  border-radius: 0;
   /* Moulded, not flat: light catches the top edge and the bottom falls away,
      which is what stops a dark rectangle reading as a hole in the panel. */
   background: linear-gradient(
@@ -111,7 +114,11 @@
  */
 .deck-stage {
   position: relative;
-  height: 110px;
+  /* Tuned against the bled window width (panel - 2x chassis padding) so the
+     272-unit drawing is width-limited, not height-limited: at 300px the
+     window is 290px, and 110 * (290/272) = 117. Undersize this and the reels
+     simply letterbox instead of filling the glass. */
+  height: 117px;
   overflow: hidden;
   border-radius: 8px;
   background: #131110;

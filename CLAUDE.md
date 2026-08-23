@@ -346,6 +346,16 @@ recording clock, the status lamp and the state word.
   the reduced-motion state channel so it is the last thing allowed to
   truncate. Two nested surfaces cost two sets of padding — that collapse is
   what took the hero from 203px to 156px on a 300x520 panel.
+- **The chassis is full-bleed and square-cornered.** It renders as a direct
+  child of `.panel-root` with no padded wrapper, so it meets the panel edges
+  the way a faceplate meets its case; a border-radius there would leave four
+  slivers of cream paper in the corners, so the corners are square and the
+  bottom edge shadow does the separating a gap used to do. `.deck-stage`'s
+  height is then tuned against the BLED window width so the drawing is
+  width-limited rather than height-limited: window = panel - 2x chassis
+  padding, and `height = 110 * (window / 272)` (117px at a 300px panel). Get
+  this wrong and the reels quietly letterbox inside the glass instead of
+  filling it — widening the chassis on its own buys nothing.
 - Deck CSS lives in **`src/styles/deck.css`**, imported from `index.css`
   (Vite still inlines one stylesheet). Anything reused outside the hero —
   `.key`, `.card`, `.instrument`, `.mono` — stays in `index.css`.

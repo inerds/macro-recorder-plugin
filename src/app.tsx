@@ -114,10 +114,10 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             recording and playback are simulated. Reload the plugin to retry.
           </div>
         )}
-        {/* One transport for every screen. */}
-        <div className="shrink-0 p-2 pb-0">
-          <Deck />
-        </div>
+        {/* One transport for every screen. Full-bleed on purpose: this is the
+            machine's faceplate, so it meets the panel edges rather than
+            floating on the paper like a card. */}
+        <Deck />
         {state.mode === "recording" ? (
           <RecordingView
             steps={state.steps}
