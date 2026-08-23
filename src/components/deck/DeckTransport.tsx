@@ -60,47 +60,53 @@ export function DeckTransport({
             {elapsed}
           </span>
         )}
-      </div>
-
-      <div className="deck-row">
-        {/* Not a live region: the state label repeats what the toasts and the
-            recording announcements already say. It is, however, the whole
-            story under prefers-reduced-motion — never aria-hidden. */}
+        {/* Indicators live on the faceplate, in the window corners a round
+            reel can never reach. Not a live region: the state label repeats
+            what the toasts already say. It is, however, the whole story
+            under prefers-reduced-motion — never aria-hidden. */}
         <span className="deck-status">
           <span className="lamp" data-on={lamp ?? "off"} aria-hidden />
           <span className="deck-word">{deckLabel(state)}</span>
         </span>
-
-        <Button
-          size="sm"
-          className="key-plate key-plate-red"
-          aria-label="Record"
-          data-testid="record-button"
-          disabled={recordDisabled}
-          onClick={onRecord}
-        >
-          <span className="key-dot" aria-hidden>
-            <span />
-          </span>
-          Record
-        </Button>
-        <Button
-          size="sm"
-          className="key-plate"
-          aria-label="Stop"
-          data-testid="stop-button"
-          disabled={stopDisabled}
-          onClick={onStop}
-        >
-          <Square className="fill-current" strokeWidth={2.5} aria-hidden />
-          Stop
-        </Button>
-
-        {/* Four digits behind a recessed pane; the width never changes. */}
         <span className="lcd">
           <span className="lcd-count" aria-label="Steps captured">
             {counterText(stepCount)}
           </span>
+        </span>
+      </div>
+
+      <div className="deck-row">
+        {/* Both keys in one grid so they are exactly equal width whatever
+            their labels say, and the grid is the row's only child so it
+            centres on the chassis rather than on the leftover space. */}
+        <span className="deck-keys">
+          <Button
+            size="sm"
+            className="key-plate key-plate-red"
+            aria-label="Record"
+            data-testid="record-button"
+            disabled={recordDisabled}
+            onClick={onRecord}
+          >
+            <span className="key-dot" aria-hidden>
+              <span />
+            </span>
+            {/* The faceplate legend is the abbreviation a deck actually
+                wears. The accessible name stays the full word via
+                aria-label, so screen readers still hear "Record". */}
+            REC
+          </Button>
+          <Button
+            size="sm"
+            className="key-plate"
+            aria-label="Stop"
+            data-testid="stop-button"
+            disabled={stopDisabled}
+            onClick={onStop}
+          >
+            <Square className="fill-current" strokeWidth={2.5} aria-hidden />
+            Stop
+          </Button>
         </span>
       </div>
     </>

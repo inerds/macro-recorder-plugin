@@ -291,21 +291,57 @@
  * One row, on the chassis: lamp + word, the two keys, the readout. Fixed
  * height so the hero's budget is arithmetic rather than a hope about fonts.
  */
+/*
+ * The transport bar. Its ONLY child is the key pair, which is what lets the
+ * keys centre on the chassis itself rather than on whatever space the
+ * readouts left over. Status and counter moved onto the faceplate for exactly
+ * this reason: at 300px the row is 290px, an equal-width pair is ~150px, and
+ * true centring demands equal gutters of ~70px — which the state word
+ * ("RECORDING") does not fit inside. Something had to leave the row.
+ */
 .deck-row {
   position: relative;
   display: flex;
   height: 24px;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
 }
 
+/*
+ * Equal keys, whatever the labels say: an auto-flow column grid with
+ * `grid-auto-columns: 1fr` sizes every track to the widest item, so RECORD
+ * and STOP match without a hard-coded width that a translation would break.
+ */
+.deck-keys {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+}
+
+/* Faceplate indicator, top-left: the corners of the window are the one place
+   a round reel can never reach, so the readouts cost no height at all. */
 .deck-status {
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  left: 7px;
   display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
+  height: 18px;
+  max-width: calc(50% - 26px);
   align-items: center;
   gap: 5px;
-  padding-left: 2px;
+  padding: 0 6px;
+  /* The same recessed pane as the counter. Without it the legend sits
+     straight on the reel's bright metal and stops being readable the moment
+     a flange turns under it — and this word is the whole state channel when
+     motion is off. */
+  border-radius: 3px;
+  background: linear-gradient(180deg, #0B0A09 0%, #161412 100%);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.85),
+    0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 /* Silkscreen: small caps, wide tracking, and light enough on the chassis to
@@ -427,8 +463,12 @@
 
 /* A recessed window in the faceplate with lit legends behind it. */
 .lcd {
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  right: 7px;
   display: flex;
-  height: 20px;
+  height: 18px;
   flex: none;
   align-items: center;
   gap: 5px;

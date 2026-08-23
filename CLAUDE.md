@@ -346,6 +346,25 @@ recording clock, the status lamp and the state word.
   the reduced-motion state channel so it is the last thing allowed to
   truncate. Two nested surfaces cost two sets of padding — that collapse is
   what took the hero from 203px to 156px on a 300x520 panel.
+- **The transport row's only child is the key pair.** `.deck-keys` is an
+  auto-flow column grid with `grid-auto-columns: 1fr`, so RECORD and STOP are
+  exactly equal width whatever their labels say, and being the row's sole
+  child is what lets them centre on the CHASSIS rather than on whatever space
+  the readouts left over. The status legend and the step counter live on the
+  faceplate instead, in the window corners a round reel can never reach —
+  that is not decoration, it is the only arrangement that fits: at 300px the
+  row is 290px, an equal pair is ~120px, and true centring demands equal
+  gutters, which "RECORDING" does not fit inside. Both readouts get a
+  recessed dark pane; without one the legend sits on bright reel metal and
+  stops being readable the moment a flange turns under it.
+- **The Record key's visible legend is `REC`, its accessible name is
+  `Record`** (aria-label). Consequence for the headless driver: `walk.mjs`
+  finds the key by aria-label, but its FIRST assertion matches `/record/i`
+  against *textContent*, which now only the EmptyState's Record button
+  satisfies. That check therefore passes only while the macro list is empty —
+  true for every driver run, since it starts on a fresh profile. If that
+  assertion ever starts failing, the skin is not broken; the check is
+  asserting on visible text the skin deliberately abbreviated.
 - **The chassis is full-bleed and square-cornered.** It renders as a direct
   child of `.panel-root` with no padded wrapper, so it meets the panel edges
   the way a faceplate meets its case; a border-radius there would leave four
