@@ -451,6 +451,24 @@ recording clock, the status lamp and the state word.
   glow, z 0, under the SVG at z 1); `.key-plate::after` (keycap side wall);
   `.lcd::after` (phosphor scanlines). A new layer needs a new element.
 
+## The rack — the macro list as one seated panel
+
+`.rack` / `.rack-row` / `.rack-drawer` in `index.css`. The list is a single
+shallow well holding rows that butt together, not N cards with N borders and
+N drop shadows: fewer edges reads quieter AND matches the deck's object
+language. Two rules keep it coherent:
+
+- **Rows separate with an engraved groove, not a drawn line.** A dark 1px rule
+  is the cut, the white lip below it is light catching the near edge — the
+  same lamp as the deck (see "one light source"). A plain border reverts it to
+  a web list.
+- **Steps always sit IN something.** `.rack-drawer` (expanded macro, and the
+  recording feed's list) is DARKER than the step rows seated in it, which are
+  `bg-card`. That relationship is load-bearing: `StepRow` used to be
+  `bg-background` on a `.card`, and flipping the rows to `bg-card` without
+  changing `RecordingView`'s wrapper would have made rows invisible against
+  it. Change one, check the other.
+
 ## UI state
 
 `src/state/appReducer.ts` is a single discriminated union over

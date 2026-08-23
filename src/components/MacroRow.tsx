@@ -20,7 +20,7 @@ import { StepListHeader } from "./StepListHeader";
  * Squared-off outlined keys, to match the transport without its height.
  */
 const ICON_BUTTON_CLASS =
-  "press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-border bg-card text-foreground transition-[background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40";
+  "press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[7px] text-muted-foreground transition-[background-color,color,scale,box-shadow] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-foreground hover:shadow-[inset_0_0_0_1px_rgba(42,38,35,0.18)] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40";
 
 export interface MacroRowProps {
   macro: Macro;
@@ -109,7 +109,7 @@ export function MacroRow({
 
   return (
     <li
-      className={`card overflow-hidden ${justPlayed ? "success-flash" : ""}`}
+      className={`rack-row ${justPlayed ? "success-flash" : ""}`}
       data-testid="macro-row"
     >
       {renaming ? (
@@ -264,7 +264,10 @@ export function MacroRow({
       )}
 
       {expanded && (
-        <div id={panelId} className="inline-enter border-t border-border px-1 py-1">
+        <div
+          id={panelId}
+          className="rack-drawer inline-enter border-t border-border px-1 py-1"
+        >
           {macro.steps.length === 0 ? (
             <p className="px-2 py-3 text-center text-11 text-muted-foreground">
               No steps left. Delete this macro, or record a new one.

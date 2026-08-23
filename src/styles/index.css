@@ -109,6 +109,47 @@ body::before {
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
+/*
+ * The rack. Macros are seated in one shallow well rather than scattered as
+ * separate cards: N floating edges and N drop shadows is visual noise, and a
+ * single machined surface with grooves between rows is both quieter AND the
+ * same object language as the deck above it.
+ */
+.rack {
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    inset 0 1px 2px rgba(42, 38, 35, 0.16),
+    inset 0 0 0 1px rgba(42, 38, 35, 0.15),
+    0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+/* Background stays a flat colour, not a gradient: `.success-flash` animates
+   background-color and an image layer on top would swallow it. */
+.rack-row {
+  position: relative;
+  background: var(--card);
+}
+
+/* An engraved groove, not a drawn line: the dark rule is the cut and the
+   white lip below it is the light catching the near edge — same lamp as the
+   deck, so the two surfaces belong to one machine. */
+.rack-row + .rack-row {
+  border-top: 1px solid rgba(42, 38, 35, 0.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/*
+ * Opening a row reveals a compartment inside the rack, not more of the same
+ * surface: the well is darker than the step rows seated in it, so the rows
+ * read as sitting IN something rather than floating on it.
+ */
+.rack-drawer {
+  background: var(--muted);
+  box-shadow: inset 0 3px 4px -3px rgba(42, 38, 35, 0.45);
+}
+
 /* A recoverable problem, not a failure — amber, not the action red. */
 .warn-box {
   border: 1px solid color-mix(in srgb, var(--lamp-amber) 70%, transparent);

@@ -48,7 +48,10 @@ export function RecordingView({
             {steps.length === 1 ? "1 step" : `${steps.length} steps`}
           </span>
         </div>
-        <div className="card p-1">
+        {/* A well, not a card: the step rows are `bg-card` themselves, so a
+            card behind them would be the same tone. Recessed matches the
+            macro list's drawer — steps always sit IN something. */}
+        <div className="rack rack-drawer p-1">
           {steps.length === 0 ? (
             <p className="px-2 py-6 text-center text-12 text-muted-foreground">
               Recording. Edit your animation — steps appear here as you work.

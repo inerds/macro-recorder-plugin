@@ -116,7 +116,7 @@ export function StepRow({
       className={`group relative flex min-h-[26px] items-center gap-1.5 rounded-[8px] px-2 text-12 ${
         active
           ? "bg-accent text-accent-foreground shadow-[inset_2px_0_0_var(--primary)]"
-          : "bg-background text-foreground"
+          : "bg-card text-foreground"
       }`}
       aria-current={active ? "step" : undefined}
       data-testid="step-row"

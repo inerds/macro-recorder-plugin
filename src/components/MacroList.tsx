@@ -79,7 +79,7 @@ export function MacroList({ playing }: MacroListProps) {
   return (
     <div className="p-2">
       {header}
-      <ul className="flex flex-col gap-1.5" data-testid="macro-list">
+      <ul className="rack flex flex-col" data-testid="macro-list">
         {macros.map((macro, index) => (
           <MacroRow
             key={macro.id}
