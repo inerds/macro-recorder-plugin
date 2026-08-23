@@ -22,14 +22,23 @@ library's `ThemeProvider` writes as inline custom properties on `<html>`,
 overriding every token `theme.css` defines; `useTheme()` still observes
 Creator's theme messages but applies nothing.
 
-Every screen is topped by the **deck**: a reel-to-reel stage that spins while
-recording, rewinds when a macro is triggered, runs forward while it plays and
-coasts to a stop when it ends, next to a status lamp, a state word, a step
-counter and the Record/Stop keys. The reels are decoration — the lamp and the
-word say the same thing, which is what `prefers-reduced-motion` falls back to.
-Below 352px of panel height a container query scales the stage down to a 72px
-strip — the breakpoint is where the macro list stops working, not where the
-deck gets big. System fonts only; no network assets.
+Every screen is topped by the **deck**: one full-bleed dark chassis, square to
+the panel edges, with a reel-to-reel window bezelled into it and a transport
+bar across the bottom — status lamp and state word, the equal-width REC and
+STOP keycaps centred on the chassis, and a recessed counter window carrying
+the clock and step count. The reels spin while recording, rewind when a macro
+is triggered, run forward while it plays and coast to a stop when it ends;
+they are decoration, because the lamp and the word say the same thing, which
+is what `prefers-reduced-motion` falls back to. The faceplate's lower legend
+is the package version, injected at build time. Below 352px of panel height a
+container query scales the stage down to a 72px strip — the breakpoint is
+where the macro list stops working, not where the deck gets big.
+
+Under it the saved-macro list is a **console readout**: one shallow well,
+rows divided by dotted rules, monospace names with a leader running to a
+two-digit step count, and a lit index. Everything is lit by one light source,
+high and slightly left — that consistency is what makes the parts read as one
+object. System fonts only; no network assets.
 
 ## How the engine works
 

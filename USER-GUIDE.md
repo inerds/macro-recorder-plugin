@@ -226,6 +226,10 @@ run (the survivor) and drops pins on steps it merged away.
 
 ## 9. Manage macros
 
+Each row in the list reads left to right: its position in the list, the macro's
+name, then how many steps it holds as a two-digit count (`04`). Screen readers
+hear the full "4 steps".
+
 | Action | Where |
 |---|---|
 | Rename | ⋮ menu → Rename, Enter to commit |
