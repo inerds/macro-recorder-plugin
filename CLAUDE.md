@@ -370,11 +370,12 @@ recording clock, the status lamp and the state word.
   <=286px the legend gives up tracking and size (never letters — it is the
   reduced-motion state channel) to stay clear of the keys.
 - `.deck-keys` is an auto-flow column grid with `grid-auto-columns: 1fr`, so
-  RECORD and STOP are exactly equal width whatever their labels say. The step
-  counter stays on the faceplate, in a window corner a round reel can never
-  reach, where it costs the transport bar no width — and it keeps the
-  recessed dark pane, without which a readout on bright reel metal stops
-  being legible the moment a flange turns under it.
+  RECORD and STOP are exactly equal width whatever their labels say. The
+  clock and the step counter share ONE recessed pane (`.lcd`, with
+  `.deck-clock` as a divided segment inside it) in the row's trailing track —
+  the way a deck's counter window carries time and count together. Keep them
+  in one pane: two panes side by side read as two instruments, and the
+  trailing gutter is only ~84px wide at 300px.
 - The faceplate's lower legend is the package version, injected as
   `__APP_VERSION__` by `vite.config.ts` (declared in `src/vite-env.d.ts`), so
   it can never drift from what shipped.

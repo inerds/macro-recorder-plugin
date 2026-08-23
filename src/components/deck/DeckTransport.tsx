@@ -55,14 +55,6 @@ export function DeckTransport({
             exists while tape runs, and it is the reason the row would not
             fit: "RECORDING" and a running clock cannot share 274px with two
             keys and a counter. Outside the stage, so never aria-hidden. */}
-        {/* The tape counter stays on the faceplate, in a window corner a round
-            reel can never reach — that is where a deck's counter lives, and
-            it costs the transport bar no width. */}
-        <span className="lcd">
-          <span className="lcd-count" aria-label="Steps captured">
-            {counterText(stepCount)}
-          </span>
-        </span>
       </div>
 
       <div className="deck-row">
@@ -109,11 +101,20 @@ export function DeckTransport({
           </Button>
         </span>
 
-        {startedAt !== null && (
-          <span className="deck-clock" role="timer" aria-label="Recording time">
-            {elapsed}
+        {/* One recessed window for both readouts, the way a deck's counter
+            pane carries time and count together. Sits in the row's trailing
+            track so it lines up with the keys instead of floating in a
+            corner of the faceplate. */}
+        <span className="lcd">
+          {startedAt !== null && (
+            <span className="deck-clock" role="timer" aria-label="Recording time">
+              {elapsed}
+            </span>
+          )}
+          <span className="lcd-count" aria-label="Steps captured">
+            {counterText(stepCount)}
           </span>
-        )}
+        </span>
       </div>
     </>
   );
