@@ -113,7 +113,7 @@ export function MacroRow({
       data-testid="macro-row"
     >
       {renaming ? (
-        <div className="flex items-center gap-1.5 p-1.5">
+        <div className="flex items-center gap-1.5 px-2 py-1">
           <Input
             value={draftName}
             autoFocus
@@ -150,13 +150,10 @@ export function MacroRow({
           </Button>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5 p-1.5">
+        <div className="flex items-center gap-1.5 px-2 py-1">
           {/* Outside the disclosure on purpose: the button's accessible name
               is the macro, not a catalogue number. */}
-          <span
-            className="mono shrink-0 text-14 font-semibold leading-none text-[color:var(--ink-red-text)]"
-            aria-hidden
-          >
+          <span className="rack-num shrink-0" aria-hidden>
             {String(index + 1).padStart(2, "0")}
           </span>
           <button
@@ -168,7 +165,7 @@ export function MacroRow({
             onClick={onToggleExpand}
           >
             <ChevronRight
-              className={`size-3.5 shrink-0 text-muted-foreground transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
+              className={`me-1.5 size-3 shrink-0 text-muted-foreground/70 transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
                 expanded ? "rotate-90" : ""
               }`}
               strokeWidth={2.5}
@@ -177,16 +174,24 @@ export function MacroRow({
             {/* Name, step count and (if set) play options share one line —
                 the row used to stack them, which cost it a whole line of
                 height for information that fits beside the name just fine. */}
-            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-              <span className="truncate text-14 font-medium" title={macro.name}>
+            <span className="flex min-w-0 flex-1 items-baseline gap-0">
+              <span className="rack-name min-w-0 truncate" title={macro.name}>
                 {macro.name}
               </span>
-              <span className="mono shrink-0 text-10 text-muted-foreground tabular-nums">
-                {stepCount}
+              {/* The leader is drawn, the count is a two-digit readout — but a
+                  bare "04" means nothing spoken aloud, so the words ride
+                  along for assistive tech (and keep the row's text honest). */}
+              <span className="rack-lead" aria-hidden />
+              <span
+                className="mono shrink-0 text-10 text-muted-foreground tabular-nums"
+                aria-hidden
+              >
+                {String(macro.steps.length).padStart(2, "0")}
               </span>
+              <span className="sr-only">{stepCount}</span>
               {optionSummary && (
                 <span
-                  className="max-w-[30%] shrink-0 truncate text-10 tabular-nums text-muted-foreground"
+                  className="mono ms-1.5 max-w-[30%] shrink-0 truncate text-10 tabular-nums text-muted-foreground"
                   title={optionSummary}
                   data-testid="play-options-summary"
                 >

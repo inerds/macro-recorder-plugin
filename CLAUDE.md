@@ -458,10 +458,17 @@ shallow well holding rows that butt together, not N cards with N borders and
 N drop shadows: fewer edges reads quieter AND matches the deck's object
 language. Two rules keep it coherent:
 
-- **Rows separate with an engraved groove, not a drawn line.** A dark 1px rule
-  is the cut, the white lip below it is light catching the near edge — the
-  same lamp as the deck (see "one light source"). A plain border reverts it to
-  a web list.
+- **It is a console readout, not a list of cards.** Rows divide with a dotted
+  rule and a `.rack-lead` leader carries the eye from each macro's name to a
+  two-digit step count, the way an instrument list does; names are `--font-mono`
+  and `.rack-num` is lit (`--primary` plus a glow, not the small-text red —
+  the glow is what carries it at that weight). The monospace grid is what
+  makes it read as equipment; setting the names back in the sans face is what
+  would quietly undo it.
+- **The two-digit count is `aria-hidden`, with the words beside it.** "04"
+  spoken aloud is meaningless, and `walk.mjs` asserts the row's text contains
+  "N steps" — so the readout is decorative and an `sr-only` "4 steps" carries
+  the meaning. Keep both.
 - **Steps always sit IN something.** `.rack-drawer` (expanded macro, and the
   recording feed's list) is DARKER than the step rows seated in it, which are
   `bg-card`. That relationship is load-bearing: `StepRow` used to be
