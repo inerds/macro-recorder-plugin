@@ -378,6 +378,9 @@ export function AppProvider({
           steps: current.steps,
           ...(current.source ? { source: current.source } : {}),
           ...(current.params.length > 0 ? { params: current.params } : {}),
+          // Newly recorded macros play at the playhead by default — the
+          // row's popover can still turn it off for the session.
+          playOptions: { atPlayhead: true },
         };
         void store.save(macro).catch(() => {
           notify("Could not save macro", "error");
@@ -489,13 +492,13 @@ export function AppProvider({
         // then hand the JSON back for a manual-copy dialog.
         try {
           await navigator.clipboard.writeText(json);
-          notify(`Copied "${macro.name}" as JSON`, "success");
+          notify(`Copied “${macro.name}” as JSON`, "success");
           return null;
         } catch {
           // Denied or unavailable — fall through to the legacy path.
         }
         if (copyViaHiddenTextarea(json)) {
-          notify(`Copied "${macro.name}" as JSON`, "success");
+          notify(`Copied “${macro.name}” as JSON`, "success");
           return null;
         }
         return { name: macro.name, json };
@@ -503,7 +506,7 @@ export function AppProvider({
       async importJson(json) {
         const macro = await store.importMacro(json);
         dispatch({ type: "IMPORTED", macro });
-        notify(`Imported "${macro.name}"`, "success");
+        notify(`Imported “${macro.name}”`, "success");
       },
       notify,
 

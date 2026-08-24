@@ -77,6 +77,11 @@ export class RpcPlaybackGateway implements PlaybackGateway {
                 ? `${first.target}: ${first.message}`
                 : `${result.failures.length} of ${begin.targetCount} layers failed — ${first.message}`;
             onEvent({ kind: "step-failed", stepIndex: offset + index, message });
+            // Flush before parking on the decision: an un-dismissed failure
+            // banner must not hold the whole run's evidence hostage (the
+            // buffered events would otherwise ride along into the NEXT
+            // trace, or be lost with the panel).
+            void trace.flush(`playback-${macro.name}`);
             const action = await awaitDecision();
             if (action === "stop" || cancelled) return false;
           } else {
@@ -91,6 +96,8 @@ export class RpcPlaybackGateway implements PlaybackGateway {
         // Pre-run/hard failure: surface as a step-0 failure (the UI offers
         // only "OK" for step 0 before progress) and wait for dismissal.
         onEvent({ kind: "step-failed", stepIndex: offset, message });
+        // Same rule as mid-run failures: evidence lands before the wait.
+        void trace.flush(`playback-${macro.name}`);
         await awaitDecision();
         return false;
       } finally {

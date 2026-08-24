@@ -113,10 +113,12 @@ export function DevSettings({ store, macroCount, onStoreChanged, children }: Dev
 
   return (
     <div
-      // relative+z: rack rows are positioned and would paint over this strip
-      // (and show through a translucent tint) while scrolling beneath it.
-      // The color-mix bakes the old bg-muted/60 look onto a solid ground.
-      className="relative z-[1] border-t border-dashed border-border bg-[color:color-mix(in_srgb,var(--muted)_60%,var(--background))] text-11"
+      // relative (NO z-index): rack rows are positioned and would paint over
+      // this strip while scrolling beneath it; being positioned AND later in
+      // the DOM is enough to win. A z-index here buried the bottom of the
+      // portalled overflow menu (z-auto positioner) under this strip — the
+      // same stacking trap index.css documents for #root.
+      className="relative border-t border-dashed border-border bg-[color:color-mix(in_srgb,var(--muted)_60%,var(--background))] text-11"
     >
       <button
         type="button"
@@ -124,7 +126,7 @@ export function DevSettings({ store, macroCount, onStoreChanged, children }: Dev
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        <span className="instrument">Dev settings</span>
+        <span className="instrument shrink-0 whitespace-nowrap">Dev settings</span>
         <span className="flex items-center gap-2">
           {/* The count doubles as the action receipt — one readout, no layout shift. */}
           <span className="mono whitespace-nowrap" role="status" aria-live="polite">

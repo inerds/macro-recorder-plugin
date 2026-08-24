@@ -251,7 +251,7 @@ describe("playback flow", () => {
     if (stopped.mode === "idle") {
       expect(stopped.notice).toMatchObject({
         message:
-          'Stopped "Macro m1" at step 2 of 3 — earlier steps are still applied',
+          'Stopped “Macro m1” at step 2 of 3 — earlier steps are still applied',
         tone: "info",
       });
     }
@@ -267,7 +267,7 @@ describe("playback flow", () => {
     if (stopped.mode === "idle") {
       expect(stopped.notice).toMatchObject({
         message:
-          'Stopped "Macro m1" at step 3 of 3 — earlier steps are still applied',
+          'Stopped “Macro m1” at step 3 of 3 — earlier steps are still applied',
         tone: "info",
       });
     }
@@ -300,7 +300,7 @@ describe("playback flow", () => {
     expect(state.mode).toBe("idle");
     if (state.mode === "idle") {
       expect(state.notice).toMatchObject({
-        message: 'Played "Macro m1"',
+        message: 'Played “Macro m1”',
         tone: "success",
       });
     }

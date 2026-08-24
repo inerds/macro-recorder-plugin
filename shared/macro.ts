@@ -28,6 +28,9 @@ export interface Macro {
   source?: { nodeId: string; nodeName?: string };
   /** Steps exposed as parameters on apply (feature 4). */
   params?: MacroParam[];
+  /** Default play options a row starts with (newly recorded macros save
+   *  `{ atPlayhead: true }`); the row's popover can still change them. */
+  playOptions?: { atPlayhead?: boolean; staggerFrames?: number; repeat?: number };
 }
 
 const STEP_KINDS: readonly string[] = [
@@ -105,6 +108,15 @@ export function parseImportedMacro(json: string, makeId: () => string): Macro {
     typeof source.source.nodeId === "string"
   ) {
     macro.source = { ...source.source };
+  }
+  if (source.playOptions && typeof source.playOptions === "object") {
+    const { atPlayhead, staggerFrames, repeat } = source.playOptions as Record<string, unknown>;
+    const playOptions: NonNullable<Macro["playOptions"]> = {};
+    if (atPlayhead === true) playOptions.atPlayhead = true;
+    if (typeof staggerFrames === "number" && staggerFrames > 0)
+      playOptions.staggerFrames = staggerFrames;
+    if (typeof repeat === "number" && repeat > 1) playOptions.repeat = repeat;
+    if (Object.keys(playOptions).length > 0) macro.playOptions = playOptions;
   }
   return macro;
 }

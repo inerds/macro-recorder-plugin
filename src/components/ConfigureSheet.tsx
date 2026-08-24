@@ -70,21 +70,41 @@ export function ConfigureSheet({
   const optionSummary = describePlayOptions(options);
 
   return (
+    // Deliberately NOT a native form submission: Creator hosts this panel in
+    // a sandboxed iframe, and a sandbox without `allow-forms` silently blocks
+    // the submit event — the Play button then does nothing at all (which is
+    // exactly what happened in the wild; standalone tabs were unaffected).
+    // Click and Enter drive onPlay directly instead.
     <form
       className="flex min-h-0 flex-1 flex-col"
       data-testid="configure-sheet"
       onSubmit={(event) => {
+        // Belt and braces where submission IS allowed (standalone): keep the
+        // implicit path inert so Enter/click never double-fire onPlay.
         event.preventDefault();
-        onPlay();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") return;
+        const target = event.target as HTMLElement;
+        // Enter on the sheet's fields plays (the old implicit-submit
+        // behavior); buttons keep their own Enter activation.
+        if (target instanceof HTMLInputElement && target.type !== "checkbox") {
+          event.preventDefault();
+          onPlay();
+        }
       }}
     >
       <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
         <div className="enter-1">
           {/* tabIndex -1: focus lands on the first field (below), but the
               heading stays a programmatic focus target. */}
-          <h2 tabIndex={-1} className="text-14 font-medium">
-            Set values for &ldquo;{macro.name}&rdquo;
+          <h2 tabIndex={-1} className="instrument instrument-red">
+            Set values
+            <span className="sr-only"> for &ldquo;{macro.name}&rdquo;</span>
           </h2>
+          <p className="mono mt-1 truncate text-12" title={macro.name}>
+            {macro.name}
+          </p>
           {/* One supporting line. The playback-mode hint is already on the
               row this sheet was opened from. */}
           <p className="mt-0.5 text-11 text-muted-foreground">
@@ -141,9 +161,10 @@ export function ConfigureSheet({
         </Button>
         <Button
           size="sm"
-          type="submit"
+          type="button"
           className="press key key-red"
           data-testid="configure-play-button"
+          onClick={onPlay}
         >
           Play
         </Button>

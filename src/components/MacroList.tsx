@@ -146,7 +146,7 @@ export function MacroList({ playing }: MacroListProps) {
       <CopyJsonDialog
         payload={copyFallback}
         onClose={() => setCopyFallback(null)}
-        onCopied={(name) => actions.notify(`Copied "${name}" as JSON`, "success")}
+        onCopied={(name) => actions.notify(`Copied “${name}” as JSON`, "success")}
       />
     </div>
   );

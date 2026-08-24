@@ -7,19 +7,21 @@ import { StepList } from "./StepList";
 export interface RecordingViewProps {
   steps: MacroStep[];
   confirmingDiscard: boolean;
+  onStop: () => void;
   onDiscardRequest: () => void;
   onDiscardCancel: () => void;
   onDiscardConfirm: () => void;
 }
 
 /**
- * The live feed. Stop, the clock and the step counter all live in the deck —
- * this view owns only the steps as they land and the one way out that the
- * deck can't offer (discarding what has been captured).
+ * The live feed. The clock and the step counter live in the deck; the bottom
+ * bar carries the screen's own decision — Stop (the CTA, same action as the
+ * deck's key) against Discard — mirroring the review bar's grammar.
  */
 export function RecordingView({
   steps,
   confirmingDiscard,
+  onStop,
   onDiscardRequest,
   onDiscardCancel,
   onDiscardConfirm,
@@ -44,7 +46,7 @@ export function RecordingView({
           <span className="instrument instrument-red truncate">Live steps</span>
           {/* Not a live region: at one tick every 500ms it read the count
               aloud over everything else. The total is announced once, on stop. */}
-          <span className="mono shrink-0 rounded-[6px] border border-border bg-muted px-1.5 py-0.5 text-10 leading-none">
+          <span className="mono shrink-0 rounded-[7px] border border-border bg-muted px-1.5 py-0.5 text-10 leading-none">
             {steps.length === 1 ? "1 step" : `${steps.length} steps`}
           </span>
         </div>
@@ -61,16 +63,31 @@ export function RecordingView({
           )}
         </div>
       </main>
-      {/* Stop is the deck's key, and there is exactly one of it. */}
-      <div className="border-t border-border bg-background px-3 py-2">
+      {/* Stop is the CTA (user decision, 2026-08-24): it duplicates the
+          deck's key on purpose — same name, same action — so the screen's
+          bottom bar reads like the review bar it hands off to. */}
+      {/* Equal tracks, like the deck's own key pair — otherwise DISCARD's
+          seven letters out-weigh the four-letter CTA beside it. */}
+      <div className="grid grid-cols-2 items-center gap-1.5 border-t border-border bg-background px-3 py-2">
         <Button
           size="sm"
           variant="ghost"
           className="press key key-outline w-full"
+          // One question at a time: while the confirm at the top of the feed
+          // is asking it, the key that asked goes quiet.
+          disabled={confirmingDiscard}
           onClick={onDiscardRequest}
           data-testid="discard-recording-button"
         >
           Discard
+        </Button>
+        <Button
+          size="sm"
+          className="press key key-red w-full"
+          onClick={onStop}
+          data-testid="stop-recording-button"
+        >
+          Stop
         </Button>
       </div>
     </div>

@@ -36,7 +36,7 @@ const KIND_ICONS: Record<StepKind, typeof Move> = {
  * hovered row never reflows, and touch devices (no hover) always show them.
  */
 const ACTION_CLASS =
-  "flex h-6 w-0 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded text-muted-foreground opacity-0 transition-[opacity,background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:w-6 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring group-hover:w-6 group-hover:opacity-100 group-focus-within:w-6 group-focus-within:opacity-100 [@media(hover:none)]:w-6 [@media(hover:none)]:opacity-100";
+  "flex h-6 w-0 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[7px] text-muted-foreground opacity-0 transition-[opacity,background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-foreground active:scale-[0.96] focus-visible:w-6 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring group-hover:w-6 group-hover:opacity-100 group-focus-within:w-6 group-focus-within:opacity-100 [@media(hover:none)]:w-6 [@media(hover:none)]:opacity-100";
 // Hidden actions collapse to w-0 at rest so a pinned/skipped row's resting
 // lane is only as wide as its STATE icons — the lane's bg-inherit used to
 // span all four buttons and paint over the label's tail. The lane is
@@ -162,7 +162,13 @@ export function StepRow({
           // Moving between the editor's own fields (hex + swatch, x + y) must
           // not commit; leaving the editor entirely does. Focus is NOT
           // restored here — the user is already on their way elsewhere.
+          // One exception: the native color picker is a separate OS window,
+          // so opening it blurs the PAGE (relatedTarget null) without the
+          // user leaving the editor — committing then would unmount the
+          // editor mid-pick and the chosen color would land nowhere. A blur
+          // while the document itself has lost focus is never "moved on".
           onBlur={(event) => {
+            if (!document.hasFocus()) return;
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
               commit();
             }

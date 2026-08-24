@@ -49,7 +49,7 @@ export function ReviewPanel({
       <h2 className="sr-only">Review recording</h2>
       <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1 py-3">
         <p className="instrument instrument-red enter-1 px-2 pb-2">
-          &larr; Review &amp; save
+          Review &amp; save
         </p>
         <div className="enter-1 flex flex-col gap-1.5 px-2">
           <div className="flex items-baseline justify-between gap-2">
@@ -62,6 +62,7 @@ export function ReviewPanel({
           </div>
           <Input
             id="macro-name"
+            className="mono"
             value={name}
             autoFocus
             maxLength={NAME_LIMIT}
@@ -116,6 +117,9 @@ export function ReviewPanel({
           size="sm"
           variant="ghost"
           className="press key key-outline"
+          // One question at a time: while the confirm above is asking it,
+          // the key that asked goes quiet.
+          disabled={confirmingDiscard}
           onClick={() => {
             if (isEmpty) onDiscard();
             else setConfirmingDiscard(true);

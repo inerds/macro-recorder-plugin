@@ -313,7 +313,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       return idleState([...state.macros, event.macro], {
         notice: {
           id: newId(),
-          message: `Saved "${event.macro.name}"`,
+          message: `Saved “${event.macro.name}”`,
           tone: "success",
         },
       });
@@ -494,7 +494,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           ? {
               notice: {
                 id: newId(),
-                message: `Stopped "${stopped.name}" at step ${at} of ${state.playing.total} — earlier steps are still applied`,
+                message: `Stopped “${stopped.name}” at step ${at} of ${state.playing.total} — earlier steps are still applied`,
                 tone: "info" as const,
               },
             }
@@ -512,7 +512,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           ? {
               notice: {
                 id: newId(),
-                message: `Played "${played.name}"`,
+                message: `Played “${played.name}”`,
                 tone: "success" as const,
               },
             }

@@ -11,17 +11,12 @@ import type { Macro } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
 import { OverflowMenu } from "./OverflowMenu";
 import { PlaybackStatus } from "./PlaybackStatus";
+import { ICON_KEY_CLASS } from "./iconKey";
 import { describePlayOptions } from "./playOptionsText";
 import { PlayOptionsPopover } from "./PlayOptionsPopover";
 import { StepList } from "./StepList";
 import { StepListHeader } from "./StepListHeader";
 
-/**
- * Hand-rolled icon buttons (the library Button is too tall for this row).
- * Squared-off outlined keys, to match the transport without its height.
- */
-const ICON_BUTTON_CLASS =
-  "press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[7px] text-muted-foreground transition-[background-color,color,scale,box-shadow] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-foreground hover:shadow-[inset_0_0_0_1px_rgba(42,38,35,0.18)] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40";
 
 export interface MacroRowProps {
   macro: Macro;
@@ -82,7 +77,9 @@ export function MacroRow({
   const [draftName, setDraftName] = useState(macro.name);
   // Play options belong to the row, not the dialog: the bare ▶ uses whatever
   // was chosen last, and the row says so.
-  const [options, setOptions] = useState<PlayOptions>({});
+  const [options, setOptions] = useState<PlayOptions>(() => ({
+    ...(macro.playOptions ?? {}),
+  }));
   const panelId = useId();
   const disclosureRef = useRef<HTMLButtonElement>(null);
 
@@ -123,7 +120,7 @@ export function MacroRow({
             value={draftName}
             autoFocus
             aria-label="Macro name"
-            className="h-6 min-w-0 flex-1"
+            className="mono h-6 min-w-0 flex-1"
             onChange={(event) => setDraftName(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -168,7 +165,7 @@ export function MacroRow({
           <button
             type="button"
             ref={disclosureRef}
-            className="press flex min-w-0 flex-1 items-center gap-1.5 rounded-[5px] text-left hover:bg-accent/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="press flex min-w-0 flex-1 items-center gap-1.5 rounded-[7px] text-left hover:bg-accent/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={onToggleExpand}
@@ -227,7 +224,7 @@ export function MacroRow({
           {(!expanded || isPlayingThis) && (
           <button
             type="button"
-            className={ICON_BUTTON_CLASS}
+            className={ICON_KEY_CLASS}
             aria-label={isPlayingThis ? `Stop ${macro.name}` : `Play ${macro.name}`}
             disabled={!isPlayingThis && playDisabled}
             onClick={() =>
@@ -282,7 +279,7 @@ export function MacroRow({
       {confirmingDelete && (
         <div className="px-2 pb-2">
           <ConfirmInline
-            message={`Delete "${macro.name}"? This can't be undone.`}
+            message={`Delete “${macro.name}”? This can't be undone.`}
             confirmLabel="Delete macro"
             onConfirm={onDeleteConfirm}
             onCancel={onDeleteCancel}
@@ -320,18 +317,43 @@ export function MacroRow({
                 paramIds={(macro.params ?? []).map((param) => param.stepId)}
                 activeIndex={activeIndex}
               />
-              {/* The card's readout footer (concept): what the macro spans
-                  and how the row is set to repeat. Frames, not a timecode —
-                  the UI never learns the scene's fps, and a made-up clock
-                  would be a lie. */}
+              {/* The card's control footer: play leads it, so the open
+                  card carries every lid ability (user ask, 2026-08-25 —
+                  this seat was the Duration readout; the span now rides
+                  the key's tooltip so the number survives without the
+                  label's width). Like the lid's key, it stays mounted
+                  across the run swapping glyph and action — unmounting
+                  under the focus that pressed it would drop focus. */}
               {(() => {
                 const span = keyframeSpan(macro.steps);
+                const durationTitle = span
+                  ? `Duration ${span.last - span.first} fr`
+                  : undefined;
                 return (
                   <div className="mt-1.5 flex items-center gap-1.5 border-t border-dotted border-border px-2 pt-1.5">
-                    <span className="instrument">Duration</span>
-                    <span className="mono text-10 tabular-nums whitespace-nowrap">
-                      {span ? `${span.last - span.first} fr` : "—"}
-                    </span>
+                    <button
+                      type="button"
+                      className={ICON_KEY_CLASS}
+                      aria-label={isPlayingThis ? `Stop ${macro.name}` : `Play ${macro.name}`}
+                      {...(durationTitle && !isPlayingThis ? { title: durationTitle } : {})}
+                      disabled={!isPlayingThis && playDisabled}
+                      onClick={() =>
+                        isPlayingThis ? onResolveFailure("stop") : onPlay(options)
+                      }
+                      data-testid="footer-play-button"
+                    >
+                      {isPlayingThis ? (
+                        <Square
+                          className="size-3 fill-current text-[color:var(--ink-red-text)]"
+                          strokeWidth={2.5}
+                        />
+                      ) : (
+                        <Play className="size-3.5 translate-x-[0.5px] fill-current" />
+                      )}
+                    </button>
+                    {durationTitle && (
+                      <span className="sr-only">{durationTitle}</span>
+                    )}
                     {/* The ×N reads as the dial's setting beside the control
                         that changes it — the label is for screen readers,
                         the footer hasn't the width for it beside two keys. */}

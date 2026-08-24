@@ -47,7 +47,7 @@ export function hexToRgb(hex: string): Rgb | null {
 }
 
 const SWATCH_CLASS =
-  "size-6 shrink-0 cursor-pointer overflow-hidden rounded-sm border border-border bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-[2px] [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-[2px] [&::-moz-color-swatch]:border-0";
+  "size-6 shrink-0 cursor-pointer overflow-hidden rounded border border-border bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-[3px] [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-[3px] [&::-moz-color-swatch]:border-0";
 
 /**
  * One editor per EditableValue kind, shared by the step rows and the
@@ -70,7 +70,18 @@ export function StepValueEditor({
     const field = firstFieldRef.current;
     if (!field) return;
     field.focus();
-    if (field.type !== "color" && field.type !== "checkbox") {
+    if (field.type === "color") {
+      // A color field's first move is always the picker — pop it open so
+      // "set a color, play" is one gesture. showPicker() needs transient
+      // user activation and refuses in cross-origin iframes; when it
+      // declines (e.g. inside Creator), the focused swatch still opens on
+      // Enter/Space, so failure costs nothing.
+      try {
+        field.showPicker?.();
+      } catch {
+        // focus alone is the fallback
+      }
+    } else if (field.type !== "checkbox") {
       field.select?.();
     }
   }, [autoFocus, value.kind]);

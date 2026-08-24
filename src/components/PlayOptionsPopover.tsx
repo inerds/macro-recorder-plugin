@@ -13,6 +13,8 @@ import { useId, useRef, useState } from "react";
 
 import type { PlayOptions } from "../gateways/types";
 
+import { ICON_KEY_CLASS } from "./iconKey";
+
 export interface PlayOptionsPopoverProps {
   macroName: string;
   disabled?: boolean;
@@ -103,7 +105,7 @@ export function PlayOptionsPopover({
       <DialogTrigger
         aria-label={`Play options for ${macroName}`}
         disabled={disabled}
-        className="press flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[7px] text-muted-foreground transition-[background-color,color,scale,box-shadow] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-foreground hover:shadow-[inset_0_0_0_1px_rgba(42,38,35,0.18)] active:scale-[0.96] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+        className={ICON_KEY_CLASS}
         data-testid="play-options-trigger"
       >
         <SlidersHorizontal className="size-3.5" strokeWidth={2.5} />

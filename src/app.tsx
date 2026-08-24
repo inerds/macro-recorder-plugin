@@ -133,6 +133,7 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             <RecordingView
               steps={state.steps}
               confirmingDiscard={state.confirmingDiscard}
+              onStop={actions.stopRecording}
               onDiscardRequest={actions.requestDiscard}
               onDiscardCancel={actions.cancelDiscard}
               onDiscardConfirm={actions.confirmDiscard}
