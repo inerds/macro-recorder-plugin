@@ -6,6 +6,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { DebugStrip } from "./dev/DebugStrip";
+import { DevSettings } from "./dev/DevSettings";
 import { TraceStrip } from "./dev/TraceStrip";
 import type { GatewaysBundle } from "./gateways";
 import { ConfigureSheet } from "./components/ConfigureSheet";
@@ -14,7 +15,7 @@ import { MacroList } from "./components/MacroList";
 import { RecordingView } from "./components/RecordingView";
 import { ReviewPanel } from "./components/ReviewPanel";
 import { useApp } from "./state/AppContext";
-import { useTheme } from "./theme/useTheme";
+import { useHostBackground } from "./theme/useHostBackground";
 import { VINTAGE_TOKENS } from "./theme/vintageTokens";
 
 /**
@@ -71,8 +72,9 @@ function NoticeToasts() {
 
 function Panel({ gateways }: { gateways: GatewaysBundle }) {
   const { state, actions } = useApp();
-  // Observed only — the panel wears one committed skin (see vintageTokens.ts).
-  useTheme();
+  // The frame matches Creator's interface theme; null until the host pushes
+  // one, and the CSS fallback (dark) covers that.
+  const hostBackground = useHostBackground();
   // ToastProvider has no offset prop and its viewport is pinned to bottom-0,
   // so the footer makes room for itself while a toast is up.
   const { toasts } = useToast();
@@ -89,92 +91,108 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
 
   return (
     <ThemeProvider tokens={VINTAGE_TOKENS}>
-      <div className="panel-root flex h-full flex-col overflow-x-hidden bg-background text-foreground">
-        <h1 className="sr-only">Macro Recorder</h1>
-        {gateways.staleEngine && (
-          <div
-            className="border-b border-border bg-destructive/10 px-3 py-1.5 text-11 text-foreground"
-            role="alert"
-            data-testid="stale-engine-banner"
-          >
-            <strong>Plugin engine is outdated</strong> ({gateways.staleEngine.sandboxRev} vs{" "}
-            {gateways.staleEngine.uiRev}). Remove and re-add the plugin in Creator.
-            {import.meta.env.DEV && (
-              <> If this keeps happening, restart <code>pnpm dev</code>.</>
-            )}
-          </div>
-        )}
-        {demoInIframe && (
-          <div
-            className="border-b border-border bg-destructive/10 px-3 py-1.5 text-11 text-foreground"
-            role="alert"
-            data-testid="demo-mode-banner"
-          >
-            <strong>Demo engine.</strong> Couldn't reach the plugin sandbox —
-            recording and playback are simulated. Reload the plugin to retry.
-          </div>
-        )}
-        {/* One transport for every screen. Full-bleed on purpose: this is the
-            machine's faceplate, so it meets the panel edges rather than
-            floating on the paper like a card. */}
-        <Deck />
-        {state.mode === "recording" ? (
-          <RecordingView
-            steps={state.steps}
-            confirmingDiscard={state.confirmingDiscard}
-            onDiscardRequest={actions.requestDiscard}
-            onDiscardCancel={actions.cancelDiscard}
-            onDiscardConfirm={actions.confirmDiscard}
-          />
-        ) : state.mode === "reviewing" ? (
-          <ReviewPanel
-            name={state.name}
-            steps={state.steps}
-            params={state.params}
-            onNameChange={actions.changeReviewName}
-            onDeleteStep={actions.deleteReviewStep}
-            onSimplify={actions.simplifyReview}
-            onToggleStep={actions.toggleReviewStep}
-            onEditStep={actions.editReviewStep}
-            onToggleParam={actions.toggleReviewParam}
-            onSave={actions.saveReview}
-            onDiscard={actions.discardReview}
-          />
-        ) : state.mode === "configuring" && configuringMacro ? (
-          <ConfigureSheet
-            macro={configuringMacro}
-            values={state.values}
-            options={state.options}
-            onChange={actions.changeConfigureValue}
-            onPlay={actions.confirmConfigure}
-            onCancel={actions.cancelConfigure}
-          />
-        ) : (
-          // The footer that used to sit below this list carried only a
-          // totals line ("N macros · M steps") — folded into the "Saved
-          // macros" header row instead (MacroList.tsx) so the list keeps the
-          // whole row of chrome that footer cost. Its other job, clearing
-          // the bottom-centre toast, moves to this <main> directly.
-          <main
-            className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
-              toasts.length > 0 ? "pb-12" : ""
-            }`}
-          >
-            <MacroList
-              playing={state.mode === "playing" ? state.playing : null}
+      {/* The plate sits on Creator's own chrome — see .host-frame in index.css. */}
+      <div
+        className="host-frame"
+        style={
+          hostBackground
+            ? ({ "--host-frame-bg": hostBackground } as React.CSSProperties)
+            : undefined
+        }
+      >
+        <div className="panel-root flex h-full flex-col overflow-x-hidden bg-background text-foreground">
+          <h1 className="sr-only">Macro Recorder</h1>
+          {gateways.staleEngine && (
+            <div
+              className="border-b border-border bg-destructive/10 px-3 py-1.5 text-11 text-foreground"
+              role="alert"
+              data-testid="stale-engine-banner"
+            >
+              <strong>Plugin engine is outdated</strong> ({gateways.staleEngine.sandboxRev} vs{" "}
+              {gateways.staleEngine.uiRev}). Remove and re-add the plugin in Creator.
+              {import.meta.env.DEV && (
+                <> If this keeps happening, restart <code>pnpm dev</code>.</>
+              )}
+            </div>
+          )}
+          {demoInIframe && (
+            <div
+              className="border-b border-border bg-destructive/10 px-3 py-1.5 text-11 text-foreground"
+              role="alert"
+              data-testid="demo-mode-banner"
+            >
+              <strong>Demo engine.</strong> Couldn't reach the plugin sandbox —
+              recording and playback are simulated. Reload the plugin to retry.
+            </div>
+          )}
+          {/* One transport for every screen. Full-bleed on purpose: this is the
+              machine's faceplate, so it meets the panel edges rather than
+              floating on the paper like a card. */}
+          <Deck />
+          {state.mode === "recording" ? (
+            <RecordingView
+              steps={state.steps}
+              confirmingDiscard={state.confirmingDiscard}
+              onDiscardRequest={actions.requestDiscard}
+              onDiscardCancel={actions.cancelDiscard}
+              onDiscardConfirm={actions.confirmDiscard}
             />
-          </main>
-        )}
-        {import.meta.env.DEV && <TraceStrip kind={gateways.kind} />}
-        {import.meta.env.DEV && gateways.mocks && (
-          <DebugStrip
-            mockRecorder={gateways.mocks.recorder}
-            mockPlayback={gateways.mocks.playback}
-            store={gateways.store}
-            onStoreChanged={actions.reloadMacros}
-          />
-        )}
-        <NoticeToasts />
+          ) : state.mode === "reviewing" ? (
+            <ReviewPanel
+              name={state.name}
+              steps={state.steps}
+              params={state.params}
+              onNameChange={actions.changeReviewName}
+              onDeleteStep={actions.deleteReviewStep}
+              onSimplify={actions.simplifyReview}
+              onToggleStep={actions.toggleReviewStep}
+              onEditStep={actions.editReviewStep}
+              onToggleParam={actions.toggleReviewParam}
+              onSave={actions.saveReview}
+              onDiscard={actions.discardReview}
+            />
+          ) : state.mode === "configuring" && configuringMacro ? (
+            <ConfigureSheet
+              macro={configuringMacro}
+              values={state.values}
+              options={state.options}
+              onChange={actions.changeConfigureValue}
+              onPlay={actions.confirmConfigure}
+              onCancel={actions.cancelConfigure}
+            />
+          ) : (
+            // The footer that used to sit below this list carried only a
+            // totals line ("N macros · M steps") — folded into the "Saved
+            // macros" header row instead (MacroList.tsx) so the list keeps the
+            // whole row of chrome that footer cost. Its other job, clearing
+            // the bottom-centre toast, moves to this <main> directly.
+            <main
+              className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
+                toasts.length > 0 ? "pb-12" : ""
+              }`}
+            >
+              <MacroList
+                playing={state.mode === "playing" ? state.playing : null}
+              />
+            </main>
+          )}
+          {import.meta.env.DEV && (
+            <DevSettings
+              store={gateways.store}
+              macroCount={state.macros.length}
+              onStoreChanged={actions.reloadMacros}
+            >
+              <TraceStrip kind={gateways.kind} />
+              {gateways.mocks && (
+                <DebugStrip
+                  mockRecorder={gateways.mocks.recorder}
+                  mockPlayback={gateways.mocks.playback}
+                />
+              )}
+            </DevSettings>
+          )}
+          <NoticeToasts />
+        </div>
       </div>
     </ThemeProvider>
   );

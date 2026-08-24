@@ -93,3 +93,8 @@ corner-radius drag produces no snapshot change (LIMITATIONS.md, 2026-08-23).
    engine models them as one-item lists.
 10. Host events: only `selection:nodes`/`selection:keyframes`/`message`. No
     change events → polling + diff is the only recording mechanism.
+    Exception being probed: the ui-library docs document `creator.ui.theme`
+    and a `change:theme` event (ThemeProvider sync). `plugin/theme.ts`
+    implements that relay fully feature-detected — NEVER live-verified; our
+    introspection predates the probe. If a trace shows the frame matching
+    Creator's theme, the event exists; move this note accordingly.

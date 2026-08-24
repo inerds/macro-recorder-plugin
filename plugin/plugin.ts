@@ -4,10 +4,16 @@ import { playbackBegin, playbackEnd, playbackStep } from "./playback";
 import { recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
 import { handleMessage, registerHandler } from "./rpc-server";
 import { listMacros, removeMacro, renameMacro, saveMacro } from "./store";
+import { sendTheme, watchTheme } from "./theme";
 
 creator.ui.show({ width: 300, height: 520 });
 
-registerHandler("hello", () => ({ protocolVersion: PROTOCOL_VERSION, rev: ENGINE_REV }));
+registerHandler("hello", () => {
+  // The docs' "UI is ready" moment: hand the freshly-booted iframe the
+  // host's current interface theme alongside the handshake reply.
+  sendTheme();
+  return { protocolVersion: PROTOCOL_VERSION, rev: ENGINE_REV };
+});
 
 registerHandler("store.list", () => listMacros());
 registerHandler("store.save", (params) => saveMacro((params as { macro: Macro }).macro));
@@ -46,3 +52,6 @@ try {
 } catch {
   // ignore — handshake from the UI side covers the normal boot order
 }
+
+watchTheme();
+sendTheme();

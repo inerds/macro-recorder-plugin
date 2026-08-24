@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Macro Recorder</title>
+    <script>
+      // Pre-React theme catch (the official ThemeProvider sync pattern):
+      // the sandbox relays Creator's theme as { type: "change:theme",
+      // tokens, themeName }; painting --host-frame-bg on <html> here means
+      // the gutter never flashes the dark CSS fallback in a light-theme
+      // Creator while the bundle loads. KEEP the resolution chain in sync
+      // with src/theme/useHostBackground.ts.
+      addEventListener("message", function (event) {
+        var data = event.data && (event.data.pluginMessage || event.data);
+        if (!data || data.type !== "change:theme") return;
+        var tokens = data.tokens || {};
+        var bg =
+          tokens["--background"] || tokens["background"] ||
+          tokens["--base"] || tokens["base"] ||
+          (typeof data.themeName === "string" && /light/i.test(data.themeName)
+            ? "hsl(0 0% 100%)"
+            : typeof data.themeName === "string" && /dark/i.test(data.themeName)
+              ? "hsl(198 16.7% 11.8%)"
+              : null);
+        if (bg) document.documentElement.style.setProperty("--host-frame-bg", bg);
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
