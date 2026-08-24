@@ -247,9 +247,13 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   semantics); inside instance content, resolution is strictly index-ordered
   (user decision — no shape-type redirect there).
 - **Nothing applies silently**: `applyStep` returns `StepOutcome.notes` for
-  deliberate non-applies/adaptations (cross-kind recolors adapt: solid↔
-  gradient, static and keyframed; trim edits create the trim on demand; paint
-  paths remap singular text fills). Genuine failures throw and pause. Keep
+  deliberate non-applies/adaptations (cross-kind recolors: gradient stops
+  onto a solid LIST fill CONVERT the fill to a gradient via the
+  replace-paint mechanism so the full stop values survive — user decision,
+  2026-08-25, rev .44; solid color onto a gradient still tints every stop;
+  singular text fills and strokes keep first-color adaptation since they
+  have no removal semantics; static and keyframed both; trim edits create
+  the trim on demand; paint paths remap singular text fills). Genuine failures throw and pause. Keep
   this invariant — silent half-applies were the original disease. It extends
   to `set-plain`: the applier reads the flag back after writing and notes a
   mismatch ("the host kept X unchanged"); an unreadable read-back makes no

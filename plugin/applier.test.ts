@@ -266,24 +266,27 @@ describe("path resolution failures", () => {
     expect(outcome.notes[0]).toMatch(/skipped$/);
   });
 
-  it("applies a gradient recolor to a solid-fill target via the first stop's color", () => {
-    // A recolor is a recolor: a layer has one fill, whatever its paint kind.
-    // (Previously this hard-failed at step 0 and blocked the whole macro.)
+  it("converts a solid-fill target to a gradient (contract change, 2026-08-25)", () => {
+    // Used to adapt via the first stop's color; user decision: a gradient
+    // macro should CHANGE the fill type so the full values survive.
     const target = makeNode("Star 1", { fills: [{ r: 40, g: 183, b: 219 }] }, makeIds());
+    const stops = [
+      { color: { r: 64, g: 180, b: 208 }, offset: 0, opacity: 1 },
+      { color: { r: 159, g: 164, b: 166 }, offset: 1, opacity: 1 },
+    ];
 
     const outcome = apply(target, {
       op: "set-static",
       path: ["fills", 0, "stops"],
       before: null,
-      after: [
-        { color: { r: 64, g: 180, b: 208 }, offset: 0, opacity: 1 },
-        { color: { r: 159, g: 164, b: 166 }, offset: 1, opacity: 1 },
-      ],
+      after: stops,
     });
 
-    expect(target.fills[0].color.staticValue).toEqual({ r: 64, g: 180, b: 208 });
+    expect(target.fills).toHaveLength(1);
+    expect(target.fills[0].type).toContain("GRADIENT");
+    expect(target.fills[0].stops.staticValue).toEqual(stops);
     expect(outcome.notes).toEqual([
-      "this layer's fill is solid — applied the gradient's first color",
+      "this layer's fill was solid — converted it to a gradient",
     ]);
   });
 
@@ -814,7 +817,7 @@ describe("animated recolors across paint kinds", () => {
     ]);
   });
 
-  it("keyframes recorded gradient stops onto a solid fill's color", () => {
+  it("keyframed gradient stops convert a solid fill, then animate it (contract change, 2026-08-25)", () => {
     const target = makeNode("Star 1", { fills: [{ r: 5, g: 5, b: 5 }] }, makeIds());
 
     const outcome = apply(target, {
@@ -828,12 +831,15 @@ describe("animated recolors across paint kinds", () => {
       changed: [],
     });
 
-    const color = target.fills[0].color;
-    expect(frames(color)).toEqual([0, 60]);
-    expect(color.keyframes[0].value).toEqual({ r: 64, g: 180, b: 208 });
-    expect(outcome.notes).toEqual([
-      "this layer's fill is solid — animated the gradient's first color",
+    expect(target.fills[0].type).toContain("GRADIENT");
+    const stops = target.fills[0].stops;
+    expect(frames(stops)).toEqual([0, 60]);
+    expect(stops.keyframes[0].value).toEqual([
+      { color: { r: 64, g: 180, b: 208 }, offset: 0, opacity: 1 },
     ]);
+    expect(
+      outcome.notes.includes("this layer's fill was solid — converted it to a gradient"),
+    ).toBe(true);
   });
 });
 
@@ -1390,5 +1396,77 @@ describe("captured full-state steps (before === after)", () => {
     });
     expect(outcome.notes).toEqual([]);
     expect(target.fills[0].color.staticValue).toEqual({ r: 255, g: 102, b: 153 });
+  });
+});
+
+describe("gradient steps convert a solid fill (fill-type change)", () => {
+  const STOPS: Json = [
+    { offset: 0, color: { r: 255, g: 0, b: 0 } },
+    { offset: 1, color: { r: 0, g: 0, b: 255 } },
+  ];
+
+  it("static stops onto a solid LIST fill replaces it with a gradient carrying full stops", () => {
+    const ids = makeIds();
+    const target = makeNode("Shape", { fills: [{ r: 10, g: 20, b: 30 }] }, ids);
+    const outcome = apply(target, {
+      op: "set-static",
+      path: ["fills", 0, "stops"],
+      before: STOPS,
+      after: STOPS,
+    });
+    expect(outcome.notes.some((n) => /gradient/i.test(n) && /solid/i.test(n))).toBe(true);
+    expect(target.fills).toHaveLength(1);
+    expect(target.fills[0].type).toContain("GRADIENT");
+    expect(target.fills[0].stops.staticValue).toEqual(STOPS);
+  });
+
+  it("keyframed stops onto a solid LIST fill converts, then keyframes the gradient", () => {
+    const ids = makeIds();
+    const target = makeNode("Shape", { fills: [{ r: 10, g: 20, b: 30 }] }, ids);
+    const outcome = apply(target, {
+      op: "keyframes",
+      path: ["fills", 0, "stops"],
+      added: [
+        { frame: 0, value: STOPS },
+        { frame: 30, value: [{ offset: 0, color: { r: 0, g: 255, b: 0 } }] },
+      ],
+      removed: [],
+      changed: [],
+    });
+    expect(outcome.notes.some((n) => /gradient/i.test(n))).toBe(true);
+    expect(target.fills).toHaveLength(1);
+    expect(target.fills[0].type).toContain("GRADIENT");
+    expect(target.fills[0].stops.keyframes.map((k: { frame: number }) => k.frame)).toEqual([0, 30]);
+  });
+
+  it("a SINGULAR text fill keeps the first-color adaptation (no list to replace into)", () => {
+    const single: Any = {
+      type: "TEXT_LAYER",
+      name: "Text",
+      fill: { type: "SOLID", color: { staticValue: { r: 0, g: 0, b: 0 }, keyframes: [], isAnimated: false, addKeyframes() {} } },
+    };
+    const outcome = apply(single, {
+      op: "set-static",
+      path: ["fills", 0, "stops"],
+      before: STOPS,
+      after: STOPS,
+    });
+    expect(outcome.notes.some((n) => /first color/i.test(n))).toBe(true);
+    expect(single.fill.color.staticValue).toEqual({ r: 255, g: 0, b: 0 });
+  });
+
+  it("solid color onto a gradient target still tints every stop (unchanged direction)", () => {
+    const ids = makeIds();
+    const target = makeNode("Shape", {}, ids);
+    (target as Any).fills = [makeGradientFill(STOPS as Json[], ids)];
+    const outcome = apply(target, {
+      op: "set-static",
+      path: ["fills", 0, "color"],
+      before: { r: 0, g: 0, b: 0 },
+      after: { r: 9, g: 9, b: 9 },
+    });
+    expect(outcome.notes.some((n) => /every stop/i.test(n))).toBe(true);
+    const stops = (target as Any).fills[0].stops.staticValue;
+    expect(stops.every((s: { color: Json }) => JSON.stringify(s.color) === JSON.stringify({ r: 9, g: 9, b: 9 }))).toBe(true);
   });
 });

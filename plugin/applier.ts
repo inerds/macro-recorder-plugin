@@ -1044,9 +1044,59 @@ function firstStopColor(stops: Json): Json | undefined {
 }
 
 /**
+ * Gradient stops landing on a solid LIST fill mean the macro wants a
+ * GRADIENT there — convert the fill (remove + recreate, the replace-paint
+ * mechanism) so the full stop values survive instead of collapsing to one
+ * color. Only list fills: a singular text fill has no removal semantics
+ * (adaptation stays), and strokes keep adaptation too. Returns the new
+ * gradient paint, or undefined when conversion isn't possible.
+ */
+function convertFillToGradient(
+  resolved: ResolvedPaint,
+  stopsValue: Json,
+  notes: string[],
+): AnyProxy | undefined {
+  if (resolved.label !== "fill") return undefined;
+  const container = resolved.container;
+  const list = tryRead(() => container?.fills);
+  if (!Array.isArray(list)) return undefined; // singular fill — adapt instead
+  const canAdd =
+    typeof tryRead(() => container.addFill) === "function" ||
+    typeof tryRead(() => container.createFill) === "function";
+  if (!canAdd) return undefined;
+  const spec: PaintSnapshot = {
+    kind: "gradient",
+    stops: { animated: false, static: Array.isArray(stopsValue) ? stopsValue : [] },
+  };
+  const removed = removeListEntry(container, "fills", resolved.index);
+  let created: AnyProxy;
+  try {
+    const byAdd = tryRead(() => container.addFill);
+    created =
+      typeof byAdd === "function" ? byAdd.call(container, paintSpec(spec)) : container.createFill(paintSpec(spec));
+  } catch {
+    notes.push("couldn't convert this layer's solid fill to a gradient");
+    return undefined;
+  }
+  if (!created) {
+    const after = tryRead(() => container.fills);
+    created = Array.isArray(after) ? after[after.length - 1] : undefined;
+  }
+  if (!created) return undefined;
+  notes.push(
+    removed
+      ? `this layer's ${resolved.label} was solid — converted it to a gradient`
+      : `this layer's ${resolved.label} was solid — added the gradient alongside (couldn't remove the old fill)`,
+  );
+  if (resolved.remapped) notes.push(`applied to this layer's first ${resolved.label}`);
+  return created;
+}
+
+/**
  * A recolor is a recolor, whatever shape the target's paint takes. Solid
- * color onto a gradient tints every stop; gradient stops onto a solid apply
- * the first stop's color; an out-of-range index remaps to paint 0.
+ * color onto a gradient tints every stop; gradient stops onto a solid
+ * CONVERT the fill to a gradient (list fills) or apply the first stop's
+ * color (singular fills, strokes); an out-of-range index remaps to paint 0.
  */
 function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: string[]): boolean {
   const resolved = resolvePaint(target, path);
@@ -1061,6 +1111,10 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
   }
 
   if (leaf === "stops") {
+    // The full gradient beats a one-color adaptation wherever the target's
+    // fill can actually change kind.
+    const converted = convertFillToGradient(resolved, after, notes);
+    if (converted) return true; // the creation spec already carried the stops
     const color = firstStopColor(after);
     const solidColor = tryRead(() => paint.color);
     if (color !== undefined && solidColor !== undefined && solidColor !== null) {
@@ -1177,6 +1231,19 @@ function applyPaintKeyframesFallback(
   }
 
   if (leaf === "stops") {
+    // Convert the solid fill to a gradient seeded with the earliest
+    // keyframe's stops, then run the ordinary keyframe machinery on it.
+    const earliest = [...payload.added, ...payload.changed.map((c) => c.after)].sort(
+      (a, b) => a.frame - b.frame,
+    )[0];
+    const converted = convertFillToGradient(resolved, earliest?.value ?? [], notes);
+    if (converted) {
+      const stopsProp = tryRead(() => converted.stops);
+      if (stopsProp !== undefined && stopsProp !== null) {
+        applyKeyframes(stopsProp, payload, notes, context);
+        return true;
+      }
+    }
     const solidColor = tryRead(() => paint.color);
     if (solidColor !== undefined && solidColor !== null) {
       return convert(

@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-25 — Gradient macros convert solid fills (rev .44)
+
+| Issue | Fix |
+|---|---|
+| **A gradient macro couldn't change a target's fill type** — gradient `stops` landing on a solid fill adapted to the first stop's color only, so the full gradient never arrived ("we are not able to change fill type"). | Gradient stops (static or keyframed) on a solid LIST fill now **convert** the fill — remove + recreate as a gradient carrying the full stops (the replace-paint mechanism), with a note ("was solid — converted it to a gradient"); later `start`/`end` steps then find a gradient and apply directly. Singular text fills and strokes keep the first-color adaptation (no removal semantics); solid-onto-gradient still tints every stop. |
+
+---
+
 ## 2026-08-25 — Capture grabs the whole layer, not just keyframes (rev .43)
 
 | Issue | Fix |
