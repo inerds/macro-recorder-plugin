@@ -77,7 +77,7 @@ export function StepList({
 
   return (
     <div ref={rootRef}>
-      <ul ref={listRef} className="flex flex-col gap-0.5" data-testid="step-list">
+      <ul ref={listRef} className="step-strip flex flex-col" data-testid="step-list">
         {steps.map((step, index) => (
           <StepRow
             key={step.id}

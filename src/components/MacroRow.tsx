@@ -1,9 +1,10 @@
 import { Button, Input } from "@lottiefiles/creator-plugins-ui";
-import { Check, ChevronRight, Play, Square } from "lucide-react";
+import { Check, ChevronRight, ChevronUp, Play, Square } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import type { EditableValue } from "../../shared/editing";
 import { describePlaybackMode, playbackModeHint } from "../../shared/playbackMode";
+import { keyframeSpan } from "../../shared/steps";
 import type { PlayOptions } from "../gateways/types";
 import type { PlayingState } from "../state/appReducer";
 import type { Macro } from "../types";
@@ -40,7 +41,7 @@ export interface MacroRowProps {
   onRenameCommit: (name: string) => void;
   onRenameCancel: () => void;
   onDuplicate: () => void;
-  onExport: () => void;
+  onCopyJson: () => void;
   onDeleteRequest: () => void;
   onDeleteCancel: () => void;
   onDeleteConfirm: () => void;
@@ -67,7 +68,7 @@ export function MacroRow({
   onRenameCommit,
   onRenameCancel,
   onDuplicate,
-  onExport,
+  onCopyJson,
   onDeleteRequest,
   onDeleteCancel,
   onDeleteConfirm,
@@ -109,11 +110,15 @@ export function MacroRow({
 
   return (
     <li
-      className={`rack-row ${justPlayed ? "success-flash" : ""}`}
+      className={`rack-row ${expanded ? "rack-row-open" : ""} ${justPlayed ? "success-flash" : ""}`}
       data-testid="macro-row"
     >
       {renaming ? (
-        <div className="flex items-center gap-1.5 px-2 py-1">
+        <div
+          className={`flex items-center gap-1.5 px-2 py-1 ${
+            expanded ? "border-b border-dotted border-border" : ""
+          }`}
+        >
           <Input
             value={draftName}
             autoFocus
@@ -150,7 +155,11 @@ export function MacroRow({
           </Button>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5 px-2 py-1">
+        <div
+          className={`flex items-center gap-1.5 px-2 py-1 ${
+            expanded ? "border-b border-dotted border-border" : ""
+          }`}
+        >
           {/* Outside the disclosure on purpose: the button's accessible name
               is the macro, not a catalogue number. */}
           <span className="rack-num shrink-0" aria-hidden>
@@ -201,9 +210,21 @@ export function MacroRow({
                 </span>
               )}
             </span>
+            {/* The open lid trades its action cluster for one collapse cue,
+                inside the same disclosure — no second tab stop. */}
+            {expanded && (
+              <ChevronUp
+                className="ms-1 me-1 size-3 shrink-0 text-muted-foreground/70"
+                strokeWidth={2.5}
+                aria-hidden
+              />
+            )}
           </button>
           {/* Stays mounted across the run, swapping glyph and action: an
-              unmounting Play button would drop the focus that pressed it. */}
+              unmounting Play button would drop the focus that pressed it —
+              so while THIS macro plays, the stop key stays even on the open
+              lid; otherwise the pop-out card's lid is bare (concept). */}
+          {(!expanded || isPlayingThis) && (
           <button
             type="button"
             className={ICON_BUTTON_CLASS}
@@ -223,7 +244,8 @@ export function MacroRow({
               <Play className="size-3.5 translate-x-[0.5px] fill-current" />
             )}
           </button>
-          {!isPlayingThis && (
+          )}
+          {!isPlayingThis && !expanded && (
             <>
               <PlayOptionsPopover
                 macroName={macro.name}
@@ -243,7 +265,7 @@ export function MacroRow({
                   onRenameStart();
                 }}
                 onDuplicate={onDuplicate}
-                onExport={onExport}
+                onCopyJson={onCopyJson}
                 onDelete={onDeleteRequest}
               />
             </>
@@ -271,7 +293,7 @@ export function MacroRow({
       {expanded && (
         <div
           id={panelId}
-          className="rack-drawer inline-enter border-t border-border px-1 py-1"
+          className="inline-enter px-1.5 pb-1.5 pt-0.5"
         >
           {macro.steps.length === 0 ? (
             <p className="px-2 py-3 text-center text-11 text-muted-foreground">
@@ -286,7 +308,8 @@ export function MacroRow({
               <StepListHeader
                 steps={macro.steps}
                 onSimplify={onSimplify}
-                hints={[playbackModeHint(mode)]}
+                quietHint={playbackModeHint(mode)}
+                showLayer={false}
               />
               <StepList
                 steps={macro.steps}
@@ -297,6 +320,59 @@ export function MacroRow({
                 paramIds={(macro.params ?? []).map((param) => param.stepId)}
                 activeIndex={activeIndex}
               />
+              {/* The card's readout footer (concept): what the macro spans
+                  and how the row is set to repeat. Frames, not a timecode —
+                  the UI never learns the scene's fps, and a made-up clock
+                  would be a lie. */}
+              {(() => {
+                const span = keyframeSpan(macro.steps);
+                return (
+                  <div className="mt-1.5 flex items-center gap-1.5 border-t border-dotted border-border px-2 pt-1.5">
+                    <span className="instrument">Duration</span>
+                    <span className="mono text-10 tabular-nums whitespace-nowrap">
+                      {span ? `${span.last - span.first} fr` : "—"}
+                    </span>
+                    {/* The ×N reads as the dial's setting beside the control
+                        that changes it — the label is for screen readers,
+                        the footer hasn't the width for it beside two keys. */}
+                    <span
+                      className="mono ms-auto text-10 tabular-nums whitespace-nowrap"
+                      title={`Repeats ${options.repeat ?? 1}×`}
+                    >
+                      <span className="sr-only">Repeats </span>
+                      {options.repeat ?? 1}×
+                    </span>
+                    {!isPlayingThis && (
+                      <>
+                        <PlayOptionsPopover
+                          macroName={macro.name}
+                          disabled={playDisabled}
+                          sceneScript={mode.mode === "scene"}
+                          value={options}
+                          onChange={setOptions}
+                          onPlay={(next) => {
+                            setOptions(next);
+                            onPlay(next);
+                          }}
+                        />
+                        <OverflowMenu
+                          macroName={macro.name}
+                          // Reset the draft like the collapsed lid's menu
+                          // does — a stale draft from an abandoned rename
+                          // would otherwise open (and blur-commit) here.
+                          onRename={() => {
+                            setDraftName(macro.name);
+                            onRenameStart();
+                          }}
+                          onDuplicate={onDuplicate}
+                          onCopyJson={onCopyJson}
+                          onDelete={onDeleteRequest}
+                        />
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>

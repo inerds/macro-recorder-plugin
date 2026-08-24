@@ -155,3 +155,32 @@ export function buildStep(payload: StepPayload): MacroStep {
   if (payload.op === "not-replayable") step.replayable = false;
   return step;
 }
+
+/**
+ * The frame range the macro's keyframe payloads touch (enabled or not), or
+ * null when it has no keyframes. Pure — the UI's duration readout; playback's
+ * own frame math lives sandbox-side (plugin/playback.ts#earliestKeyframe).
+ */
+export function keyframeSpan(
+  steps: MacroStep[],
+): { first: number; last: number } | null {
+  let first: number | null = null;
+  let last: number | null = null;
+  const see = (frame: unknown) => {
+    if (typeof frame !== "number" || !Number.isFinite(frame)) return;
+    if (first === null || frame < first) first = frame;
+    if (last === null || frame > last) last = frame;
+  };
+  for (const step of steps) {
+    const payload = step.payload as StepPayload | undefined;
+    if (!payload || typeof payload !== "object" || !("op" in payload)) continue;
+    if (payload.op !== "keyframes") continue;
+    for (const snap of payload.added) see(snap.frame);
+    for (const snap of payload.removed) see(snap.frame);
+    for (const change of payload.changed) {
+      see(change.before.frame);
+      see(change.after.frame);
+    }
+  }
+  return first === null || last === null ? null : { first, last };
+}

@@ -1,8 +1,9 @@
-import { Button, EmptyState } from "@lottiefiles/creator-plugins-ui";
-import { ListVideo } from "lucide-react";
+import { Button } from "@lottiefiles/creator-plugins-ui";
+import { useState } from "react";
 
 import { useApp } from "../state/AppContext";
 import type { PlayingState } from "../state/appReducer";
+import { CopyJsonDialog, type CopyJsonPayload } from "./CopyJsonDialog";
 import { ImportButton } from "./ImportButton";
 import { MacroRow } from "./MacroRow";
 
@@ -14,15 +15,22 @@ export interface MacroListProps {
 export function MacroList({ playing }: MacroListProps) {
   const { state, actions } = useApp();
   const macros = state.macros;
+  // Set when Copy JSON found every clipboard route denied (Creator's
+  // opaque-origin iframe) — the dialog offers the JSON for a manual copy.
+  const [copyFallback, setCopyFallback] = useState<CopyJsonPayload | null>(null);
 
   // The totals used to live in a dedicated footer below the list — one more
   // border, one more row of chrome, for two numbers that fit next to the
   // section label just as well.
   const totalSteps = macros.reduce((sum, macro) => sum + macro.steps.length, 0);
-  // "3 · 11 steps" rather than "3 macros · 11 steps" — the label right
-  // beside it already says "macros", so the count doesn't need to repeat
-  // the word to stay legible, and the panel is narrow enough that it matters.
-  const counts = `${macros.length} · ${totalSteps === 1 ? "1 step" : `${totalSteps} steps`}`;
+  // A two-number readout ("4 · 12"), like the rows' own two-digit counts:
+  // the visible text carries no words at all, so it can be nowrap and NEVER
+  // mid-word-ellipsizes ("12 ste…") on a narrow panel. The words ride along
+  // for assistive tech and the pointer (title).
+  const countsShort = `${macros.length} · ${totalSteps}`;
+  const countsFull = `${macros.length === 1 ? "1 macro" : `${macros.length} macros`} · ${
+    totalSteps === 1 ? "1 step" : `${totalSteps} steps`
+  }`;
 
   // The section label doubles as the shelf Import belongs on: importing is
   // adding to this list, not a panel-wide utility.
@@ -34,12 +42,16 @@ export function MacroList({ playing }: MacroListProps) {
             gets tight, never the label that names it. */}
         <span className="instrument shrink-0">Saved macros</span>
         {macros.length > 0 && (
-          <span className="mono min-w-0 truncate text-10 text-muted-foreground tabular-nums">
-            {counts}
+          <span
+            className="mono shrink-0 whitespace-nowrap text-10 text-muted-foreground tabular-nums"
+            title={countsFull}
+          >
+            <span aria-hidden>{countsShort}</span>
+            <span className="sr-only">{countsFull}</span>
           </span>
         )}
       </span>
-      <ImportButton onFile={actions.importFile} />
+      <ImportButton onImport={actions.importJson} />
     </div>
   );
 
@@ -47,27 +59,44 @@ export function MacroList({ playing }: MacroListProps) {
     return (
       <div className="p-2">
         {header}
-        <EmptyState
-          className="px-6 py-10 [&>p]:max-w-[32ch]"
-          icon={<ListVideo className="size-8" aria-hidden />}
-          title="No macros yet"
-          description="Record your edits, then stop to save them as a macro you can replay."
-          action={
-            <Button
-              size="sm"
-              className="press key key-red"
-              onClick={() => actions.startRecording()}
-            >
-              <span
-                className="grid size-3 shrink-0 place-items-center rounded-full border border-current"
-                aria-hidden
-              >
-                <span className="size-1.5 rounded-full bg-current" />
-              </span>
-              Record
-            </Button>
-          }
-        />
+        {/* The empty rack IS the empty state: the same well the macros will
+            land in, wearing the console's own type — a mono readout title,
+            a two-reel motif echoing the hero, and the deck's record glyph
+            on the one red key this surface gets. Copy stays natural case;
+            the uppercase is CSS. */}
+        <div className="rack flex flex-col items-center gap-1.5 px-6 py-9 text-center">
+          {/* A miniature of the hero's reel window — bezel, two reels, the
+              tape run between them. Bare circles read as a face; the
+              enclosing window is what makes them reels. */}
+          <svg
+            viewBox="0 0 56 26"
+            className="h-6 w-14 text-[color:var(--label-fg)]"
+            aria-hidden
+          >
+            <rect x="1" y="1" width="54" height="24" rx="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="18" cy="13" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="18" cy="13" r="1.75" fill="currentColor" />
+            <circle cx="38" cy="13" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="38" cy="13" r="1.75" fill="currentColor" />
+            <path d="M24 13h8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          <p className="mono mt-1 text-12 font-semibold uppercase tracking-[0.06em] text-foreground">
+            No macros yet
+          </p>
+          <p className="max-w-[30ch] text-12 leading-snug text-pretty text-muted-foreground">
+            Record your edits, then stop to save them as a macro you can replay.
+          </p>
+          <Button
+            size="sm"
+            className="press key key-red mt-2.5"
+            onClick={() => actions.startRecording()}
+          >
+            <span className="key-dot" aria-hidden>
+              <span />
+            </span>
+            Record
+          </Button>
+        </div>
       </div>
     );
   }
@@ -97,7 +126,11 @@ export function MacroList({ playing }: MacroListProps) {
             onRenameCommit={(name) => actions.commitRename(macro.id, name)}
             onRenameCancel={() => actions.cancelRename()}
             onDuplicate={() => actions.duplicateMacro(macro.id)}
-            onExport={() => actions.exportMacro(macro.id)}
+            onCopyJson={() =>
+              void actions.copyMacroJson(macro.id).then((payload) => {
+                if (payload) setCopyFallback(payload);
+              })
+            }
             onDeleteRequest={() => actions.requestDelete(macro.id)}
             onDeleteCancel={() => actions.cancelDelete()}
             onDeleteConfirm={() => actions.confirmDelete(macro.id)}
@@ -110,6 +143,11 @@ export function MacroList({ playing }: MacroListProps) {
           />
         ))}
       </ul>
+      <CopyJsonDialog
+        payload={copyFallback}
+        onClose={() => setCopyFallback(null)}
+        onCopied={(name) => actions.notify(`Copied "${name}" as JSON`, "success")}
+      />
     </div>
   );
 }

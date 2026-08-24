@@ -86,6 +86,13 @@ export function StepRow({
 }: StepRowProps) {
   const shownLabel =
     hidePrefix && step.label.startsWith(hidePrefix) ? step.label.slice(hidePrefix.length) : step.label;
+  // Truncation must not eat the step's RESULT: "Stroke · color #000000 →
+  // #002B…" hides the one token that matters. Split at the last arrow — the
+  // head (property · before) gives way, the "→ after" tail stays whole, and
+  // the title still carries the full label.
+  const arrowAt = shownLabel.lastIndexOf(" → ");
+  const labelHead = arrowAt === -1 ? shownLabel : shownLabel.slice(0, arrowAt);
+  const labelTail = arrowAt === -1 ? null : shownLabel.slice(arrowAt);
   const Icon = KIND_ICONS[step.kind];
   const [draft, setDraft] = useState<EditableValue | null>(null);
   const pencilRef = useRef<HTMLButtonElement>(null);
@@ -113,10 +120,10 @@ export function StepRow({
 
   return (
     <li
-      className={`group relative flex min-h-[26px] items-center gap-1.5 rounded-[8px] px-2 text-12 ${
+      className={`group relative flex min-h-[26px] items-center gap-1.5 px-2 text-12 ${
         active
           ? "bg-accent text-accent-foreground shadow-[inset_2px_0_0_var(--primary)]"
-          : "bg-card text-foreground"
+          : "bg-inherit text-foreground"
       }`}
       aria-current={active ? "step" : undefined}
       data-testid="step-row"
@@ -128,7 +135,8 @@ export function StepRow({
         className={`size-3.5 shrink-0 ${
           disabled ? "text-muted-foreground/70" : "text-muted-foreground"
         }`}
-        strokeWidth={2.5}
+        // 2px, not 2.5 — the icon carries the 12px regular label's weight.
+        strokeWidth={2}
         aria-hidden
       />
 
@@ -165,12 +173,15 @@ export function StepRow({
         </span>
       ) : (
         <span
-          className={`min-w-0 flex-1 truncate ${
+          className={`flex min-w-0 flex-1 items-baseline ${
             disabled ? "text-muted-foreground line-through" : ""
           } ${laneAtRest ? "pe-[6.5rem]" : ""}`}
           title={step.label}
         >
-          {shownLabel}
+          <span className="min-w-0 truncate whitespace-pre">{labelHead}</span>
+          {labelTail && (
+            <span className="max-w-[65%] shrink-0 truncate whitespace-pre">{labelTail}</span>
+          )}
           {disabled && <span className="sr-only"> (skipped)</span>}
           {param && <span className="sr-only"> (parameter)</span>}
         </span>
