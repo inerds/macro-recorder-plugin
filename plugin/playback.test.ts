@@ -658,3 +658,113 @@ describe("apply at playhead + stagger", () => {
     expect(c.rotation.keyframes.map((k: Any) => k.frame)).toEqual([10, 40]);
   });
 });
+
+describe("add-layer replay picks the factory matching the recorded node type", () => {
+  it("rebuilds a TEXT_LAYER add-layer spec with createTextLayer, not createShapeLayer (BUG: createLayerFromSpec only branches on nodeType.startsWith('SCENE'))", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    let shapeLayerCalls = 0;
+    let textLayerCalls = 0;
+    scene.createShapeLayer = () => {
+      shapeLayerCalls += 1;
+      return scene.addLayer(makeNode("wrong shell", {}, ids));
+    };
+    scene.createTextLayer = () => {
+      textLayerCalls += 1;
+      return scene.addLayer(makeNode("Text 1", { type: "TEXT_LAYER" }, ids));
+    };
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-layer",
+          spec: {
+            nodeId: "T1", nodeType: "TEXT_LAYER", nodeName: "Text 1",
+            props: {}, plain: { text: "hello", fontFamily: "Inter" },
+            fills: [], strokes: [], masks: [], shapes: [],
+          },
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    // real host exposes scene.createTextLayer() (RUNTIME-API.md:54) — that's
+    // the factory a recorded TEXT_LAYER spec should be rebuilt with
+    expect(textLayerCalls).toBe(1);
+    expect(shapeLayerCalls).toBe(0);
+    const created = scene.layers.find((l: Any) => l.name === "Text 1");
+    expect(created.type).toBe("TEXT_LAYER");
+    // the text surface only exists on a layer built by createTextLayer —
+    // these plain writes are lost when the wrong factory runs
+    expect(created.text).toBe("hello");
+    expect(created.fontFamily).toBe("Inter");
+  });
+
+  it("still rebuilds a shape add-layer spec with createShapeLayer (no regression)", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    let shapeLayerCalls = 0;
+    let textLayerCalls = 0;
+    scene.createShapeLayer = () => {
+      shapeLayerCalls += 1;
+      return scene.addLayer(makeNode("Rectangle 1", {}, ids));
+    };
+    scene.createTextLayer = () => {
+      textLayerCalls += 1;
+      return scene.addLayer(makeNode("wrong", { type: "TEXT_LAYER" }, ids));
+    };
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-layer",
+          spec: {
+            nodeId: "R1", nodeType: "RECTANGLE", nodeName: "Rectangle 1",
+            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+          },
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(shapeLayerCalls).toBe(1);
+    expect(textLayerCalls).toBe(0);
+  });
+});
+
+describe("debug probes on a set-plain scalar path (probe() assumes an Animatable)", () => {
+  it("reports the actual before/after text instead of null/null (BUG: probe() reads .staticValue on a raw scalar)", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    // A text-ish layer whose "text" is a plain scalar string, exactly like the
+    // real host's LayerMixin.text — never an Animatable (shared/snapshot.ts's
+    // PLAIN_PROPS comment: "never animatable, diffed by value").
+    const caption = scene.addLayer(makeNode("Caption", {}, ids));
+    caption.text = "hello";
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "set-plain",
+          path: ["text"],
+          before: "hello",
+          after: "world",
+          layer: { id: "REC", name: "Caption", priorName: "Caption" },
+        }),
+      ] as Any,
+      debug: true,
+    });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    // The write itself lands correctly — this is a diagnostics-only bug.
+    expect(caption.text).toBe("world");
+    // Desired: the probe reflects the real text value on both sides, so a
+    // trace can tell a successful text write from a silently swallowed one.
+    expect(result.debug?.before?.[0]?.value).toBe("hello");
+    expect(result.debug?.after?.[0]?.value).toBe("world");
+  });
+});

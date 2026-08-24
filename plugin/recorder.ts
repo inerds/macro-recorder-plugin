@@ -288,6 +288,7 @@ function collectDelta(): { steps: MacroStep[]; debug?: RecordDebug } {
   const payloads = diffScene(prev, next);
   recording.lastSnapshot = next;
   const steps = payloads.map(buildStep);
+  if (steps.length > 0) recording.stepped = true;
   // Only carry the (large) snapshot pair when it says something: a tick that
   // produced no steps and no diff is noise.
   if (recording.debug && steps.length > 0) {
@@ -345,7 +346,12 @@ export function recordStop(): { steps: MacroStep[]; debug?: RecordDebug } {
   // attach the whole-session snapshot pair so an offline diff can prove
   // whether the captured surface changed at all (if it didn't, the user's
   // edit lives outside it).
-  if (recording?.debug && !delta.debug && delta.steps.length === 0) {
+  // "Recorded nothing" means the whole SESSION, not just the final tick —
+  // a session that emitted steps and then ended on a quiet tick must keep
+  // its empty final delta empty, or the trace pairs a snapshot span with
+  // steps it did not produce (the traced pair must be diffScene's exact
+  // input, and this fallback pair is not).
+  if (recording?.debug && !delta.debug && delta.steps.length === 0 && !recording.stepped) {
     delta.debug = { prev: recording.firstSnapshot, next: recording.lastSnapshot };
   }
   session.recording = null;

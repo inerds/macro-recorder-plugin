@@ -25,9 +25,15 @@ Event kinds:
   final delta at stop uses `{ final: true, steps, snapshots }` (no `seq`).
 - `playback-event` — `{ index, step, failures, notes, targets: { op, path, before, after } }`.
   `before`/`after` are per-target probes: `{ target, value, animated,
-  keyframeFrames, unreadable? }`. `notes` are **deliberate non-applies**
-  (e.g. a static write skipped because the target is animated) — a step with
-  notes is reported to the user, not silent.
+  keyframes: [{ frame, value, easing? }], fills, strokes, unreadable? }`.
+  `notes` are **deliberate non-applies** (e.g. a static write skipped because
+  the target is animated) — a step with notes is reported to the user, not
+  silent. Probe caveats by `env.sandboxRev`: before `2026-08-24.41`, a
+  `set-plain` scalar path probes `value: null` on BOTH sides regardless of
+  outcome (the probe read `.staticValue` off a raw string) and keyframe
+  entries carry no `easing` — so in older traces neither signature is
+  evidence of a silent no-op. From `.41` on, plain scalars probe as
+  themselves and easing is included when readable.
 
 ## Method
 
@@ -67,6 +73,10 @@ before classifying.
 | 2 | `set-static` on an animated property silently no-oped, reported as success | `isAnimated` guard emits a note and skips, `plugin/applier.ts:223-234` |
 | 4 | One bad keyframe dropped the whole batch and skipped removed/changed | per-keyframe try/catch, `plugin/applier.ts:142-197` |
 | 5 | `changed` fallback could duplicate a keyframe when `remove()` failed | remove-first, failure propagates, `plugin/applier.ts:108-124` |
+| 12 | `add-layer` rebuilt a `TEXT_LAYER` with `createShapeLayer` — a shape shell with no text surface; later text/font `set-plain` writes landed on nothing and re-recording the layer captured nothing (aftermath: a layer named "Text 1" with `nodeType: SHAPE_LAYER` and no text plain-props, trace 2026-08-24T07-49-36-061) | typed factory pick (`TEXT_LAYER` → `createTextLayer`, feature-detected), `plugin/playback.ts` `createLayerFromSpec` |
+| 13 | A host-swallowed `set-plain` write reported success — only a *thrown* assignment produced a note | defensive read-back after the write; mismatch → note naming the flag, unreadable → no claim, `plugin/applier.ts` `case "set-plain"` |
+| 14 | `recordStop`'s "recorded nothing" debug fallback fired on any quiet FINAL tick, stapling the whole-session `firstSnapshot`/`lastSnapshot` pair onto an empty final delta — traces looked like an entire layer's diff was dropped when the recording was healthy | fallback gated on the whole session emitting zero steps (`RecordingSession.stepped`), `plugin/recorder.ts` `recordStop` |
+| 15 | `probe()` was blind to `set-plain` scalars (probed `.staticValue` off raw strings → `null`/`null`) and never captured keyframe `easing` — text applies and easing-only edits were unverifiable in traces | plain scalars probe as themselves; keyframe probe entries carry `easing?`, `plugin/playback.ts` `probe()`, `shared/protocol.ts` `TargetProbe` |
 
 ## Output
 

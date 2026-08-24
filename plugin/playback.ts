@@ -196,6 +196,17 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
   } catch (error) {
     return { ...base, unreadable: error instanceof Error ? error.message : String(error) };
   }
+  // set-plain paths terminate at a raw scalar (text, fontSize, visible, …),
+  // not an Animatable proxy — report the value itself; probing .staticValue
+  // off a string yields null on both sides and hides real writes.
+  if (prop === null || (typeof prop !== "object" && typeof prop !== "function")) {
+    try {
+      base.value = toJson(prop);
+    } catch {
+      // leave null
+    }
+    return base;
+  }
   try {
     base.value = toJson(prop.staticValue);
   } catch {
@@ -213,6 +224,7 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
         .map((kf: AnyProxy) => {
           let frame = NaN;
           let value: Json = null;
+          let easing: Json = null;
           try {
             frame = Number(kf.frame);
           } catch {
@@ -223,7 +235,12 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
           } catch {
             // keep null — the frame is still worth reporting
           }
-          return { frame, value };
+          try {
+            easing = toJson(kf.easing);
+          } catch {
+            // easing stays null — value/frame still probe
+          }
+          return easing === null ? { frame, value } : { frame, value, easing };
         })
         .filter((entry: { frame: number }) => Number.isFinite(entry.frame))
         .sort((a: { frame: number }, b: { frame: number }) => a.frame - b.frame);
@@ -302,7 +319,17 @@ function createLayerFromSpec(
   spec: NodeSnapshot,
   notes: string[],
 ): AnyProxy | undefined {
-  const factoryName = spec.nodeType.startsWith("SCENE") ? "createSceneLayer" : "createShapeLayer";
+  // Factory must match the recorded type: a TEXT_LAYER rebuilt with
+  // createShapeLayer is a shape shell with no text surface — every later
+  // set-plain text/font write lands on nothing (live evidence: trace
+  // 2026-08-24T07-49-36-061, "Text 1" with runtime type SHAPE_LAYER). A
+  // host without createTextLayer skips with the note below rather than
+  // silently building a fake.
+  const factoryName = spec.nodeType.startsWith("SCENE")
+    ? "createSceneLayer"
+    : spec.nodeType === "TEXT_LAYER"
+      ? "createTextLayer"
+      : "createShapeLayer";
   const factory = tryRead(() => (scene as AnyProxy)[factoryName]);
   if (typeof factory !== "function") {
     notes.push(`this scene can't create ${nodeTypeName(spec.nodeType)} layers — skipped`);

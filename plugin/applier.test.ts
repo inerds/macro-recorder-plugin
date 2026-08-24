@@ -1161,6 +1161,83 @@ describe("text layers (untyped runtime surface)", () => {
   });
 });
 
+describe("set-plain onto a host that silently discards the write (no throw)", () => {
+  // Confirmed gap: `owner[flag] = payload.after` in the "set-plain" case is
+  // fire-and-forget. It only reports a skip note when the host THROWS. A host
+  // proxy that silently discards the write (assignment succeeds, value
+  // unchanged — the exact trap fakeScene's staticValue-with-keyframes discard
+  // exists to model) produces a step that changed nothing while reporting
+  // neither a failure nor a note. That violates "nothing applies silently".
+  // Leading suspect for the "text properties don't apply on replay" report,
+  // since text/fontFamily/fontSize/alignment are all set-plain steps.
+
+  it("silently does nothing and reports success when the write is discarded (no read-back guard)", () => {
+    const swallowingText: Any = { type: "TEXT_LAYER", name: "Text 1" };
+    Object.defineProperty(swallowingText, "text", {
+      get() {
+        return "Text";
+      },
+      set(_v: Any) {
+        // the host accepts the assignment but keeps its own value — exactly
+        // the staticValue-with-keyframes trap, generalized to a plain flag.
+      },
+      enumerable: true,
+      configurable: true,
+    });
+
+    const outcome = apply(swallowingText, {
+      op: "set-plain",
+      path: ["text"],
+      before: "Text",
+      after: "poop :D",
+    });
+
+    // Desired contract: a defensive read-back that doesn't match payload.after
+    // must surface as a note naming the flag. Currently fails — notes is [].
+    expect(outcome.notes.length).toBeGreaterThan(0);
+    expect(outcome.notes.some((note) => /text/i.test(note))).toBe(true);
+  });
+
+  it("still applies cleanly and reports nothing when the write actually sticks", () => {
+    const writableText: Any = { type: "TEXT_LAYER", name: "Text 2", text: "Text" };
+
+    const outcome = apply(writableText, {
+      op: "set-plain",
+      path: ["text"],
+      before: "Text",
+      after: "poop :D",
+    });
+
+    expect(writableText.text).toBe("poop :D");
+    expect(outcome.notes).toEqual([]);
+  });
+
+  it("makes no claim when the flag can't be read back at all (unverifiable is not a failure)", () => {
+    const unreadableText: Any = { type: "TEXT_LAYER", name: "Text 3" };
+    let stored = "Text";
+    Object.defineProperty(unreadableText, "text", {
+      get() {
+        throw new Error("text is write-only on this node");
+      },
+      set(v: Any) {
+        stored = v;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+
+    const outcome = apply(unreadableText, {
+      op: "set-plain",
+      path: ["text"],
+      before: "Text",
+      after: "poop :D",
+    });
+
+    expect(outcome.notes).toEqual([]);
+    void stored;
+  });
+});
+
 describe("frame offset (apply at playhead / stagger)", () => {
   it("places added keyframes at recorded frame + offset", () => {
     const target = makeNode("Rect", {}, makeIds());

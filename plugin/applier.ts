@@ -736,6 +736,19 @@ export function applyStep(
       } catch (error) {
         return skipNote(notes, error);
       }
+      // Hosts can accept an assignment and keep their own value (the same
+      // trap fakeScene models for staticValue-with-keyframes). Read back
+      // defensively: a mismatch means the host discarded the write, and the
+      // user must see that — nothing applies silently. An unreadable flag
+      // makes no claim either way.
+      try {
+        const seen = toJson(owner[flag as string]);
+        if (!jsonEqual(seen, payload.after)) {
+          notes.push(`the host kept ${String(flag)} unchanged — the write didn't take`);
+        }
+      } catch {
+        // read-back unavailable: unverifiable is not a failure
+      }
       return { notes };
     }
 

@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-24.40";
+export const ENGINE_REV = "2026-08-24.41";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -59,7 +59,7 @@ export interface TargetProbe {
    * included deliberately: frames alone can't distinguish "value updated in
    * place" from "nothing happened", which makes silent no-ops undetectable.
    */
-  keyframes: { frame: number; value: Json }[];
+  keyframes: { frame: number; value: Json; easing?: Json }[];
   /** Paint counts, so add-fill / add-stroke steps have something observable. */
   fills: number;
   strokes: number;
