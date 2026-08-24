@@ -98,9 +98,18 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   place that sees both directions. Add instrumentation there, not in the
   gateways.
 
-Note `DebugStrip` renders only when `gateways.mocks` exists, which happens only
-when the handshake *fails* — i.e. never inside Creator. `TraceStrip` is
-deliberately gated on `import.meta.env.DEV` alone so it works in both modes.
+`DevSettings` (`src/dev/`) is the ONE dev strip at the panel foot — gated on
+`import.meta.env.DEV` alone so it works in both modes, collapsed to a single
+header row by default. Everything dev-only renders as sections inside its
+drawer: load demo macros / clear all / preload-when-empty, then `TraceStrip`
+(both modes), then `DebugStrip`'s mock scenario controls — which render only
+when `gateways.mocks` exists, i.e. only when the handshake *fails*, never
+inside Creator. Demo macros are built from real `StepPayload`s through
+`buildStep` (`src/dev/demoMacros.ts`) so they replay — keep them that way.
+There is no bulk delete on the store surface; clear-all loops `list()` +
+`remove()`. Clear-all is a two-tap arm/confirm: `.key-armed` (index.css) is
+the armed style — `instrument-red` alone loses to `.key-outline.key-outline`
+on specificity, which is why the class swaps rather than appends.
 
 Triage workflow: `/triage-traces`, backed by `.claude/agents/macro-triage.md`
 (read-only diagnosis) and `.claude/agents/macro-fixture.md` (writes the
@@ -243,7 +252,10 @@ Where each piece lives and the invariants worth keeping:
   place so a future host that adds any of the routes starts working without
   code changes.
 - Never live-verified yet: mask add/remove/edit replay; scene-layer reorder
-  replay. (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md.)
+  replay (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md);
+  the interface-theme relay (`plugin/theme.ts` — `creator.ui.theme` /
+  `change:theme` per the ui-library docs, feature-detected, silent on hosts
+  without it).
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
 - v3.1 live status: at-playhead, stagger and repeat verified in traces
@@ -304,21 +316,50 @@ load-bearing:
   it in a render would repaint the panel on every render.
 - It must override *every* key `theme.css` defines (`--chart-*` and
   `--sidebar-*` included) or an unset one falls back to library teal.
-- Creator's pushed theme is **observed, not applied**: `useTheme()` still
-  listens to the `change:theme` relay so the host theme is inspectable, but
-  nothing reads its `isDark`/`tokens`. There is no `dark` class toggle any
-  more, and no transition freeze — there is no theme flip to freeze.
+- Creator's interface theme touches exactly ONE pixel surface: the
+  `.host-frame` gutter. The relay is the official ThemeProvider sync
+  pattern (ui-library docs): `plugin/theme.ts` reads `creator.ui.theme` and
+  subscribes to `change:theme` (both feature-detected — absent from typings
+  AND from our live introspection, RUNTIME-API.md item 10), forwarding
+  `{ type: "change:theme", tokens, themeName }` on boot, on `hello`, and on
+  every change. Three consumers, resolution chain kept identical in all:
+  the index.html head script (pre-React paint of `--host-frame-bg` on
+  `<html>`), `useHostBackground()` (inline on the frame div), and the CSS
+  fallback (theme.css's dark `hsl(198 16.7% 11.8)`, hardcoded because every
+  live token is repainted cream). Order: pushed `--background`/`background`/
+  `--base`/`base` token → `isLight`/`themeName` → fallback. The panel itself
+  never flips: no `dark` class toggle, no transition freeze — and no
+  transition on the frame either, a theme flip should snap. ThemeProvider
+  is NOT theme support — it is the token delivery mechanism above; removing
+  it reverts the panel to library teal.
+- `.host-frame` is an 8px gutter around `.panel-root`, which becomes a plate
+  on it: 10px radius, `overflow: clip`, one seat shadow. The gutter costs
+  16px of height, so panel-height math (collapse threshold, README's
+  develop-at size) is against the panel, not the window.
 - All CSS lives in `src/styles/index.css`; the build inlines one file. No
   network assets, system font stacks only (`--font-sans`, `--font-mono` are
   overridden too).
 - Small red text uses `--ink-red-text` (#B5301F, 5.2:1), never `--primary`
   (#C8382B) — that one is for fills. Muted body copy is `--muted-foreground`
   (#6B635B); instrument labels are `--label-fg` (#5E564F).
-- `.key`, `.card`, `.instrument`, `.mono`, `.lamp` are the skin's vocabulary.
-  `.key` is written as `.key.key` on purpose: the library's `Button` merges
-  its `size="sm"` utilities (`h-6 px-3 rounded font-normal`) onto the same
-  element via `tailwind-merge`, and a single class would lose on source order
-  alone.
+- `.key`, `.key-quiet`, `.card`, `.instrument`, `.mono`, `.lamp` are the
+  skin's vocabulary. `.key` is written as `.key.key` on purpose: the
+  library's `Button` merges its `size="sm"` utilities
+  (`h-6 px-3 rounded font-normal`) onto the same element via
+  `tailwind-merge`, and a single class would lose on source order alone.
+  `.key-quiet.key-quiet` is doubled for the same reason.
+- **Controls rank by how much chrome they wear: primary = red key
+  (`.key.key-red`), secondary = cream key (`.key.key-outline`), tertiary =
+  quiet (`.key-quiet`) — instrument type on nothing at all, no ink edge and
+  no drop.** At most one red key per surface. A standalone utility (Import
+  in the list header, Simplify in a drawer header) is tertiary: it must not
+  outrank the decision beside it. Quiet controls take their feedback from
+  `.press`'s scale, never key travel — travel needs a shadow to travel into,
+  and a quiet control has none.
+- **`--ring` is ink (#2A2623), not red.** Focus is "you are here", never an
+  action, and red on this panel means "this does something". It used to be
+  `#C8382B`, which made every `focus-visible:ring-ring` — the macro row's
+  disclosure most visibly — look like a designed red state marker.
 
 ## The deck
 
@@ -404,9 +445,9 @@ recording clock, the status lamp and the state word.
   asserting on visible text the skin deliberately abbreviated.
 - **The chassis is full-bleed and square-cornered.** It renders as a direct
   child of `.panel-root` with no padded wrapper, so it meets the panel edges
-  the way a faceplate meets its case; a border-radius there would leave four
-  slivers of cream paper in the corners, so the corners are square and the
-  bottom edge shadow does the separating a gap used to do. `.deck-stage`'s
+  the way a faceplate meets its case; its corners are square; the rounding
+  happens one level up, where `.panel-root`'s `overflow: clip` carves the
+  plate's 10px radius out of it against the dark `.host-frame` gutter. `.deck-stage`'s
   height is then tuned against the BLED window width so the drawing is
   width-limited rather than height-limited: window = panel - 2x chassis
   padding, and `height = 110 * (window / 272)` (117px at a 300px panel). Get
@@ -469,12 +510,25 @@ language. Two rules keep it coherent:
   spoken aloud is meaningless, and `walk.mjs` asserts the row's text contains
   "N steps" — so the readout is decorative and an `sr-only` "4 steps" carries
   the meaning. Keep both.
-- **Steps always sit IN something.** `.rack-drawer` (expanded macro, and the
-  recording feed's list) is DARKER than the step rows seated in it, which are
-  `bg-card`. That relationship is load-bearing: `StepRow` used to be
-  `bg-background` on a `.card`, and flipping the rows to `bg-card` without
-  changing `RecordingView`'s wrapper would have made rows invisible against
-  it. Change one, check the other.
+- **The open macro POPS OUT as a card** (user concept, 2026-08-24):
+  `.rack-row-open` lifts out of the rack with 6px margins, the paper-card
+  treatment, and no adjacent dotted rules — the gap separates. Its lid drops
+  the play/options/overflow cluster for a ChevronUp INSIDE the disclosure
+  (no second tab stop) — except while THAT macro plays, when the stop key
+  stays so it never unmounts under focus. Card body: `StepListHeader`
+  (`showLayer={false}` — the layer name lives in the tooltip/sr-only) + the
+  `.step-strip` + a footer that is the card's control row: DURATION in FRAMES
+  (via `shared/steps.ts#keyframeSpan` — the UI never learns fps, a timecode
+  would be a lie), the ×N repeat readout (label sr-only — no width for it),
+  and the play-options + overflow triggers, which live on the lid when
+  closed and in the footer when open (never both).
+- **Steps are ONE `.step-strip`** (one `bg-card` surface, 8px radius,
+  `overflow: clip`, dotted rules between rows). Rows keep `bg-card`
+  individually because `StepRow`'s hover action lane paints `bg-inherit` and
+  needs a solid ground. `RecordingView`'s feed still seats the strip in a
+  `rack rack-drawer` well; the pop-out card's interior is uniform card.
+  The drawer's playback-mode hint is a `quietHint` (tooltip + sr-only);
+  visible `hints` remain only on the review screen.
 
 ## UI state
 
