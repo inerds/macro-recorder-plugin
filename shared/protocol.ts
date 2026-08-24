@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-24.41";
+export const ENGINE_REV = "2026-08-25.42";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -27,6 +27,7 @@ export type RpcMethod =
   | "store.remove"
   | "record.start"
   | "record.tick"
+  | "record.captureKeyframes"
   | "record.stop"
   | "record.discard"
   | "playback.begin"
@@ -38,6 +39,28 @@ export type RpcMethod =
  * per session (`debug: true` on record.start / playback.begin), so a
  * production UI that never asks gets byte-identical responses.
  */
+
+/**
+ * A standing offer, recomputed each tick, to pull an existing layer's
+ * timeline keyframes into the recording. Present only while exactly ONE
+ * non-SCENE top-level layer with keyframes is selected.
+ */
+export interface CaptureOffer {
+  layerId: string;
+  layerName?: string;
+  /** Animated paths in the layer's subtree with >=1 keyframe. */
+  pathCount: number;
+  /** Total keyframes across those paths. */
+  keyframeCount: number;
+  /**
+   * Present ONLY when `creator.selection.keyframes` read back as an array
+   * (feature detection — the surface is typed but never live-verified):
+   * the count of selected entries matching THIS layer's keyframes by
+   * frame(+value). Absent = surface missing; 0 = surface live, selection
+   * belongs to another layer.
+   */
+  selectedCount?: number;
+}
 
 /** The scene-snapshot pair a tick's steps were derived from. */
 export interface RecordDebug {
@@ -99,11 +122,23 @@ export interface RpcContracts {
       keyframeIntrospection?: Json;
       /** Debug-only: first RECTANGLE's surface + where corner rounding lives. */
       shapeIntrospection?: Json;
+      /** Debug-only: creator.selection's real surface — is `.keyframes` live? */
+      selectionIntrospection?: Json;
     };
   };
   "record.tick": {
     params: { seq: number };
-    result: { seq: number; steps: MacroStep[]; debug?: RecordDebug };
+    result: {
+      seq: number;
+      steps: MacroStep[];
+      /** See CaptureOffer — absent when no single keyframed layer is selected. */
+      captureOffer?: CaptureOffer;
+      debug?: RecordDebug;
+    };
+  };
+  "record.captureKeyframes": {
+    params: { layerId: string; scope: "all" | "selected" };
+    result: { steps: MacroStep[] };
   };
   "record.stop": {
     params: Record<string, never>;
@@ -145,6 +180,8 @@ export interface RpcContracts {
 export const RPC_ERRORS = {
   noSelection: "no-selection",
   nodeGone: "node-gone",
+  /** capture scope "selected": the host reported no matching selected keyframes. */
+  noSelectedKeyframes: "no-selected-keyframes",
 } as const;
 
 export function isRpcMessage(value: unknown): value is RpcMessage {

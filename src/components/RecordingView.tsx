@@ -1,12 +1,17 @@
 import { Button } from "@lottiefiles/creator-plugins-ui";
 
+import type { CaptureOffer } from "../../shared/protocol";
 import type { MacroStep } from "../types";
+import { CaptureOfferRow } from "./CaptureOfferRow";
 import { ConfirmInline } from "./ConfirmInline";
 import { StepList } from "./StepList";
 
 export interface RecordingViewProps {
   steps: MacroStep[];
   confirmingDiscard: boolean;
+  captureOffer: CaptureOffer | null;
+  capturedAllLayerIds: string[];
+  onCapture: (scope: "all" | "selected") => void;
   onStop: () => void;
   onDiscardRequest: () => void;
   onDiscardCancel: () => void;
@@ -21,6 +26,9 @@ export interface RecordingViewProps {
 export function RecordingView({
   steps,
   confirmingDiscard,
+  captureOffer,
+  capturedAllLayerIds,
+  onCapture,
   onStop,
   onDiscardRequest,
   onDiscardCancel,
@@ -30,7 +38,10 @@ export function RecordingView({
     <div className="flex min-h-0 flex-1 flex-col" data-testid="recording-view">
       <h2 className="sr-only">Recording</h2>
       <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-2">
-        {confirmingDiscard && (
+        {/* One slot above the feed; the discard confirm outranks the
+            capture offer — a destructive decision in progress beats an
+            optional affordance. */}
+        {confirmingDiscard ? (
           <div className="mb-2">
             <ConfirmInline
               message={`Discard this recording (${steps.length} ${
@@ -41,7 +52,15 @@ export function RecordingView({
               onCancel={onDiscardCancel}
             />
           </div>
-        )}
+        ) : captureOffer ? (
+          <div className="mb-2">
+            <CaptureOfferRow
+              offer={captureOffer}
+              alreadyCapturedAll={capturedAllLayerIds.includes(captureOffer.layerId)}
+              onCapture={onCapture}
+            />
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-2 px-1 pb-1">
           <span className="instrument instrument-red truncate">Live steps</span>
           {/* Not a live region: at one tick every 500ms it read the count

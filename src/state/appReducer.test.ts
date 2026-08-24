@@ -724,3 +724,40 @@ describe("review draft restore (panel reload survival)", () => {
     expect(reloaded.macros.map((m) => m.id)).toEqual(["m1"]);
   });
 });
+
+describe("keyframe capture offer", () => {
+  const recording = () => appReducer(initialState, { type: "RECORD_START", startedAt: 1000 });
+  const OFFER = {
+    layerId: "L1",
+    layerName: "Text 1",
+    pathCount: 3,
+    keyframeCount: 12,
+    selectedCount: 2,
+  };
+
+  it("stores and clears the offer while recording", () => {
+    let state = appReducer(recording(), { type: "CAPTURE_OFFER_UPDATED", offer: OFFER });
+    expect(state.mode === "recording" && state.captureOffer).toEqual(OFFER);
+    state = appReducer(state, { type: "CAPTURE_OFFER_UPDATED", offer: null });
+    expect(state.mode === "recording" && state.captureOffer).toBeNull();
+  });
+
+  it("ignores offers outside recording (late gateway callback)", () => {
+    const state = appReducer(idleState([]), { type: "CAPTURE_OFFER_UPDATED", offer: OFFER });
+    expect(state.mode).toBe("idle");
+  });
+
+  it("CAPTURE_DONE tracks scope-all layers once, ignores scope-selected", () => {
+    let state = recording();
+    state = appReducer(state, { type: "CAPTURE_DONE", layerId: "L1", scope: "all" });
+    state = appReducer(state, { type: "CAPTURE_DONE", layerId: "L1", scope: "all" });
+    state = appReducer(state, { type: "CAPTURE_DONE", layerId: "L2", scope: "selected" });
+    expect(state.mode === "recording" && state.capturedAllLayerIds).toEqual(["L1"]);
+  });
+
+  it("a fresh recording starts with no offer and no captured layers", () => {
+    const state = recording();
+    expect(state.mode === "recording" && state.captureOffer).toBeNull();
+    expect(state.mode === "recording" && state.capturedAllLayerIds).toEqual([]);
+  });
+});

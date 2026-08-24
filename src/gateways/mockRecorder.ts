@@ -1,8 +1,9 @@
+import type { CaptureOffer } from "../../shared/protocol";
 import { buildStep, type StepPayload } from "../../shared/steps";
 import type { MacroStep } from "../types";
 import type { RecorderGateway } from "./types";
 
-export type RecorderScenario = "burst" | "long" | "silent";
+export type RecorderScenario = "burst" | "long" | "silent" | "keyframes";
 
 const LAYER = { id: "mock-layer", name: "Rectangle 1" };
 
@@ -21,6 +22,68 @@ const BURST_SCRIPT: StepPayload[] = [
   { op: "set-plain", path: ["visible"], before: true, after: false, layer: LAYER },
 ];
 
+/**
+ * "keyframes" scenario: a quiet recording where the selected layer already
+ * has timeline animation — demonstrates the capture-offer affordance.
+ * Real payloads through the real buildStep, like everything mock (invariant).
+ */
+const CAPTURE_OFFER: CaptureOffer = {
+  layerId: LAYER.id,
+  layerName: LAYER.name,
+  pathCount: 3,
+  keyframeCount: 6,
+  selectedCount: 2,
+};
+
+const CAPTURE_ALL_SCRIPT: StepPayload[] = [
+  {
+    op: "keyframes",
+    path: ["position"],
+    added: [
+      { frame: 0, value: { x: 100, y: 120 }, easing: "LINEAR" },
+      { frame: 30, value: { x: 220, y: 120 } },
+      { frame: 60, value: { x: 220, y: 240 } },
+    ],
+    removed: [],
+    changed: [],
+    layer: LAYER,
+  },
+  {
+    op: "keyframes",
+    path: ["opacity"],
+    added: [
+      { frame: 0, value: 0 },
+      { frame: 20, value: 100 },
+    ],
+    removed: [],
+    changed: [],
+    layer: LAYER,
+  },
+  {
+    op: "keyframes",
+    path: ["fills", 0, "color"],
+    added: [{ frame: 45, value: { r: 255, g: 90, b: 0 } }],
+    removed: [],
+    changed: [],
+    layer: LAYER,
+  },
+];
+
+/** The "selected" subset: the two position keyframes a user picked. */
+const CAPTURE_SELECTED_SCRIPT: StepPayload[] = [
+  {
+    op: "keyframes",
+    path: ["position"],
+    added: [
+      { frame: 0, value: { x: 100, y: 120 }, easing: "LINEAR" },
+      { frame: 30, value: { x: 220, y: 120 } },
+    ],
+    removed: [],
+    changed: [],
+    layer: LAYER,
+  },
+];
+
 const LONG_SCRIPT: StepPayload[] = Array.from({ length: 20 }, (_, i) => {
   const cycle: StepPayload[] = [
     { op: "set-static", path: ["position"], before: { x: 100 + i * 10, y: 120 }, after: { x: 110 + i * 10, y: 120 }, layer: LAYER },
@@ -37,6 +100,7 @@ const LONG_SCRIPT: StepPayload[] = Array.from({ length: 20 }, (_, i) => {
  */
 export class MockRecorderGateway implements RecorderGateway {
   private listeners = new Set<(step: MacroStep) => void>();
+  private offerListeners = new Set<(offer: CaptureOffer | null) => void>();
   private captured: MacroStep[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -54,6 +118,11 @@ export class MockRecorderGateway implements RecorderGateway {
 
   async start(): Promise<null> {
     this.captured = [];
+    if (this.scenario === "keyframes") {
+      // Quiet feed; the story is the standing offer.
+      setTimeout(() => this.offerListeners.forEach((cb) => cb(CAPTURE_OFFER)), this.intervalMs);
+      return null;
+    }
     if (this.scenario === "silent") return null;
     const script = this.scenario === "long" ? LONG_SCRIPT : BURST_SCRIPT;
     let index = 0;
@@ -82,12 +151,26 @@ export class MockRecorderGateway implements RecorderGateway {
   /** Final delta — mock steps were all emitted live, so nothing extra. */
   async stop(): Promise<MacroStep[]> {
     this.clearTimer();
+    this.offerListeners.forEach((cb) => cb(null));
     return [];
   }
 
   discard(): void {
     this.clearTimer();
+    this.offerListeners.forEach((cb) => cb(null));
     this.captured = [];
+  }
+
+  async captureKeyframes(_layerId: string, scope: "all" | "selected"): Promise<MacroStep[]> {
+    const script = scope === "all" ? CAPTURE_ALL_SCRIPT : CAPTURE_SELECTED_SCRIPT;
+    const steps = script.map(buildStep);
+    this.captured.push(...steps);
+    return steps;
+  }
+
+  onCaptureOffer(callback: (offer: CaptureOffer | null) => void): () => void {
+    this.offerListeners.add(callback);
+    return () => this.offerListeners.delete(callback);
   }
 
   onStep(callback: (step: MacroStep) => void): () => void {

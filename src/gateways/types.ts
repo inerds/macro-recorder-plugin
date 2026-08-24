@@ -1,3 +1,4 @@
+import type { CaptureOffer } from "../../shared/protocol";
 import type { Macro, MacroStep, StepResult } from "../types";
 
 /** The layer a recording session captured. */
@@ -23,6 +24,14 @@ export interface RecorderGateway {
   onStep(callback: (step: MacroStep) => void): () => void;
   /** Fired when recording ends on its own (e.g. the node was deleted). */
   onEnded?(callback: (message: string) => void): () => void;
+  /**
+   * The standing offer to capture the selected layer's existing timeline
+   * keyframes, re-evaluated per tick; null when it goes away. Emissions are
+   * deduped by the gateway.
+   */
+  onCaptureOffer?(callback: (offer: CaptureOffer | null) => void): () => void;
+  /** Synthesize keyframe steps from a layer's existing animation. */
+  captureKeyframes?(layerId: string, scope: "all" | "selected"): Promise<MacroStep[]>;
 }
 
 export interface PlaybackRun {

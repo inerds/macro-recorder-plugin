@@ -1321,3 +1321,43 @@ describe("motion-path handles (spatial tangents)", () => {
     expect(live.value).toEqual({ x: 1, y: 1 });
   });
 });
+
+describe("captured-keyframe steps round-trip onto a bare layer", () => {
+  // The capture feature synthesizes op:"keyframes" payloads from a layer
+  // SNAPSHOT (shared/capture.ts); replaying them on a fresh layer must
+  // recreate the motion — frames, values and easing — via the ordinary
+  // frame-keyed upsert path.
+  it("recreates position keyframes with easing on a layer that has none", async () => {
+    const { captureKeyframePayloads } = await import("../shared/capture");
+    const snapshot = {
+      nodeId: "rec-1",
+      nodeType: "CONTAINER",
+      nodeName: "Bounce",
+      props: {
+        position: {
+          animated: true,
+          keyframes: [
+            { id: "host-a", frame: 0, value: { x: 0, y: 0 }, easing: "LINEAR" },
+            { id: "host-b", frame: 30, value: { x: 120, y: 0 } },
+          ],
+        },
+      },
+      plain: {},
+      fills: [],
+      strokes: [],
+      masks: [],
+      shapes: [],
+    };
+    const payloads = captureKeyframePayloads(snapshot as never, { scope: "all" });
+    expect(payloads).toHaveLength(1);
+
+    const ids = makeIds();
+    const target = makeNode("Fresh", { props: { position: { x: 5, y: 5 } } }, ids);
+    const outcome = apply(target, payloads[0]!);
+    expect(outcome.notes).toEqual([]);
+    expect(frames(target.position)).toEqual([0, 30]);
+    expect(target.position.keyframes[0]!.value).toEqual({ x: 0, y: 0 });
+    expect(target.position.keyframes[0]!.easing).toBe("LINEAR");
+    expect(target.position.keyframes[1]!.value).toEqual({ x: 120, y: 0 });
+  });
+});

@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-25 — Capture existing keyframes into a recording (rev .42)
+
+| Issue | Fix |
+|---|---|
+| **Existing layer animation couldn't become a macro** — the recorder only diffs *changes*, so a layer's pre-existing timeline keyframes were invisible to it; users had to re-author motion while recording. | While recording, selecting a single keyframed layer raises an inline offer above the live feed — "Add all" pulls every animated path of the layer's subtree in as `keyframes` steps (synthesized from the tick's own snapshot through `buildStep`, so they replay/retarget/at-playhead like anything recorded); "Add selected" appears when the host's typed-but-unverified `selection.keyframes` surface proves live, matching by frame+value. Capture reads `lastSnapshot`, so it can never double-emit against the diff stream; a debug-session probe (`selectionIntrospection`) will turn the unverified surface into RUNTIME-API ground truth. |
+
+---
+
 ## 2026-08-25 — Expanded card: play from the footer
 
 | Issue | Fix |

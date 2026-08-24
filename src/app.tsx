@@ -25,7 +25,8 @@ import { VINTAGE_TOKENS } from "./theme/vintageTokens";
 function NoticeToasts() {
   const { state, actions } = useApp();
   const { toast } = useToast();
-  const notice = state.mode === "idle" ? state.notice : null;
+  const notice =
+    state.mode === "idle" || state.mode === "recording" ? state.notice : null;
   // The key changes on every announcement, identical text included: a live
   // region only speaks when its contents CHANGE, and "Played X" twice in a
   // row is two events the user needs to hear twice.
@@ -133,6 +134,9 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             <RecordingView
               steps={state.steps}
               confirmingDiscard={state.confirmingDiscard}
+              captureOffer={state.captureOffer}
+              capturedAllLayerIds={state.capturedAllLayerIds}
+              onCapture={actions.captureLayerKeyframes}
               onStop={actions.stopRecording}
               onDiscardRequest={actions.requestDiscard}
               onDiscardCancel={actions.cancelDiscard}

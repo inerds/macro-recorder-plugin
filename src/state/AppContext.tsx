@@ -14,6 +14,7 @@ import {
   editableValueOf,
   type EditableValue,
 } from "../../shared/editing";
+import { RPC_ERRORS } from "../../shared/protocol";
 import { simplifySteps } from "../../shared/simplify";
 import type { Gateways } from "../gateways";
 import {
@@ -56,6 +57,8 @@ function paramDefaults(macro: Macro): Record<string, EditableValue> {
 
 export interface AppActions {
   startRecording(): void;
+  /** Pull the offered layer's existing timeline keyframes into the recording. */
+  captureLayerKeyframes(scope: "all" | "selected"): void;
   stopRecording(): void;
   requestDiscard(): void;
   cancelDiscard(): void;
@@ -172,6 +175,15 @@ export function AppProvider({
   useEffect(() => {
     return recorder.onStep((step) => {
       dispatch({ type: "STEP_RECEIVED", step });
+    });
+  }, [recorder]);
+
+  // The standing keyframe-capture offer, re-evaluated by the recorder each
+  // tick (deduped at the gateway). The reducer's mode guard makes a late
+  // callback after stop harmless.
+  useEffect(() => {
+    return recorder.onCaptureOffer?.((offer) => {
+      dispatch({ type: "CAPTURE_OFFER_UPDATED", offer });
     });
   }, [recorder]);
 
@@ -318,6 +330,33 @@ export function AppProvider({
             const message =
               error instanceof Error ? error.message : "Could not start recording";
             notify(message, "error");
+          });
+      },
+      captureLayerKeyframes(scope) {
+        const current = stateRef.current;
+        if (current.mode !== "recording" || !current.captureOffer) return;
+        const { layerId, layerName } = current.captureOffer;
+        if (!recorder.captureKeyframes) return;
+        recorder
+          .captureKeyframes(layerId, scope)
+          .then((steps) => {
+            steps.forEach((step) => dispatch({ type: "STEP_RECEIVED", step }));
+            dispatch({ type: "CAPTURE_DONE", layerId, scope });
+            const label = layerName ? `“${layerName}”` : "the layer";
+            notify(
+              `Added ${steps.length} keyframe ${steps.length === 1 ? "step" : "steps"} from ${label}`,
+              "success",
+            );
+          })
+          .catch((error: unknown) => {
+            const raw = error instanceof Error ? error.message : String(error);
+            if (raw === RPC_ERRORS.noSelectedKeyframes) {
+              notify("None of the selected keyframes belong to this layer — try Add all.", "info");
+            } else if (raw === RPC_ERRORS.nodeGone) {
+              notify("That layer is no longer in the scene.", "error");
+            } else {
+              notify(`Couldn't add keyframes — ${raw}`, "error");
+            }
           });
       },
       stopRecording() {

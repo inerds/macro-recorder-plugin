@@ -200,6 +200,23 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   `nest-layers` (added SCENE layer + removals in one tick). In-layer payloads
   carry a `layer: LayerRef {id, name, priorName}` binding and, on deep paths,
   a `shapeHint`.
+- **Keyframe capture (rev .42)**: while recording, `record.tick`'s result
+  carries a `CaptureOffer` when exactly one non-`SCENE*` top-level layer
+  with keyframes is selected — computed from the tick's OWN snapshot plus a
+  defensive `selection.nodes` read, never a second serialize.
+  `record.captureKeyframes` (sync handler) synthesizes `op:"keyframes"`
+  steps via `shared/capture.ts` from **`lastSnapshot`** — never a fresh
+  serialize: that keeps capture and the diff stream disjoint by construction
+  (a post-tick edit arrives as a diff step; nothing double-emits; ≤500ms
+  staleness accepted). The walk mirrors `diffNodeInner`'s addressing exactly
+  and strips host keyframe ids (recycled). `selection.keyframes` is
+  typed-but-unverified: `selectedCount` is present only when the surface
+  reads back as an array, and the `selectionIntrospection` debug probe on
+  `record.start` exists to settle it (RUNTIME-API item 10 pending trace
+  evidence). Offer emissions are deduped in `RpcRecorderGateway` — without
+  that the recording screen re-renders at 2Hz. UI: `CaptureOfferRow` shares
+  the above-feed slot with the discard confirm, which wins; notices now
+  ride in recording mode too (the toast bridge reads idle OR recording).
 - **Replay picks a mode in `chooseMode` (plugin/playback.ts)**: macros
   touching >1 pre-existing layer or containing unretargetable scene ops
   (remove/reorder/break/nest/fresh add-layer) run as SCENE SCRIPTS — each

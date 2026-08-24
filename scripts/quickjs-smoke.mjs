@@ -37,7 +37,7 @@ uiHandle.dispose();
 
 // creator.selection with one fake node (enough for record.start/tick)
 const selectionCode = `({
-  get nodes() { return globalThis.__fakeNodes; }
+  get nodes() { return globalThis.__fakeSelection ?? globalThis.__fakeNodes; }
 })`;
 const sceneCode = `({
   id: "scene1", name: "Main Scene",
@@ -200,6 +200,73 @@ check(
     deepStep?.payload?.shapeHint === "RECTANGLE",
   JSON.stringify(deepStep ?? posted[0] ?? null),
 );
+
+// 7b. capture offer: give the selected layer timeline keyframes, tick, and
+//     the offer must ride the same synchronous response.
+vm.unwrapResult(
+  vm.evalCode(`
+    globalThis.__fakeNodes[0].position.isAnimated = true;
+    globalThis.__fakeNodes[0].position.keyframes = [
+      { id: "kf1", frame: 0, value: { x: 10, y: 20 } },
+      { id: "kf2", frame: 30, value: { x: 200, y: 60 } },
+    ];
+  `),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 20, method: "record.tick", params: { seq: 2 } });
+const offer = posted[0]?.result?.captureOffer;
+check(
+  "record.tick carries captureOffer synchronously for a selected keyframed layer",
+  posted.length === 1 &&
+    offer?.layerId === "n1" &&
+    offer?.keyframeCount === 2 &&
+    offer?.pathCount === 1 &&
+    offer?.selectedCount === undefined,
+  JSON.stringify(offer ?? posted[0] ?? null),
+);
+
+// 7c. record.captureKeyframes answers synchronously with built steps whose
+//     keyframe entries carry NO host ids (they are recycled by the host).
+posted.length = 0;
+sendToPlugin({
+  t: "req", id: 21, method: "record.captureKeyframes",
+  params: { layerId: "n1", scope: "all" },
+});
+const capStep = posted[0]?.result?.steps?.[0];
+check(
+  "record.captureKeyframes synthesizes keyframe steps with NO job pump",
+  posted.length === 1 &&
+    posted[0]?.ok === true &&
+    capStep?.payload?.op === "keyframes" &&
+    capStep?.payload?.added?.length === 2 &&
+    capStep?.payload?.added?.[0]?.id === undefined &&
+    capStep?.payload?.layer?.id === "n1",
+  JSON.stringify(capStep ?? posted[0] ?? null),
+);
+
+// 7d. scope "selected" without a selected-keyframes surface errors cleanly
+posted.length = 0;
+sendToPlugin({
+  t: "req", id: 22, method: "record.captureKeyframes",
+  params: { layerId: "n1", scope: "selected" },
+});
+check(
+  "capture scope=selected errors synchronously when the surface is absent",
+  posted.length === 1 && posted[0]?.ok === false &&
+    posted[0]?.error === "no-selected-keyframes",
+  JSON.stringify(posted[0] ?? null),
+);
+
+// 7e. no selection → the tick carries no offer
+vm.unwrapResult(vm.evalCode(`globalThis.__fakeSelection = [];`)).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 23, method: "record.tick", params: { seq: 3 } });
+check(
+  "tick with empty selection carries no captureOffer",
+  posted.length === 1 && posted[0]?.result?.captureOffer === undefined,
+  JSON.stringify(posted[0]?.result ?? null),
+);
+vm.unwrapResult(vm.evalCode(`delete globalThis.__fakeSelection;`)).dispose();
 
 // 8. playback.begin answers synchronously; frameOffset appears ONLY when
 //    atPlayhead is requested and the host exposes a timeline.

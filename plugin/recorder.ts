@@ -1,6 +1,7 @@
+import { captureKeyframePayloads, countKeyframes, countSelectedMatches, type SelectedKf } from "../shared/capture";
 import { diffScene } from "../shared/diff";
 import type { MacroStep } from "../shared/macro";
-import type { RecordDebug } from "../shared/protocol";
+import type { CaptureOffer, RecordDebug } from "../shared/protocol";
 import { RPC_ERRORS } from "../shared/protocol";
 import type { SceneSnapshot } from "../shared/snapshot";
 import { buildStep } from "../shared/steps";
@@ -63,6 +64,44 @@ function surfaceOf(obj: AnyProxy): string[] {
     cursor = Object.getPrototypeOf(cursor);
   }
   return [...names].sort();
+}
+
+/**
+ * Dev-only: creator.selection's REAL surface — above all whether
+ * `.keyframes` is live. The typings promise `selection.keyframes` and a
+ * `selection:keyframes` event, but no trace has ever verified either; this
+ * probe turns the first debug recording into RUNTIME-API ground truth.
+ */
+function introspectSelection(): Json {
+  try {
+    const selection: AnyProxy = creator.selection;
+    const result: Record<string, Json> = { surface: surfaceOf(selection) as unknown as Json };
+    let keyframes: AnyProxy;
+    try {
+      keyframes = selection.keyframes;
+      result.keyframesType = Array.isArray(keyframes)
+        ? `array(${keyframes.length})`
+        : typeof keyframes;
+    } catch (error) {
+      result.keyframesType = `threw: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    if (Array.isArray(keyframes) && keyframes.length > 0) {
+      const first: AnyProxy = keyframes[0];
+      result.firstEntrySurface = surfaceOf(first) as unknown as Json;
+      const values: Record<string, Json> = {};
+      for (const key of ["id", "frame", "value", "easing"]) {
+        try {
+          values[key] = toJson(first[key]);
+        } catch (error) {
+          values[key] = `threw: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+      result.firstEntryValues = values;
+    }
+    return result;
+  } catch (error) {
+    return `selection unreadable: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 /**
@@ -221,6 +260,7 @@ export function recordStart(params: { debug?: boolean }): {
   paintIntrospection?: Json;
   keyframeIntrospection?: Json;
   shapeIntrospection?: Json;
+  selectionIntrospection?: Json;
 } {
   // Whole-scene recording: no selection required — every layer is watched.
   const scene = creator.activeScene;
@@ -239,8 +279,9 @@ export function recordStart(params: { debug?: boolean }): {
     nodeId: string;
     nodeName?: string;
     paintIntrospection?: Json;
-  keyframeIntrospection?: Json;
-  shapeIntrospection?: Json;
+    keyframeIntrospection?: Json;
+    shapeIntrospection?: Json;
+    selectionIntrospection?: Json;
   } = { nodeId: snapshot.sceneId ?? "scene" };
   const sceneName = ((): string | undefined => {
     try {
@@ -265,6 +306,7 @@ export function recordStart(params: { debug?: boolean }): {
       result.keyframeIntrospection = introspectKeyframe(probe);
       result.shapeIntrospection = introspectRectangle(scene);
     }
+    result.selectionIntrospection = introspectSelection();
   }
   return result;
 }
@@ -328,15 +370,136 @@ function tryReadLayers(scene: AnyProxy): AnyProxy[] | undefined {
   }
 }
 
+/** Defensive read of the node selection (absent/throwing hosts -> []). */
+function selectedNodes(): AnyProxy[] {
+  try {
+    return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Defensive read of the SELECTED-KEYFRAMES surface. Returns undefined when
+ * the surface is missing/non-array (feature detection — it is typed but has
+ * never been live-verified); otherwise the entries' {frame, value} pairs,
+ * value null when unreadable. Ids are useless (host recycles them).
+ */
+function selectedKeyframes(): SelectedKf[] | undefined {
+  let list: AnyProxy;
+  try {
+    list = (creator.selection as AnyProxy).keyframes;
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(list)) return undefined;
+  const out: SelectedKf[] = [];
+  for (const kf of list) {
+    let frame: number;
+    try {
+      frame = Number(kf.frame);
+    } catch {
+      continue;
+    }
+    if (!Number.isFinite(frame)) continue;
+    let value: Json | null = null;
+    try {
+      value = toJson(kf.value);
+    } catch {
+      // frame-only match downstream
+    }
+    out.push({ frame, value });
+  }
+  return out;
+}
+
+/**
+ * The standing capture offer, recomputed from the tick's OWN snapshot plus
+ * one selection read: exactly one selected node, matching a top-level
+ * non-SCENE layer of the snapshot, with >=1 keyframe in its subtree.
+ * SCENE_INSTANCE layers are excluded — their shapes channel is the source
+ * scene's shared content, and capturing it would edit every instance.
+ */
+function computeCaptureOffer(next: SceneSnapshot): CaptureOffer | undefined {
+  const nodes = selectedNodes();
+  if (nodes.length !== 1) return undefined;
+  let selectedId: string;
+  try {
+    selectedId = String(nodes[0].id);
+  } catch {
+    return undefined;
+  }
+  const layer = next.layers.find((l) => l.nodeId === selectedId);
+  if (!layer || layer.nodeType.startsWith("SCENE")) return undefined;
+  const { pathCount, keyframeCount } = countKeyframes(layer);
+  if (keyframeCount === 0) return undefined;
+  const offer: CaptureOffer = {
+    layerId: layer.nodeId,
+    ...(layer.nodeName ? { layerName: layer.nodeName } : {}),
+    pathCount,
+    keyframeCount,
+  };
+  const selected = selectedKeyframes();
+  if (selected !== undefined) {
+    offer.selectedCount = countSelectedMatches(layer, selected);
+  }
+  return offer;
+}
+
 export function recordTick(seq: number): {
   seq: number;
   steps: MacroStep[];
+  captureOffer?: CaptureOffer;
   debug?: RecordDebug;
 } {
+  const recording = session.recording;
   const delta = collectDelta();
-  return delta.debug
-    ? { seq, steps: delta.steps, debug: delta.debug }
-    : { seq, steps: delta.steps };
+  // collectDelta advanced lastSnapshot to this tick's serialization; the
+  // offer is computed from that same snapshot — no second serialize.
+  const offer = recording ? computeCaptureOffer(recording.lastSnapshot) : undefined;
+  return {
+    seq,
+    steps: delta.steps,
+    ...(offer ? { captureOffer: offer } : {}),
+    ...(delta.debug ? { debug: delta.debug } : {}),
+  };
+}
+
+/**
+ * Synthesize keyframe steps for a layer's EXISTING animation, from
+ * lastSnapshot — never a fresh serialize. That keeps capture and the diff
+ * stream disjoint by construction: an edit made after the last tick is not
+ * in lastSnapshot, so it arrives as an ordinary diffed step on the next
+ * tick; nothing can double-emit. (Capture is <=500ms stale; accepted.)
+ * Capture touches no proxies, so the next tick's diff sees no change.
+ */
+export function recordCaptureKeyframes(params: {
+  layerId: string;
+  scope: "all" | "selected";
+}): { steps: MacroStep[] } {
+  const recording = session.recording;
+  if (!recording) {
+    throw new Error("not recording");
+  }
+  const layer = recording.lastSnapshot.layers.find((l) => l.nodeId === params.layerId);
+  if (!layer) {
+    throw new Error(RPC_ERRORS.nodeGone);
+  }
+  let selected: SelectedKf[] | undefined;
+  if (params.scope === "selected") {
+    selected = selectedKeyframes();
+    if (selected === undefined || selected.length === 0) {
+      throw new Error(RPC_ERRORS.noSelectedKeyframes);
+    }
+  }
+  const payloads = captureKeyframePayloads(layer, {
+    scope: params.scope,
+    ...(selected ? { selected } : {}),
+  });
+  if (params.scope === "selected" && payloads.length === 0) {
+    throw new Error(RPC_ERRORS.noSelectedKeyframes);
+  }
+  return { steps: payloads.map(buildStep) };
 }
 
 export function recordStop(): { steps: MacroStep[]; debug?: RecordDebug } {

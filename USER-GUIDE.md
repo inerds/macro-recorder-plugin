@@ -86,6 +86,31 @@ list to see its steps and edit them in place. Changes save immediately.
 
 ---
 
+## 3½. Turn existing animation into a macro
+
+A layer that is already animated can hand its keyframes to a recording —
+no re-authoring. While recording, select **one** layer that has keyframes:
+a card appears above the live feed ("*Layer* has N keyframes on M
+properties") with:
+
+- **Add all** — every animated property in the layer (transform, opacity,
+  fills, strokes, shape geometry, trims) becomes keyframe steps, exactly as
+  if you had authored them while recording. Playing the saved macro
+  recreates the motion — on any selected layer, at the playhead, with
+  stagger, like any other keyframe macro.
+- **Add selected (n)** — only the keyframes you selected on the timeline.
+  This button appears only when Creator reports selected keyframes to
+  plugins; if you don't see it, your Creator build doesn't expose that yet
+  and **Add all** still works.
+
+The offer follows your selection: select a different layer and it updates,
+deselect and it leaves. It shows for a single selected layer only, and not
+for scene-instance layers (their content is shared between instances).
+After **Add all**, that button disables for the layer so a second tap can't
+double up the steps.
+
+---
+
 ## 4. Simplify
 
 A single drag produces a run of small steps (`position.x 0 → 12`, `12 → 40`,

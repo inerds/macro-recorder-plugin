@@ -48,6 +48,7 @@ export function DebugStrip({
           <option value="burst">Short burst (6 steps)</option>
           <option value="long">Long (20 steps)</option>
           <option value="silent">Silent (0 steps)</option>
+          <option value="keyframes">Keyframed layer (capture offer)</option>
         </select>
       </label>
       <label className="flex items-center justify-between gap-2">

@@ -1,4 +1,4 @@
-import { RPC_ERRORS } from "../../../shared/protocol";
+import { RPC_ERRORS, type CaptureOffer } from "../../../shared/protocol";
 import { trace } from "../../dev/trace";
 import type { MacroStep } from "../../types";
 import type { RecorderGateway, RecordingSource } from "../types";
@@ -10,6 +10,10 @@ export class RpcRecorderGateway implements RecorderGateway {
   private rpc: RpcClient;
   private stepListeners = new Set<(step: MacroStep) => void>();
   private endedListeners = new Set<(message: string) => void>();
+  private offerListeners = new Set<(offer: CaptureOffer | null) => void>();
+  /** JSON of the last emitted offer — the tick recomputes a structurally
+   *  identical offer every 500ms and re-emitting would re-render at 2Hz. */
+  private lastOfferJson: string | null = null;
   private active = false;
   private seq = 0;
   private timer: number | null = null;
@@ -43,6 +47,9 @@ export class RpcRecorderGateway implements RecorderGateway {
     }
     this.active = true;
     this.seq = 0;
+    // A stale in-flight tick can emit past stop()'s null; without this
+    // reset the dedupe would swallow an identical offer next session.
+    this.lastOfferJson = null;
     this.scheduleTick();
     return source;
   }
@@ -73,6 +80,7 @@ export class RpcRecorderGateway implements RecorderGateway {
       // advanced its snapshot past these steps, so record.stop's final delta
       // will not repeat them — dropping them here would lose them for good.
       result.steps.forEach((step) => this.stepListeners.forEach((cb) => cb(step)));
+      this.emitOffer(result.captureOffer ?? null);
       if (this.active) this.scheduleTick();
     } catch (error) {
       if (!this.active) return;
@@ -90,6 +98,7 @@ export class RpcRecorderGateway implements RecorderGateway {
   async stop(): Promise<MacroStep[]> {
     this.active = false;
     this.clearTimer();
+    this.emitOffer(null);
     if (this.inFlightTick) await this.inFlightTick;
     try {
       const result = await this.rpc.call("record.stop", {});
@@ -111,7 +120,13 @@ export class RpcRecorderGateway implements RecorderGateway {
   discard(): void {
     this.active = false;
     this.clearTimer();
+    this.emitOffer(null);
     void this.rpc.call("record.discard", {}).catch(() => {});
+  }
+
+  async captureKeyframes(layerId: string, scope: "all" | "selected"): Promise<MacroStep[]> {
+    const result = await this.rpc.call("record.captureKeyframes", { layerId, scope });
+    return result.steps;
   }
 
   onStep(callback: (step: MacroStep) => void): () => void {
@@ -122,6 +137,18 @@ export class RpcRecorderGateway implements RecorderGateway {
   onEnded(callback: (message: string) => void): () => void {
     this.endedListeners.add(callback);
     return () => this.endedListeners.delete(callback);
+  }
+
+  onCaptureOffer(callback: (offer: CaptureOffer | null) => void): () => void {
+    this.offerListeners.add(callback);
+    return () => this.offerListeners.delete(callback);
+  }
+
+  private emitOffer(offer: CaptureOffer | null): void {
+    const json = offer === null ? null : JSON.stringify(offer);
+    if (json === this.lastOfferJson) return;
+    this.lastOfferJson = json;
+    this.offerListeners.forEach((cb) => cb(offer));
   }
 
   private clearTimer(): void {

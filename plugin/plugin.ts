@@ -1,7 +1,7 @@
 import type { Macro } from "../shared/macro";
 import { ENGINE_REV, isRpcMessage, PROTOCOL_VERSION } from "../shared/protocol";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
-import { recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
+import { recordCaptureKeyframes, recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
 import { handleMessage, registerHandler } from "./rpc-server";
 import { listMacros, removeMacro, renameMacro, saveMacro } from "./store";
 import { sendTheme, watchTheme } from "./theme";
@@ -27,6 +27,9 @@ registerHandler("record.start", (params) =>
   recordStart((params ?? {}) as { debug?: boolean }),
 );
 registerHandler("record.tick", (params) => recordTick((params as { seq: number }).seq));
+registerHandler("record.captureKeyframes", (params) =>
+  recordCaptureKeyframes(params as { layerId: string; scope: "all" | "selected" }),
+);
 registerHandler("record.stop", () => recordStop());
 registerHandler("record.discard", () => recordDiscard());
 

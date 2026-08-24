@@ -1,4 +1,5 @@
 import { withEditedValue, type EditableValue } from "../../shared/editing";
+import type { CaptureOffer } from "../../shared/protocol";
 import type { MacroParam } from "../../shared/macro";
 import type { PlayOptions } from "../gateways/types";
 import type { Macro, MacroStep } from "../types";
@@ -116,6 +117,12 @@ export type AppState =
       steps: MacroStep[];
       startedAt: number;
       confirmingDiscard: boolean;
+      /** Standing offer to pull the selected layer's keyframes in (per tick). */
+      captureOffer: CaptureOffer | null;
+      /** Layers already captured with scope "all" — their key disables. */
+      capturedAllLayerIds: string[];
+      /** Capture feedback rides the same toast channel idle uses. */
+      notice: Notice | null;
     }
   | {
       mode: "reviewing";
@@ -149,6 +156,8 @@ export type AppState =
 export type AppEvent =
   | { type: "MACROS_LOADED"; macros: Macro[] }
   | { type: "RECORD_START"; startedAt: number }
+  | { type: "CAPTURE_OFFER_UPDATED"; offer: CaptureOffer | null }
+  | { type: "CAPTURE_DONE"; layerId: string; scope: "all" | "selected" }
   | { type: "STEP_RECEIVED"; step: MacroStep }
   | {
       type: "RECORD_STOP";
@@ -233,11 +242,29 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         steps: [],
         startedAt: event.startedAt,
         confirmingDiscard: false,
+        captureOffer: null,
+        capturedAllLayerIds: [],
+        notice: null,
       };
 
     case "STEP_RECEIVED":
       if (state.mode !== "recording") return state;
       return { ...state, steps: [...state.steps, event.step] };
+
+    case "CAPTURE_OFFER_UPDATED":
+      // Late gateway callbacks after stop land here harmlessly.
+      if (state.mode !== "recording") return state;
+      return { ...state, captureOffer: event.offer };
+
+    case "CAPTURE_DONE":
+      if (state.mode !== "recording") return state;
+      if (event.scope !== "all") return state;
+      return {
+        ...state,
+        capturedAllLayerIds: state.capturedAllLayerIds.includes(event.layerId)
+          ? state.capturedAllLayerIds
+          : [...state.capturedAllLayerIds, event.layerId],
+      };
 
     case "RECORD_STOP":
       if (state.mode !== "recording") return state;
@@ -525,11 +552,13 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       return { ...state, justPlayedId: null };
 
     case "NOTICE":
-      if (state.mode !== "idle") return state;
+      // Idle and recording carry the toast channel (capture feedback lands
+      // mid-recording); other modes have no notice surface.
+      if (state.mode !== "idle" && state.mode !== "recording") return state;
       return { ...state, notice: event.notice };
 
     case "NOTICE_CLEAR":
-      if (state.mode !== "idle") return state;
+      if (state.mode !== "idle" && state.mode !== "recording") return state;
       return { ...state, notice: null };
   }
 }
