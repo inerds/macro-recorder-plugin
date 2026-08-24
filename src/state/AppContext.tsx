@@ -23,11 +23,13 @@ import {
   type PlayOptions,
 } from "../gateways/types";
 import type { Macro, StepResult } from "../types";
+import { copyViaHiddenTextarea } from "../utils/clipboard";
 import { newId } from "../utils/id";
 import {
   appReducer,
   editStepValue,
   initialState,
+  REVIEW_DRAFT_ID,
   suggestMacroName,
   toggleParamPin,
   toggleStepDisabled,
@@ -81,8 +83,16 @@ export interface AppActions {
   cancelDelete(): void;
   confirmDelete(macroId: string): void;
   duplicateMacro(macroId: string): void;
-  exportMacro(macroId: string): void;
-  importFile(file: File): void;
+  /**
+   * Copies the macro's JSON to the clipboard. Resolves null when the copy
+   * landed (a toast has been shown); resolves the payload when every
+   * clipboard route was denied, so the caller can offer a manual-copy dialog.
+   */
+  copyMacroJson(macroId: string): Promise<{ name: string; json: string } | null>;
+  /** Imports a pasted macro JSON; rejects so the caller can show the error inline. */
+  importJson(json: string): Promise<void>;
+  /** Shows a toast (and announces it) through the shared notice channel. */
+  notify(message: string, tone: Notice["tone"]): void;
 
   /** Opens the parameter form when the macro has parameters; else plays. */
   play(macroId: string, options?: PlayOptions): void;
@@ -126,8 +136,38 @@ export function AppProvider({
   useEffect(() => {
     void store.list().then((macros) => {
       dispatch({ type: "MACROS_LOADED", macros });
+      // A pending review survives panel reloads as a store draft (see
+      // REVIEW_DRAFT_ID) — restore it so a reload mid-naming can no longer
+      // lose the recording. The reducer ignores it outside idle.
+      const draft = macros.find((m) => m.id === REVIEW_DRAFT_ID);
+      if (draft) dispatch({ type: "REVIEW_RESTORE", draft });
     });
   }, [store]);
+
+  // Mirror the in-progress review into the store, debounced per change, so
+  // the draft above exists to restore. The cleanup also runs when review
+  // exits (save/discard), which cancels any still-pending write — save and
+  // discard then remove the draft entry itself.
+  useEffect(() => {
+    if (state.mode !== "reviewing") return;
+    const draft: Macro = {
+      id: REVIEW_DRAFT_ID,
+      // A blank name would fail the stores' macro-shape check and drop the
+      // whole draft — persist the suggestion instead.
+      name: state.name.trim() ? state.name : suggestMacroName(state.macros),
+      createdAt: Date.now(),
+      steps: state.steps,
+      ...(state.source ? { source: state.source } : {}),
+      ...(state.params.length > 0 ? { params: state.params } : {}),
+    };
+    const timer = setTimeout(() => {
+      void store.save(draft).catch(() => {
+        // Losing a draft write is the pre-existing behaviour, not an error
+        // worth a toast mid-typing.
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [state, store]);
 
   useEffect(() => {
     return recorder.onStep((step) => {
@@ -342,9 +382,11 @@ export function AppProvider({
         void store.save(macro).catch(() => {
           notify("Could not save macro", "error");
         });
+        void store.remove(REVIEW_DRAFT_ID).catch(() => {});
         dispatch({ type: "REVIEW_SAVE", macro });
       },
       discardReview() {
+        void store.remove(REVIEW_DRAFT_ID).catch(() => {});
         dispatch({ type: "REVIEW_DISCARD" });
       },
 
@@ -435,36 +477,35 @@ export function AppProvider({
           notify("Could not duplicate macro", "error");
         });
       },
-      exportMacro(macroId) {
+      async copyMacroJson(macroId) {
         const macro = findMacro(macroId);
-        if (!macro) return;
+        if (!macro) return null;
         const json = store.exportMacro(macro);
+        // File downloads are blocked in Creator's sandboxed iframe (no
+        // allow-downloads token — see LIMITATIONS.md), so sharing a macro is
+        // copy/paste. The async clipboard is usually denied in that
+        // opaque-origin iframe too (same as TraceStrip's copy): try it, then
+        // the legacy selection copy while the gesture is still warm, and only
+        // then hand the JSON back for a manual-copy dialog.
         try {
-          const blob = new Blob([json], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = `${macro.name.replace(/[^\w-]+/g, "-")}.macro.json`;
-          anchor.click();
-          URL.revokeObjectURL(url);
+          await navigator.clipboard.writeText(json);
+          notify(`Copied "${macro.name}" as JSON`, "success");
+          return null;
         } catch {
-          notify("Could not export macro", "error");
+          // Denied or unavailable — fall through to the legacy path.
         }
+        if (copyViaHiddenTextarea(json)) {
+          notify(`Copied "${macro.name}" as JSON`, "success");
+          return null;
+        }
+        return { name: macro.name, json };
       },
-      importFile(file) {
-        void file
-          .text()
-          .then((json) => store.importMacro(json))
-          .then((macro) => {
-            dispatch({ type: "IMPORTED", macro });
-            notify(`Imported "${macro.name}"`, "success");
-          })
-          .catch((error: unknown) => {
-            const message =
-              error instanceof Error ? error.message : "Import failed";
-            notify(message, "error");
-          });
+      async importJson(json) {
+        const macro = await store.importMacro(json);
+        dispatch({ type: "IMPORTED", macro });
+        notify(`Imported "${macro.name}"`, "success");
       },
+      notify,
 
       play(macroId, options) {
         const macro = findMacro(macroId);

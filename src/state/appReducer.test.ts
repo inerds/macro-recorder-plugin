@@ -6,6 +6,7 @@ import {
   appReducer,
   idleState,
   initialState,
+  REVIEW_DRAFT_ID,
   suggestMacroName,
   type AppState,
 } from "./appReducer";
@@ -656,5 +657,70 @@ describe("expanded step list survives play and configure", () => {
     expect(state.mode === "configuring" && state.expandedId).toBe("m1");
     state = appReducer(state, { type: "CONFIGURE_CANCEL" });
     expect(state.mode === "idle" && state.expandedId).toBe("m1");
+  });
+});
+
+describe("review draft restore (panel reload survival)", () => {
+  const draft: Macro = {
+    id: REVIEW_DRAFT_ID,
+    name: "Half-typed na",
+    createdAt: 123,
+    steps: [step("s0"), step("s1")],
+    source: { nodeId: "n1", nodeName: "Layer A" },
+    params: [{ stepId: "s0", label: "Step s0" }],
+  };
+
+  it("REVIEW_RESTORE re-enters reviewing from idle with the draft's content", () => {
+    const state = appReducer(idleState([macro("m1")]), {
+      type: "REVIEW_RESTORE",
+      draft,
+    });
+    expect(state).toMatchObject({
+      mode: "reviewing",
+      name: "Half-typed na",
+      source: { nodeId: "n1", nodeName: "Layer A" },
+    });
+    if (state.mode === "reviewing") {
+      expect(state.steps.map((s) => s.id)).toEqual(["s0", "s1"]);
+      expect(state.params).toEqual([{ stepId: "s0", label: "Step s0" }]);
+      expect(state.macros.map((m) => m.id)).toEqual(["m1"]);
+    }
+  });
+
+  it("ignores REVIEW_RESTORE outside idle (never interrupts work in progress)", () => {
+    const recording = recordWithSteps(1);
+    expect(appReducer(recording, { type: "REVIEW_RESTORE", draft })).toBe(recording);
+
+    const reviewing = appReducer(recordWithSteps(1), {
+      type: "RECORD_STOP",
+      suggestedName: "Macro 1",
+    });
+    expect(appReducer(reviewing, { type: "REVIEW_RESTORE", draft })).toBe(reviewing);
+  });
+
+  it("ignores an empty draft", () => {
+    const idle = idleState([]);
+    expect(
+      appReducer(idle, { type: "REVIEW_RESTORE", draft: { ...draft, steps: [] } }),
+    ).toBe(idle);
+  });
+
+  it("MACROS_LOADED never surfaces the draft as a saved macro", () => {
+    const state = appReducer(idleState([]), {
+      type: "MACROS_LOADED",
+      macros: [macro("m1"), draft],
+    });
+    expect(state.macros.map((m) => m.id)).toEqual(["m1"]);
+
+    const reviewing = appReducer(recordWithSteps(1), {
+      type: "RECORD_STOP",
+      suggestedName: "Macro 1",
+    });
+    const reloaded = appReducer(reviewing, {
+      type: "MACROS_LOADED",
+      macros: [macro("m1"), draft],
+    });
+    expect(reloaded.mode).toBe("reviewing");
+    expect(reloaded.macros.map((m) => m.id)).toEqual(["m1"]);
   });
 });

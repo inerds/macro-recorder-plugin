@@ -73,6 +73,18 @@ export function withSteps(
   return next;
 }
 
+/**
+ * Reserved store id for the persisted copy of an in-progress review. The
+ * pending recording used to live only in reducer memory, so ANY panel reload
+ * (Creator re-evaluating plugin.js re-runs `creator.ui.show` and re-creates
+ * the iframe; the dev server hot-reloads the UI; the mock→engine reboot in
+ * gateways/index.ts) silently destroyed it — reported as "I typed the name
+ * and lost the macro". AppContext mirrors the reviewing state into the store
+ * under this id and restores it on boot; MACROS_LOADED filters it so the
+ * draft never renders as a saved macro.
+ */
+export const REVIEW_DRAFT_ID = "__macro-review-draft__";
+
 export type Notice = {
   id: string;
   message: string;
@@ -154,6 +166,8 @@ export type AppEvent =
   | { type: "REVIEW_PARAM_TOGGLE"; stepId: string }
   | { type: "REVIEW_SAVE"; macro: Macro }
   | { type: "REVIEW_DISCARD" }
+  /** Re-enters review from a persisted draft after a panel reload. */
+  | { type: "REVIEW_RESTORE"; draft: Macro }
   | { type: "EXPAND_TOGGLE"; macroId: string }
   | { type: "RENAME_START"; macroId: string }
   | { type: "RENAME_COMMIT"; macroId: string; name: string }
@@ -205,9 +219,11 @@ export const initialState: AppState = idleState([]);
 
 export function appReducer(state: AppState, event: AppEvent): AppState {
   switch (event.type) {
-    case "MACROS_LOADED":
-      if (state.mode !== "idle") return { ...state, macros: event.macros };
-      return { ...state, macros: event.macros };
+    case "MACROS_LOADED": {
+      // The review draft is pending state, not a macro — never render it.
+      const macros = event.macros.filter((m) => m.id !== REVIEW_DRAFT_ID);
+      return { ...state, macros };
+    }
 
     case "RECORD_START":
       if (state.mode !== "idle") return state;
@@ -305,6 +321,21 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
     case "REVIEW_DISCARD":
       if (state.mode !== "reviewing") return state;
       return idleState(state.macros);
+
+    case "REVIEW_RESTORE":
+      // A draft only takes over the resting screen — never interrupt a
+      // recording or playback already under way, and an empty draft has
+      // nothing worth restoring.
+      if (state.mode !== "idle") return state;
+      if (event.draft.steps.length === 0) return state;
+      return {
+        mode: "reviewing",
+        macros: state.macros,
+        steps: event.draft.steps,
+        name: event.draft.name,
+        params: event.draft.params ?? [],
+        ...(event.draft.source ? { source: event.draft.source } : {}),
+      };
 
     case "EXPAND_TOGGLE":
       if (state.mode !== "idle") return state;
