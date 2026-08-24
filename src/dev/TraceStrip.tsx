@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { trace, type TraceStatus } from "./trace";
 
 /**
- * Dev-only diagnostics bar. Unlike DebugStrip (which needs mock gateways and
- * therefore only exists when the sandbox handshake FAILS), this renders in
- * both modes — including inside Creator with the real engine, which is exactly
+ * Dev-only diagnostics row, rendered as a section inside DevSettings (which
+ * is what gates it on import.meta.env.DEV). Works in both engine and mock
+ * mode — including inside Creator with the real engine, which is exactly
  * where traces matter.
  */
 export function TraceStrip({ kind }: { kind: "rpc" | "mock" }) {
@@ -37,7 +37,7 @@ export function TraceStrip({ kind }: { kind: "rpc" | "mock" }) {
       : "no trace written yet";
 
   return (
-    <div className="flex items-center gap-2 border-t border-border bg-muted/40 px-2 py-1 text-10 text-muted-foreground">
+    <div className="flex items-center gap-2 text-10 text-muted-foreground">
       <span
         className={`inline-block size-1.5 rounded-full ${
           status.lastError ? "bg-destructive" : "bg-[color:var(--lamp-amber)]"
@@ -45,7 +45,7 @@ export function TraceStrip({ kind }: { kind: "rpc" | "mock" }) {
         aria-hidden
       />
       <span className="instrument">{kind === "rpc" ? "engine" : "mock"}</span>
-      <span className="mono">{status.events} events</span>
+      <span className="mono whitespace-nowrap">{status.events} events</span>
       {status.dropped > 0 && <span>({status.dropped} dropped)</span>}
       <span className="truncate" title={label}>
         {label}
@@ -53,14 +53,14 @@ export function TraceStrip({ kind }: { kind: "rpc" | "mock" }) {
       <div className="ml-auto flex gap-1">
         <button
           type="button"
-          className="rounded px-1.5 py-0.5 hover:bg-muted"
+          className="press rounded px-1.5 py-0.5 transition-colors duration-150 hover:bg-card"
           onClick={() => void trace.flush("manual")}
         >
           Flush
         </button>
         <button
           type="button"
-          className="rounded px-1.5 py-0.5 hover:bg-muted"
+          className="press rounded px-1.5 py-0.5 transition-colors duration-150 hover:bg-card"
           onClick={() => void copy()}
         >
           {copied ?? "Copy"}
