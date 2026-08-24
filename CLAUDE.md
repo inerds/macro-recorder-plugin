@@ -97,6 +97,15 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
 - **Tap the seam once.** `RpcClient` (`src/gateways/rpc/bridge.ts`) is the only
   place that sees both directions. Add instrumentation there, not in the
   gateways.
+- **A traced snapshot pair must be diffScene's exact input.** `recordStop`'s
+  "recorded nothing" fallback (whole-session `firstSnapshot`/`lastSnapshot`)
+  fires only when the entire session emitted zero steps
+  (`RecordingSession.stepped` gates it) — keying it off a quiet final tick
+  made healthy recordings look like a dropped layer diff (rev .41 fix,
+  taxonomy #14). Same fidelity rule for probes: `probe()` reads plain
+  scalars as themselves and includes keyframe `easing` — in traces before
+  rev .41, `set-plain` steps probe `null`/`null` and easing-only edits look
+  like no-ops; both are artifacts there, not findings.
 
 `DevSettings` (`src/dev/`) is the ONE dev strip at the panel foot — gated on
 `import.meta.env.DEV` alone so it works in both modes, collapsed to a single
@@ -206,6 +215,12 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
 - **Replay means DO IT**: nest/add ops re-execute; adoption of an existing
   layer (id-only match) is a fallback for same-scene replays where the
   action already happened (prevents duplicate/empty-shell rebuilds).
+  `createLayerFromSpec` picks the factory by recorded type — `SCENE*` →
+  `createSceneLayer`, `TEXT_LAYER` → `createTextLayer` (feature-detected;
+  absent → note + skip, never a shape shell), else `createShapeLayer`. A
+  text layer rebuilt as a shape shell was the worst silent failure found in
+  traces: every later text/font write landed on nothing and re-recording the
+  shell captured nothing (taxonomy #12).
   `nest-layers` prefers the current selection as its sources (tool
   semantics); inside instance content, resolution is strictly index-ordered
   (user decision — no shape-type redirect there).
@@ -213,7 +228,11 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   deliberate non-applies/adaptations (cross-kind recolors adapt: solid↔
   gradient, static and keyframed; trim edits create the trim on demand; paint
   paths remap singular text fills). Genuine failures throw and pause. Keep
-  this invariant — silent half-applies were the original disease.
+  this invariant — silent half-applies were the original disease. It extends
+  to `set-plain`: the applier reads the flag back after writing and notes a
+  mismatch ("the host kept X unchanged"); an unreadable read-back makes no
+  claim (taxonomy #13). Hosts can accept an assignment and keep their own
+  value, so a bare write is never proof of application.
 - Keyframe machinery (applier): frame-keyed matching via `getKeyframeAt` with
   `hasKeyframes` phantom-guard, verified adds + frame-0 sentinel, same-frame
   add+remove guard (legacy macros), move re-pairing in the differ, collision
@@ -255,7 +274,9 @@ Where each piece lives and the invariants worth keeping:
   replay (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md);
   the interface-theme relay (`plugin/theme.ts` — `creator.ui.theme` /
   `change:theme` per the ui-library docs, feature-detected, silent on hosts
-  without it).
+  without it); the rev .41 text fixes (`createTextLayer` rebuild, set-plain
+  read-back note) — pinned by unit tests, but no Creator trace at .41 exists
+  yet, and pre-.41 traces can't verify text applies at all (taxonomy #15).
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
 - v3.1 live status: at-playhead, stagger and repeat verified in traces
@@ -480,10 +501,12 @@ recording clock, the status lamp and the state word.
   `::after` warm glow while recording. `REWIND_MS`/`DONE_MS` in `deckState.ts`
   must stay equal to the `[data-deck]` animation durations in `deck.css` or
   the reels stop mid-turn.
-- Exactly **one** button is named "Stop" while recording, and it is the deck's.
-  `RecordingView`'s bottom bar is Discard only. The headless walk-through
-  (`scratchpad/drive/walk.mjs`) matches Record and Stop by name, so a second
-  one breaks it.
+- The recording screen's bottom CTA is **Stop** (red key), with Discard as
+  the outline secondary beside it — the same grammar as the review bar it
+  hands off to (user decision, 2026-08-24; this retired the earlier
+  "exactly one Stop" rule). Both Stops perform the same action; drivers that
+  match Stop by name must scope to the deck's `data-testid="stop-button"`
+  or the bar's `stop-recording-button`.
 
 - Pseudo-element budget on the hero is fully spent: `.deck-chassis::before`
   (scanline grain + raking highlight) / `::after` (chamfer bevel);
@@ -517,11 +540,16 @@ language. Two rules keep it coherent:
   (no second tab stop) — except while THAT macro plays, when the stop key
   stays so it never unmounts under focus. Card body: `StepListHeader`
   (`showLayer={false}` — the layer name lives in the tooltip/sr-only) + the
-  `.step-strip` + a footer that is the card's control row: DURATION in FRAMES
-  (via `shared/steps.ts#keyframeSpan` — the UI never learns fps, a timecode
-  would be a lie), the ×N repeat readout (label sr-only — no width for it),
-  and the play-options + overflow triggers, which live on the lid when
-  closed and in the footer when open (never both).
+  `.step-strip` + a footer that is the card's control row: a PLAY key leads
+  it (user ask, 2026-08-25 — the open card carries every lid ability), the
+  ×N repeat readout (label sr-only — no width for it), and the play-options
+  + overflow triggers, which live on the lid when closed and in the footer
+  when open (never both). The footer key mirrors the lid's mount rule:
+  while THAT macro plays it stays mounted and swaps to Stop (two stops on
+  the open card, same grammar as the recording screen's pair). Duration in
+  FRAMES (via `shared/steps.ts#keyframeSpan` — the UI never learns fps, a
+  timecode would be a lie) rides the play key's `title` and an sr-only
+  span; it lost its visible seat to the key.
 - **Steps are ONE `.step-strip`** (one `bg-card` surface, 8px radius,
   `overflow: clip`, dotted rules between rows). Rows keep `bg-card`
   individually because `StepRow`'s hover action lane paints `bg-inherit` and
@@ -550,7 +578,12 @@ Three, and they differ in what globals exist:
 | QuickJS plugin sandbox | **no** | n/a | **no** | **no** |
 
 `shared/id.ts#newId` exists for exactly this and is the only id source — never
-call `crypto.randomUUID` directly. Persistence is likewise environment-split:
+call `crypto.randomUUID` directly. The same table is why the panel must never
+rely on **native form submission**: Creator's sandboxed iframe can lack
+`allow-forms`, which silently swallows the submit event (the Set values
+sheet's Play was dead in Creator while passing every standalone check).
+Buttons act via `onClick`, Enter via key handlers; an `onSubmit` may exist
+only to `preventDefault()`. Persistence is likewise environment-split:
 `LocalMacroStore` (localStorage, with in-memory fallback when it throws) versus
 `RpcMacroStore` → `plugin/store.ts` (`creator.clientStorage`, keys prefixed
 `macro:`, one entry per macro).

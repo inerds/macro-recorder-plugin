@@ -9,6 +9,63 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-25 — Expanded card: play from the footer
+
+| Issue | Fix |
+|---|---|
+| **The open macro card had no Play** — expanding a row traded the lid's play/options/overflow cluster for the footer's options + overflow, but playback itself required collapsing first. | The footer's control row now leads with a play key (stop while that macro plays, mounted across the run like the lid's), so the open card carries every lid ability. The Duration readout gave up its visible seat: the frame span rides the play key's tooltip and an sr-only span. |
+
+---
+
+## 2026-08-24 — Set values → Play dead inside Creator
+
+| Issue | Fix |
+|---|---|
+| **The configure sheet's Play did nothing inside Creator.** The sheet relied on native form submission (`<form onSubmit>` + `type="submit"`), and Creator hosts the panel in a sandboxed iframe — a sandbox without `allow-forms` silently blocks the submit event, so `onPlay` never ran: no `playback.begin`, no trace, no play. Standalone tabs were unaffected, which is why every earlier check passed. | Play is a `type="button"` with an explicit `onClick`; Enter in a field plays via the form's `onKeyDown`; `onSubmit` stays but only prevents default, so environments that DO allow submission can't double-fire. Verified headless: click and Enter both start playback, no double-run. |
+| **A play stuck on a failure banner held its trace hostage.** `trace.flush` ran only in the run loop's `finally`, but a step failure `await`s the user's Continue/Stop first — an un-dismissed banner meant the run's events flushed into the NEXT trace (or were lost with the panel), which is exactly why the failing session left no playback trace to triage. | The gateway flushes the trace when a failure banner appears (pre-run and mid-run), before waiting on the decision; the loop-end flush still carries the remainder. |
+
+---
+
+## 2026-08-24 — Set-value flow fixes (traces 09-25/09-27)
+
+| Issue | Fix |
+|---|---|
+| **A color step edit silently reverted.** The row editor commits on blur-outside — but the native color picker is a separate OS window, so opening it blurred the page (`relatedTarget: null`), which committed the untouched draft and unmounted the editor mid-pick; the chosen color landed nowhere and playback used the recorded value ("set value and then play is not working"). | The blur-commit now ignores blurs while `document.hasFocus()` is false — a page-level blur is the picker opening, not the user leaving the editor. Enter / clicking away still commit. |
+| **A color parameter took two gestures to reach the picker.** The configure sheet focused the swatch but the picker needed another click. | The autofocused color field calls `showPicker()` (try/catch: browsers refuse it in cross-origin iframes, where the focused swatch still opens on Enter/Space). |
+| **New macros ignored the playhead by default** — replaying a recorded animation always landed on its original frames until *At playhead* was switched on per row, per session. | Newly recorded macros save `playOptions: { atPlayhead: true }`; the row seeds its play options from the macro (`MacroRow`), imports carry the field, and the popover still overrides per session. |
+
+---
+
+## 2026-08-24 — Text-property trace triage (11 traces, rev .41)
+
+| Issue | Fix |
+|---|---|
+| **Replayed text layers were shape shells.** `createLayerFromSpec` routed every non-`SCENE*` type through `createShapeLayer`, so an `add-layer` of a `TEXT_LAYER` rebuilt a SHAPE_LAYER named "Text 1" with no text surface — every later text/font/size/alignment write landed on nothing, and re-recording that layer captured nothing (live aftermath in trace 2026-08-24T07-49-36-061). | The factory now matches the recorded type: `TEXT_LAYER` → `createTextLayer` (feature-detected; a host without it skips with a note instead of silently building a fake). |
+| **A host-swallowed `set-plain` write reported success.** `owner[flag] = after` only noted a thrown error; a proxy that accepts the assignment and keeps its own value produced a step that changed nothing with no failure and no note. | The applier reads the flag back defensively: a mismatch surfaces as a note naming the flag; an unreadable read-back makes no claim; a normal write stays silent. |
+| **Traces couldn't verify text applies.** `probe()` read `.staticValue` off whatever `resolvePath` returned, so a `set-plain` scalar path (`text`, `fontSize`, …) probed `null` on both sides regardless of outcome; keyframe probes also never carried easing, so easing-only edits looked like no-ops. | Plain scalars now probe as themselves; keyframe probe entries carry `easing` when readable (`TargetProbe` gains the optional field). |
+| **`recordStop`'s "recorded nothing" debug fallback misfired.** It keyed off the *final tick* being quiet, so any debug session ending on a quiet tick got the whole-session snapshot pair stapled to an empty step list — making healthy recordings look like an entire layer's diff was dropped (3 traces). | The fallback now fires only when the whole *session* emitted zero steps (`RecordingSession.stepped` tracks it); a quiet final tick after real steps keeps its empty delta empty. |
+
+---
+
+## 2026-08-24 — UI audit quick wins (full-panel design critique)
+
+| Issue | Fix |
+|---|---|
+| **The recording screen's only bottom action was Discard** — the screen's natural next step (Stop → review) lived solely in the deck, so the one full-width key at the foot was the destructive exit. | Bottom bar now mirrors the review bar it hands off to: **Stop** as the red CTA (same action as the deck's key), Discard as the outline secondary beside it. Retires the earlier "exactly one Stop while recording" rule (see CLAUDE.md); drivers matching Stop by name scope to `stop-button` (deck) / `stop-recording-button` (bar). |
+| **The overflow menu's Delete item was click-dead when the menu opened low.** `DevSettings` wore `relative z-[1]` inside `#root`, so the dev strip out-stacked the portalled menu's `z-auto` positioner — the menu's bottom ~30px painted under the strip and `elementFromPoint` on "Delete" returned the DEV SETTINGS toggle (the same stacking trap `index.css` documents for `#root`). | Dropped the `z-[1]`; being positioned and later in the DOM already wins over the scrolling rack rows. Re-probed: all three hit-test points on Delete land in the menu, and a real mouse click opens the delete confirm. |
+| **The configure sheet was the one screen speaking the wrong voice** — a 14px sans-medium title ("Set values for …"), the only `text-14` in `src/`, against every sibling's red instrument-caps header. | Header joins the convention: `SET VALUES` in `instrument instrument-red`, the macro name on its own mono line (truncating, `title`-carried), full title kept for screen readers. |
+| **"← Review & save" promised a back navigation that didn't exist** — the arrow lived in a plain `<p>`; the only real exits are Discard/Save. | Dropped the arrow; the header stays as a label, which is what it is. |
+| **Two Discards during discard.** While a discard confirm was up (recording and review), the bottom-bar Discard that summoned it stayed live — a second button asking the question already on screen. | The bottom Discard is `disabled` while its confirm is open, in both `RecordingView` and `ReviewPanel`. |
+| **The quiet icon-key chrome was hand-rolled four times** (`MacroRow`, `OverflowMenu`, `PlayOptionsPopover` triggers — verbatim copies — plus `StepRow`'s lane with drifted hover colour and radius). | One shared `ICON_KEY_CLASS` (`src/components/iconKey.ts`) for the three triggers; the step lane keeps its visibility behaviour but now matches the family's `rounded-[7px]` and `hover:text-foreground`. |
+| **Names displayed in mono, edited in sans** — the rename input and MACRO NAME input switched the same string to the sans face the moment it became editable. | Both inputs set in `mono`. |
+| **Radius strays outside the skin's 4/7/10 family**: disclosure hover pill 5px, recording count pill 6px, colour swatch 2px/2px. | Normalized: pills join 7px, swatch outer 4px with a 3px nested inner. |
+| **Quote marks split by surface** — typographic quotes in the configure sheet, straight quotes in every toast and confirm (`Saved "…"`, `Delete "…"?`). | All user-facing name quoting is typographic (“…”) — confirms, save/play/stop/import/copy notices — with tests updated to match. |
+| **DEV SETTINGS wrapped to two lines at 260px** — the only wrapped instrument label in the app. | The label is `whitespace-nowrap shrink-0`. |
+
+Full audit (findings, evidence, and the [larger] backlog: toast placement over
+action rows, unskinned toast, deck STOP dead during playback, Simplify
+dropping pins silently, inline step-edit commit affordance) → `UI-AUDIT.md`.
+
 ## 2026-08-24 — Macro sharing without file downloads
 
 | Issue | Fix |

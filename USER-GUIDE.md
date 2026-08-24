@@ -55,12 +55,12 @@ whole, turning reels; nothing moves anywhere else.
      reordering, breaking a scene instance apart, nesting layers
 3. Steps appear live in the panel as you work (the recorder samples twice a
    second, so a long drag shows up as a handful of steps — see *Simplify*).
-4. Click **Stop** on the deck (the same key you started from — the deck stays
-   put while the list below it changes). If nothing was recorded you return to
-   the list; otherwise the **review sheet** opens.
+4. Click **Stop** — the red key at the bottom of the recording screen, or the
+   same deck key you started from (they do the same thing). If nothing was
+   recorded you return to the list; otherwise the **review sheet** opens.
 
-**Discard** at the bottom of the recording screen throws the session away; it
-asks first if steps exist. Deleting a layer mid-recording is itself a recorded step —
+**Discard**, beside Stop at the bottom, throws the session away; it asks
+first if steps exist. Deleting a layer mid-recording is itself a recorded step —
 recording only stops on its own if the scene goes away, and says so.
 
 ---
@@ -145,7 +145,10 @@ Values adapt per target:
 **Macros that touched several layers or changed scene structure** replay as a
 **scene script**: each step finds its layer by identity, then by name, and
 reports a skip if it can't. Duplicate steps really duplicate; edits recorded
-on a copy go to the copy the replay just made.
+on a copy go to the copy the replay just made. Layers the replay recreates
+keep their kind — a recorded text layer comes back as a real text layer,
+with its text, font, size and alignment applied (if the host can't create
+one, the step is skipped with a note rather than faked).
 
 **Duplicate-macros are tools.** "Duplicate the layer, then move/recolor the
 copy" clones each *selected* layer and edits that clone, offset from the
@@ -186,7 +189,8 @@ Slides the whole macro along the timeline so its **earliest keyframe lands on
 the current playhead frame**. Record a 0→30 bounce once, park the playhead at
 frame 120, play at playhead: the bounce happens at 120→150. All keyframes in
 the macro move together; static (non-keyframe) edits are unaffected. Does
-nothing for a macro with no keyframes.
+nothing for a macro with no keyframes. **Newly recorded macros start with
+this on** — open the play options to turn it off for the session.
 
 ### Stagger
 
@@ -214,9 +218,14 @@ recolor macro, the distance of a slide. Instead of editing the macro:
 1. In review (or in the expanded macro), hover an editable step and press
    the **pin**. The step is now a parameter.
 2. Playing the macro opens a small **form** with one row per pinned step,
-   pre-filled with the recorded value.
+   pre-filled with the recorded value. If the first pinned value is a
+   color, its picker pops open on its own — pick, then Play.
 3. Change what you want and click **Play**; the macro runs with those values
    (the saved macro is unchanged). **Cancel** returns to the list.
+
+The form only appears when at least one step is pinned — without pins,
+Play runs the recorded values straight away. To change a value *forever*
+instead, edit the step in place (pencil); to be *asked each play*, pin it.
 
 Parameters survive Copy JSON/Import and duplicate. Deleting a pinned step drops
 its pin; *Simplify* keeps a pin when the pinned step is the first of a merged
@@ -237,7 +246,7 @@ hear the full "4 steps".
 | Copy JSON | ⋮ menu → Copy JSON — puts the macro's JSON on your clipboard. If the clipboard is blocked (Creator's sandbox can do that), a dialog opens with the JSON pre-selected so you can copy it yourself |
 | Import | **Import** button on the **Saved macros** header — opens a dialog: paste the JSON that Copy JSON produced and press **Import**. Ids are regenerated, so importing never collides with an existing macro |
 | Delete | ⋮ menu → Delete, then confirm inline |
-| Expand | click the row to see and edit its steps |
+| Expand | click the row to see and edit its steps — the open card's footer keeps **Play** (hover it for the macro's duration in frames), the play options and the ⋮ menu, so nothing needs collapsing first |
 
 A macro travels as plain JSON: steps, disabled flags, and parameters ride
 along, so macros can be shared between people and projects — paste the text

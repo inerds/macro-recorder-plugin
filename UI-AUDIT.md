@@ -1,0 +1,193 @@
+# UI Audit — full-panel design critique (2026-08-24)
+
+Method: interface-craft **Design Critique** (Josh Puckett) over every surface,
+against the live standalone UI at 300×520, 260px wide and the ≤352px-height
+collapse, cross-referenced with `src/`. Evidence: ~70 screenshots + DOM probes
+(session scratchpad `audit/shots/`), a computed-style census, and
+`elementFromPoint` hit-tests.
+
+Tags: **[quick-win]** applied on this branch · **[larger]** backlog, not
+applied · **[by-design]** a recorded decision, listed so it isn't re-litigated.
+
+## Context
+
+A Lottie Creator side-panel (300×520 typical, down to 260px wide) that
+records editing steps and replays them — a power-user convenience tool with a
+committed vintage reel-to-reel skin. Emotional context: casual, repeated,
+mid-flow use; the panel must read at a glance and never steal attention from
+the animation being edited.
+
+## First impressions
+
+The panel reads as one object to a degree few plugin UIs manage: the deck is
+genuinely convincing, the rack rows carry the equipment language through, and
+the paper ground under red instrument labels is confident and consistent.
+What breaks the spell is the edges where library defaults leak through — the
+dark 15px toast sliding over a cream 11px panel is the loudest — and a
+handful of drifted details (nine border radii, three hand-rolled icon-button
+chromes, one screen title in the wrong voice) that a panel this deliberate
+shouldn't tolerate.
+
+## Visual design
+
+**Radius fragmentation** — Nine distinct border radii render on one screen
+(census: 7px ×10, then 3/4/5/6/8/10/12px + pill). The skin's own CSS defines
+a coherent 4/7/10 family; the strays come from ad-hoc utilities
+(`rounded-[5px]` on the disclosure, `rounded-[6px]` on the recording count
+pill, bare `rounded`/`rounded-sm` in rows). Fewer radii is one of the
+cheapest "one designer made this" signals. → normalized to the 4/7/10 family.
+**[quick-win]**
+
+**Toast in a foreign language** — The toast is a dark, modern, 15px-sans
+pill with a green check (probe: `text-15`, `ui-sans-serif`), covering a
+cream 10–11px mono/instrument panel. It is the single most visible
+un-skinned element, and it appears at the most celebratory moment (save,
+play done). Impact: the panel's spell breaks exactly when the user succeeds.
+Opportunity: paper-card toast (cream ground, ink border, 12px, instrument
+tone) if the library's ToastProvider exposes styling; otherwise wrap.
+**[larger]** — library API investigation needed.
+
+**Success flashes the alarm colour** — `.success-flash`
+(`src/styles/index.css:475`) tints the finished row with `--primary` red
+while the toast beside it says success in green. On this skin red is "lit /
+does something", so the flash is defensible as a lamp blink — but two
+simultaneous, differently-coloured success signals is one too many.
+**[by-design]** (recorded skin language; revisit only if users read it as an
+error).
+
+**Name display is mono, name editing is sans** — `.rack-name` and the review
+step labels are `--font-mono`; the rename input and MACRO NAME input render
+the same string in the sans face. The value changes typeface the moment it
+becomes editable, which reads as a different object. → inputs set in mono.
+**[quick-win]**
+
+**Button-height drift** — 24px dominates (13 buttons), with 16/17px quiet
+instruments and 25/26px outliers. Within tolerance for now; worth an eye
+when touching keys. **[by-design]** (instrument type rides smaller on
+purpose).
+
+## Interface design
+
+**The Delete item is unclickable when the menu opens low** — With the card
+open and the overflow menu opening from the footer, the menu's last ~30px
+overlap the dev strip; `elementFromPoint` on "Delete" returns the DEV
+SETTINGS toggle. Cause: `DevSettings` wears `relative z-[1]`
+(`src/dev/DevSettings.tsx:119`) inside `#root`, which beats the portal's
+`z-auto` positioner — the exact stacking trap `index.css:39-51` documents
+for `#root` itself. The `relative` alone already wins over the scrolling
+rows (`.rack-row` is positioned and earlier in DOM), so the z-index is pure
+hazard. Dev-mode only, but it's the documented disease pattern, live. →
+`z-[1]` removed, probe re-run green. **[quick-win]**
+
+**Toasts sit on the action rows** — Bottom-centre toasts (error ones persist
+by design) land exactly on Cancel/Import, Cancel/Play and Discard/Save. The
+panel footer makes room for itself (`app.tsx:78`) but portalled dialogs
+don't; shots show a stale "Stopped…" toast half-covering the import dialog's
+buttons. Impact: the user must find and dismiss a message to reach the
+button they came for. Opportunity: dismiss standing notices when a dialog
+opens, or raise the toast viewport above the footer inside dialogs.
+**[larger]**
+
+**A back-arrow that goes nowhere** — "← Review & save"
+(`ReviewPanel.tsx:51`) is a `<p>`. The arrow promises navigation and
+delivers nothing; the only exits are Discard and Save below the fold.
+An affordance that lies is worse than none. → arrow dropped, header kept.
+**[quick-win]**
+
+**Two Discards during discard** — While the recording discard confirm is up
+(top of the feed), the bottom-bar Discard stays live (shot 15): two buttons
+named Discard, one of which re-asks the question it's already asking, and
+the confirm appears at the opposite end of the panel from the button that
+summoned it. → bottom Discard disabled while the confirm is open (both
+Recording and Review). **[quick-win]**
+
+**Simplify silently eats parameter pins** — Pin a step, press Simplify, the
+pin is gone with no mention (pins reference step ids; simplify regenerates
+them — the drop is correct, the silence isn't). We're missing the
+opportunity to keep faith with an explicit user choice: either remap pins
+whose step survives, or say "Simplify removed 1 pinned parameter".
+**[larger]**
+
+**The transport narrates playback it can't control** — During playback the
+lamp burns red, the word says PLAYING, the counter counts — and the deck's
+STOP is disabled; the working stop is a small key in the row. The hero
+declares itself the transport and then refuses the one transport action the
+moment offers. Deliberate for recording ("exactly one Stop"), but during
+playback the deck is all narration, no control. Opportunity: wire deck STOP
+to stop the running macro. **[larger]** — interaction-model decision.
+
+**Inline step edit has no visible commit** — The rename row shows a ✓;
+the step-value edit row (shot 18) shows bare X/Y fields with no
+check/cancel, committing on blur/Enter. Two inline edits, two contracts.
+Opportunity: give the step editor the rename row's ✓ (and Esc behaviour)
+so inline editing has one grammar. **[larger]** (touch-target and focus
+plumbing beyond a polish pass).
+
+## Consistency & conventions
+
+**One screen speaks the wrong voice** — Every screen and dialog is headed by
+red/ink instrument caps ("← REVIEW & SAVE", "PLAY OPTIONS", "IMPORT A
+MACRO", "SAVED MACROS") except the configure sheet, whose title is 14px
+sans-medium sentence case ("Set values for …", `ConfigureSheet.tsx:86`) —
+the only screen-level type outlier in the app (census: exactly one `text-14`
+in `src/`). → restyled to the instrument-header convention with the macro
+name on its own line. **[quick-win]**
+
+**Quote marks split** — The configure sheet uses typographic quotes
+(`&ldquo;…&rdquo;`); every toast and confirm uses straight quotes
+(`Delete "Bounce in"?`, `Saved "Macro 1"`). One document, two conventions;
+the vintage-print skin argues for typographic. → straight quotes in
+user-facing copy replaced with curly. **[quick-win]**
+
+**Three hand-rolled icon-button chromes** — `ICON_BUTTON_CLASS`
+(`MacroRow.tsx:23`), `OverflowMenu.tsx:39` (verbatim duplicate) and
+`StepRow.tsx`'s `ACTION_CLASS` all rebuild the same quiet icon key with
+drifted details (hover `text-foreground`+inset stroke vs
+`text-secondary-foreground`, `rounded-[7px]` vs `rounded`). The row lane's
+resting behaviour is genuinely different; its chrome isn't. → single shared
+constant for the shared chrome; lane keeps its visibility behaviour on top.
+**[quick-win]**
+
+**DEV SETTINGS wraps at 260px** — The drawer header breaks to two lines
+(shot w260) — the only wrapped instrument label in the app. → nowrap.
+**[quick-win]**
+
+**"3 · 10" counts** — the second number (total steps) is unlabeled for
+sighted users; sr-only + `title` carry it. Recorded trade-off (nothing ever
+mid-word-truncates); keep. **[by-design]**
+
+**Two red keys on the empty screen** — deck REC and the empty state's
+RECORD, both enabled, same action (shot 01). Within the letter of
+one-red-per-surface (chassis vs paper) and the CTA teaches the deck; keep.
+**[by-design]**
+
+## User context
+
+The user is mid-edit in Creator, panel in the corner of their eye. The skin
+respects that: states are triple-coded (lamp, word, reels), nothing animates
+uninvited, reduced-motion is covered. The lapses are exactly where system
+noise intrudes on flow: a stale error toast squatting on the next dialog's
+buttons, a pin quietly discarded after the user deliberately set it, a dead
+STOP under a burning PLAYING lamp. Uncommon care here means: every signal
+the panel emits is either current or gone, and every promise a control makes
+(an arrow, a lamp, a pin) is kept.
+
+## Top opportunities (ranked)
+
+1. **Unbury the menu** — drop `z-[1]` from DevSettings; portal stacking is
+   the one bug class this codebase has already paid for once. *(applied)*
+2. **Keep toasts off the action rows** — dismiss-on-dialog-open or raised
+   viewport; error toasts persist by design, so placement must respect that.
+3. **Skin the toast** — the last big library-default surface; the panel's
+   most-seen success moment currently speaks another product's language.
+4. **One header voice** — configure sheet joins the instrument convention;
+   kill the fake back-arrow. *(applied)*
+5. **Honor the pin** — remap or announce pin loss on Simplify; silent
+   discard of an explicit user choice is the panel's only broken promise.
+
+## Applied quick wins (this branch)
+
+See IMPROVEMENTS.md rows dated 2026-08-24 (audit) for the change log:
+z-[1] removal · configure header · back-arrow · double-Discard disable ·
+shared icon-key chrome · mono name inputs · radius normalization · curly
+quotes · DEV SETTINGS nowrap.
