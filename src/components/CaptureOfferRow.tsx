@@ -62,7 +62,11 @@ export function CaptureOfferRow({ offer, alreadyCapturedAll, onCapture }: Captur
           variant="ghost"
           className="press key key-outline"
           disabled={alreadyCapturedAll}
-          title={alreadyCapturedAll ? "Already added" : undefined}
+          title={
+            alreadyCapturedAll
+              ? "Already added"
+              : "All keyframes plus the layer's current property values"
+          }
           onClick={() => onCapture("all")}
           data-testid="capture-all-button"
         >

@@ -343,10 +343,14 @@ export function AppProvider({
             steps.forEach((step) => dispatch({ type: "STEP_RECEIVED", step }));
             dispatch({ type: "CAPTURE_DONE", layerId, scope });
             const label = layerName ? `“${layerName}”` : "the layer";
-            notify(
-              `Added ${steps.length} keyframe ${steps.length === 1 ? "step" : "steps"} from ${label}`,
-              "success",
-            );
+            // Scope "all" also carries property/state steps — say "steps".
+            const noun =
+              scope === "selected"
+                ? `keyframe ${steps.length === 1 ? "step" : "steps"}`
+                : steps.length === 1
+                  ? "step"
+                  : "steps";
+            notify(`Added ${steps.length} ${noun} from ${label}`, "success");
           })
           .catch((error: unknown) => {
             const raw = error instanceof Error ? error.message : String(error);

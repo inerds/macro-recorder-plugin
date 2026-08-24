@@ -1361,3 +1361,34 @@ describe("captured-keyframe steps round-trip onto a bare layer", () => {
     expect(target.position.keyframes[1]!.value).toEqual({ x: 120, y: 0 });
   });
 });
+
+describe("captured full-state steps (before === after)", () => {
+  // Scope-all capture emits set-static/set-plain with before === after.
+  // The semantics must be: deep paths apply exactly ("look like this"),
+  // while a length-1 transform static is additive with a ZERO delta — a
+  // retargeted style capture must not teleport the target.
+  it("a captured transform static is a no-op on a retargeted layer", () => {
+    const ids = makeIds();
+    const target = makeNode("Other", { props: { position: { x: 400, y: 300 } } }, ids);
+    const outcome = apply(
+      target,
+      { op: "set-static", path: ["position"], before: { x: 100, y: 50 }, after: { x: 100, y: 50 } },
+      { origins: { position: { x: 100, y: 50 } }, baselines: { position: { x: 400, y: 300 } } },
+    );
+    expect(outcome.notes).toEqual([]);
+    expect(target.position.staticValue).toEqual({ x: 400, y: 300 });
+  });
+
+  it("a captured deep static applies exactly to the target", () => {
+    const ids = makeIds();
+    const target = makeNode("Other", { fills: [{ r: 0, g: 0, b: 0 }] }, ids);
+    const outcome = apply(target, {
+      op: "set-static",
+      path: ["fills", 0, "color"],
+      before: { r: 255, g: 102, b: 153 },
+      after: { r: 255, g: 102, b: 153 },
+    });
+    expect(outcome.notes).toEqual([]);
+    expect(target.fills[0].color.staticValue).toEqual({ r: 255, g: 102, b: 153 });
+  });
+});

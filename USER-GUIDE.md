@@ -93,11 +93,13 @@ no re-authoring. While recording, select **one** layer that has keyframes:
 a card appears above the live feed ("*Layer* has N keyframes on M
 properties") with:
 
-- **Add all** — every animated property in the layer (transform, opacity,
-  fills, strokes, shape geometry, trims) becomes keyframe steps, exactly as
-  if you had authored them while recording. Playing the saved macro
-  recreates the motion — on any selected layer, at the playhead, with
-  stagger, like any other keyframe macro.
+- **Add all** — the layer's whole state: every animated property becomes
+  keyframe steps, and its current *look* — static transform values, colors,
+  stroke widths, text and font, blend mode — rides along as value steps
+  (they read as `property = value` in the feed). Playing the saved macro
+  recreates the motion and the look on any selected layer, at the playhead,
+  with stagger. Position/scale/rotation values deliberately don't move a
+  replay target — a style shouldn't teleport the layer it lands on.
 - **Add selected (n)** — only the keyframes you selected on the timeline.
   This button appears only when Creator reports selected keyframes to
   plugins; if you don't see it, your Creator build doesn't expose that yet

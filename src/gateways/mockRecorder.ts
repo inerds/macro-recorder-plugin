@@ -31,7 +31,7 @@ const CAPTURE_OFFER: CaptureOffer = {
   layerId: LAYER.id,
   layerName: LAYER.name,
   pathCount: 3,
-  keyframeCount: 6,
+  keyframeCount: 6,  // keyframes only — statics ride Add all regardless
   selectedCount: 2,
 };
 
@@ -67,6 +67,11 @@ const CAPTURE_ALL_SCRIPT: StepPayload[] = [
     changed: [],
     layer: LAYER,
   },
+  // Full-state capture: statics and content flags ride along as
+  // before === after ("captured state") payloads.
+  { op: "set-static", path: ["rotation"], before: 15, after: 15, layer: LAYER },
+  { op: "set-static", path: ["strokes", 0, "width"], before: 3, after: 3, layer: LAYER },
+  { op: "set-plain", path: ["blendMode"], before: "multiply", after: "multiply", layer: LAYER },
 ];
 
 /** The "selected" subset: the two position keyframes a user picked. */

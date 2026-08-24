@@ -232,16 +232,24 @@ sendToPlugin({
   t: "req", id: 21, method: "record.captureKeyframes",
   params: { layerId: "n1", scope: "all" },
 });
-const capStep = posted[0]?.result?.steps?.[0];
+const capSteps = posted[0]?.result?.steps ?? [];
+const capStep = capSteps[0];
+const capStatic = capSteps[1];
 check(
-  "record.captureKeyframes synthesizes keyframe steps with NO job pump",
+  "record.captureKeyframes synthesizes keyframes + captured statics, NO job pump",
   posted.length === 1 &&
     posted[0]?.ok === true &&
     capStep?.payload?.op === "keyframes" &&
     capStep?.payload?.added?.length === 2 &&
     capStep?.payload?.added?.[0]?.id === undefined &&
-    capStep?.payload?.layer?.id === "n1",
-  JSON.stringify(capStep ?? posted[0] ?? null),
+    capStep?.payload?.layer?.id === "n1" &&
+    // full-state capture: the child rect's static size rides along as a
+    // before===after set-static with the deep path + shapeHint
+    capStatic?.payload?.op === "set-static" &&
+    JSON.stringify(capStatic?.payload?.path) === JSON.stringify(["shapes", 0, "size"]) &&
+    capStatic?.payload?.before?.x === capStatic?.payload?.after?.x &&
+    capStatic?.payload?.shapeHint === "RECTANGLE",
+  JSON.stringify(capSteps ?? posted[0] ?? null)?.slice(0, 500),
 );
 
 // 7d. scope "selected" without a selected-keyframes surface errors cleanly

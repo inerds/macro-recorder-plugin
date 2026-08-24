@@ -1,4 +1,4 @@
-import type { Json } from "./json";
+import { jsonEqual, type Json } from "./json";
 import type { MacroStep } from "./macro";
 import type { Path } from "./snapshot";
 import type { LayerRef, StepPayload } from "./steps";
@@ -212,6 +212,11 @@ function bareLabelOf(payload: StepPayload): string {
             : null;
         return `${display} edited${count !== null ? ` (${count} points)` : ""}`;
       }
+      // A captured state (before === after, from keyframe/property capture)
+      // is a value, not a transition — recorded diffs never emit equal pairs.
+      if (jsonEqual(payload.before, payload.after)) {
+        return `${prefix}${display} = ${fmt(payload.after)}`;
+      }
       const component = changedComponent(payload.before, payload.after);
       if (component) {
         return `${prefix}${display}.${component.key} ${fmt(component.before)} → ${fmt(component.after)}`;
@@ -235,6 +240,9 @@ function bareLabelOf(payload: StepPayload): string {
       const flag = propDisplayName(String(payload.path[payload.path.length - 1]));
       if (typeof payload.after === "boolean") {
         return `Layer · ${flag} ${payload.after ? "on" : "off"}`;
+      }
+      if (jsonEqual(payload.before, payload.after)) {
+        return `Layer · ${flag} = ${fmt(payload.after)}`;
       }
       return `Layer · ${flag} ${fmt(payload.before)} → ${fmt(payload.after)}`;
     }

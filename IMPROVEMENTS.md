@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-25 — Capture grabs the whole layer, not just keyframes (rev .43)
+
+| Issue | Fix |
+|---|---|
+| **"Add all" captured motion but not the layer's look** — static properties (rotation parked at 15°, a fill that never animates, text content, blend mode) were left behind, so a captured macro couldn't reproduce the layer. | Scope-all capture now emits the full state: keyframes ops first, then every static animatable as `set-static` and the content plain flags (text/font/size/alignment/blendMode — never visibility/lock/timeline flags/name) as `set-plain`, all `before === after`. Replay semantics fall out of the existing engine: deep paths apply exactly ("make it look like this"), length-1 transform statics are additive with a zero delta so a retargeted style capture doesn't teleport the target. Equal-pair steps label as `prop = value` (a state, not a transition). "Add selected" stays keyframes-only. |
+
+---
+
 ## 2026-08-25 — Capture existing keyframes into a recording (rev .42)
 
 | Issue | Fix |

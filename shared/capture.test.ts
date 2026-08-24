@@ -104,8 +104,9 @@ describe("countKeyframes", () => {
 });
 
 describe("captureKeyframePayloads — scope all", () => {
-  it("emits one keyframes payload per animated path, differ-addressed", () => {
+  it("emits keyframes per animated path, then set-static per static animatable", () => {
     const payloads = captureKeyframePayloads(richLayer(), { scope: "all" });
+    // motion first (differ-addressed), then the layer's current look
     expect(pathsOf(payloads)).toEqual([
       ["position"],
       ["fills", 0, "color"],
@@ -114,14 +115,47 @@ describe("captureKeyframePayloads — scope all", () => {
       ["trimPaths", 0, "start"],
       ["masks", 0, "pathData"],
       ["shapes", 0, "shapes", 0, "size"],
+      ["rotation"],
+      ["trimPaths", 0, "end"],
+      ["trimPaths", 0, "offset"],
+      ["masks", 0, "opacity"],
     ]);
+    const kinds = payloads.map((p) => p.op);
+    expect(kinds.slice(0, 7).every((op) => op === "keyframes")).toBe(true);
+    expect(kinds.slice(7).every((op) => op === "set-static")).toBe(true);
     for (const p of payloads) {
-      expect(p.op).toBe("keyframes");
-      if (p.op !== "keyframes") continue;
-      expect(p.removed).toEqual([]);
-      expect(p.changed).toEqual([]);
-      expect(p.added.length).toBeGreaterThan(0);
-      expect(p.layer).toEqual({ id: "layer-1", name: "Text 1" });
+      expect("layer" in p ? p.layer : undefined).toEqual({ id: "layer-1", name: "Text 1" });
+      if (p.op === "keyframes") {
+        expect(p.removed).toEqual([]);
+        expect(p.changed).toEqual([]);
+        expect(p.added.length).toBeGreaterThan(0);
+      }
+      if (p.op === "set-static") {
+        // A captured state is a value, not a transition.
+        expect(p.before).toEqual(p.after);
+      }
+    }
+  });
+
+  it("captures content plain flags as set-plain, never structural ones", () => {
+    const layer = makeNode({
+      nodeType: "TEXT_LAYER",
+      props: { position: anim(undefined, [kf(0, { x: 0, y: 0 })]) },
+      plain: {
+        text: "hello",
+        fontFamily: "Inter",
+        fontSize: 50,
+        visible: true,
+        locked: false,
+        startFrame: 0,
+        isMatte: false,
+      },
+    });
+    const payloads = captureKeyframePayloads(layer, { scope: "all" });
+    const plain = payloads.filter((p) => p.op === "set-plain");
+    expect(pathsOf(plain)).toEqual([["text"], ["fontFamily"], ["fontSize"]]);
+    for (const p of plain) {
+      if (p.op === "set-plain") expect(p.before).toEqual(p.after);
     }
   });
 
@@ -179,6 +213,21 @@ describe("captureKeyframePayloads — scope selected", () => {
       selected: [{ frame: 30 + 1e-9, value: { x: 5, y: 5 } }],
     });
     expect(payloads.length).toBe(2);
+  });
+
+  it("never includes statics or plain flags — selected is keyframes only", () => {
+    const withStatics = makeNode({
+      props: {
+        position: anim(undefined, [kf(30, { x: 5, y: 5 })]),
+        rotation: anim(45),
+      },
+      plain: { blendMode: "multiply" },
+    });
+    const payloads = captureKeyframePayloads(withStatics, {
+      scope: "selected",
+      selected: [{ frame: 30, value: null }],
+    });
+    expect(payloads.map((p) => p.op)).toEqual(["keyframes"]);
   });
 
   it("returns [] when nothing matches (caller maps to an error)", () => {

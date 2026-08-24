@@ -204,9 +204,14 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   carries a `CaptureOffer` when exactly one non-`SCENE*` top-level layer
   with keyframes is selected — computed from the tick's OWN snapshot plus a
   defensive `selection.nodes` read, never a second serialize.
-  `record.captureKeyframes` (sync handler) synthesizes `op:"keyframes"`
-  steps via `shared/capture.ts` from **`lastSnapshot`** — never a fresh
-  serialize: that keeps capture and the diff stream disjoint by construction
+  `record.captureKeyframes` (sync handler) synthesizes steps via
+  `shared/capture.ts` from **`lastSnapshot`** — never a fresh serialize.
+  Scope "all" is a FULL-STATE capture (rev .43): keyframes ops, then
+  static animatables as `set-static` and content plain flags as `set-plain`
+  with before === after — deep paths replay exactly, length-1 transform
+  statics are additive-zero (style capture never teleports the target;
+  pinned in applier.test), and `labelOf` renders equal pairs as
+  `prop = value`. "Add selected" stays keyframes-only. Rationale: that keeps capture and the diff stream disjoint by construction
   (a post-tick edit arrives as a diff step; nothing double-emits; ≤500ms
   staleness accepted). The walk mirrors `diffNodeInner`'s addressing exactly
   and strips host keyframe ids (recycled). `selection.keyframes` is
