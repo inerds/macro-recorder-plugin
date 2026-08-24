@@ -112,7 +112,12 @@ export function DevSettings({ store, macroCount, onStoreChanged, children }: Dev
   }, [armed]);
 
   return (
-    <div className="border-t border-dashed border-border bg-muted/60 text-11">
+    <div
+      // relative+z: rack rows are positioned and would paint over this strip
+      // (and show through a translucent tint) while scrolling beneath it.
+      // The color-mix bakes the old bg-muted/60 look onto a solid ground.
+      className="relative z-[1] border-t border-dashed border-border bg-[color:color-mix(in_srgb,var(--muted)_60%,var(--background))] text-11"
+    >
       <button
         type="button"
         className="flex w-full cursor-pointer items-center justify-between px-3 py-1 text-muted-foreground transition-colors duration-150 hover:text-foreground"

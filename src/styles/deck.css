@@ -16,6 +16,12 @@
 
 .deck-chassis {
   position: relative;
+  /* Above the scrolling list. Rack rows are position:relative (their action
+     lanes need it), and positioned z-auto boxes paint over ALL in-flow
+     content — so scrolled rows ghosted across the chassis' bottom shadow
+     band until the chassis got a real stacking level. Its pseudo-elements
+     keep their own order inside this context. */
+  z-index: 1;
   flex: none;
   display: flex;
   flex-direction: column;

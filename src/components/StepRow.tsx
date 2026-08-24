@@ -36,7 +36,11 @@ const KIND_ICONS: Record<StepKind, typeof Move> = {
  * hovered row never reflows, and touch devices (no hover) always show them.
  */
 const ACTION_CLASS =
-  "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground opacity-0 transition-[opacity,background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100";
+  "flex h-6 w-0 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded text-muted-foreground opacity-0 transition-[opacity,background-color,color,scale] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none hover:bg-secondary hover:text-secondary-foreground active:scale-[0.96] focus-visible:w-6 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring group-hover:w-6 group-hover:opacity-100 group-focus-within:w-6 group-focus-within:opacity-100 [@media(hover:none)]:w-6 [@media(hover:none)]:opacity-100";
+// Hidden actions collapse to w-0 at rest so a pinned/skipped row's resting
+// lane is only as wide as its STATE icons — the lane's bg-inherit used to
+// span all four buttons and paint over the label's tail. The lane is
+// absolute, so expanding on hover/focus reflows nothing outside it.
 
 /**
  * The lane the actions live in. Absolute, so it costs the label no width: it
@@ -175,12 +179,16 @@ export function StepRow({
         <span
           className={`flex min-w-0 flex-1 items-baseline ${
             disabled ? "text-muted-foreground line-through" : ""
-          } ${laneAtRest ? "pe-[6.5rem]" : ""}`}
+          } ${laneAtRest ? "pe-14" : ""}`}
           title={step.label}
         >
+          {/* The tail (the result — the half worth keeping) is capped at
+              60% and floored at ~9ch, so the head always keeps >=40% of the
+              line and never crushes to "Tr…". No min-width on the head — a
+              min INFLATES short heads and opens a gap before the arrow. */}
           <span className="min-w-0 truncate whitespace-pre">{labelHead}</span>
           {labelTail && (
-            <span className="max-w-[65%] shrink-0 truncate whitespace-pre">{labelTail}</span>
+            <span className="min-w-[9ch] max-w-[60%] truncate whitespace-pre">{labelTail}</span>
           )}
           {disabled && <span className="sr-only"> (skipped)</span>}
           {param && <span className="sr-only"> (parameter)</span>}
@@ -212,7 +220,7 @@ export function StepRow({
             <button
               type="button"
               className={`${ACTION_CLASS} ${
-                param ? "pointer-events-auto opacity-100 text-foreground" : ""
+                param ? "w-6 pointer-events-auto opacity-100 text-foreground" : ""
               }`}
               aria-pressed={param === true}
               aria-label={`Ask for step ${index + 1}'s value on every play`}
@@ -244,7 +252,7 @@ export function StepRow({
             <button
               type="button"
               className={`${ACTION_CLASS} ${
-                disabled ? "pointer-events-auto opacity-100" : ""
+                disabled ? "w-6 pointer-events-auto opacity-100" : ""
               }`}
               aria-pressed={disabled}
               aria-label={`Skip step ${index + 1} during playback`}
