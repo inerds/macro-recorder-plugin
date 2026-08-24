@@ -11,7 +11,7 @@ export interface OverflowMenuProps {
   macroName: string;
   onRename: () => void;
   onDuplicate: () => void;
-  onExport: () => void;
+  onCopyJson: () => void;
   onDelete: () => void;
 }
 
@@ -19,7 +19,7 @@ export function OverflowMenu({
   macroName,
   onRename,
   onDuplicate,
-  onExport,
+  onCopyJson,
   onDelete,
 }: OverflowMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -44,8 +44,10 @@ export function OverflowMenu({
       {/* "self": the destination mounts its own autofocused control (the
           rename input, the delete confirmation) and the default focus restore
           would yank focus straight back out of it — for rename that also
-          commits the rename. Duplicate and Export leave the row as it was, so
-          focus returns to the trigger it came from rather than to the body. */}
+          commits the rename. Duplicate and Copy JSON leave the row as it was, so
+          focus returns to the trigger it came from rather than to the body
+          (the clipboard-denied fallback dialog, if one opens, takes focus on
+          its own afterwards). */}
       <DropdownContent
         align="end"
         className="max-w-56"
@@ -53,7 +55,7 @@ export function OverflowMenu({
       >
         <DropdownItem onSelect={pick("self", onRename)}>Rename</DropdownItem>
         <DropdownItem onSelect={pick("trigger", onDuplicate)}>Duplicate</DropdownItem>
-        <DropdownItem onSelect={pick("trigger", onExport)}>Export JSON</DropdownItem>
+        <DropdownItem onSelect={pick("trigger", onCopyJson)}>Copy JSON</DropdownItem>
         <DropdownItem variant="destructive" onSelect={pick("self", onDelete)}>
           Delete
         </DropdownItem>

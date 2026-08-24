@@ -148,6 +148,38 @@ No effect types, no effects list, and no ungroup operation exist anywhere in
 the plugin API — neither in the published typings nor in the runtime surface
 found by introspection. Edits involving them are invisible to the recorder.
 
+## File downloads inside Creator — blocked by the iframe sandbox (worked around)
+
+**What:** A programmatic download (blob URL + `<a download>.click()`, which is
+what Export JSON used) does nothing inside Creator: the plugin UI runs in a
+sandboxed iframe whose `sandbox` attribute does not include the
+`allow-downloads` token, so the browser silently drops the download.
+
+**Why (evidence, 2026-08-23):**
+- User-confirmed inside Creator: Export JSON produced no file and no error.
+- This is the documented Chrome behaviour for sandboxed frames — a download
+  initiated from a frame sandboxed without `allow-downloads` is blocked, with
+  only a devtools message ("Download is disallowed. The frame initiating or
+  instantiating the download is sandboxed, but the flag 'allow-downloads' is
+  not set."). Nothing is catchable from script: `anchor.click()` "succeeds".
+- Same sandbox family as the known clipboard denial: the panel's opaque-origin
+  iframe also rejects `navigator.clipboard.writeText` (see `TraceStrip`'s
+  copy fallback), which is why the workaround needs its own fallback chain.
+
+**What the user sees:** nothing happened on Export — no file, no toast, no
+error. The old flow was replaced rather than patched.
+
+**Workaround (shipped):** macros travel as copied JSON instead of files.
+⋮ → **Copy JSON** tries `navigator.clipboard.writeText`, then a hidden-textarea
+`execCommand("copy")` inside the same gesture, and if both are denied opens a
+dialog with the JSON pre-selected for a manual ⌘C. **Import** opens a
+paste-JSON dialog feeding the existing `store.importMacro` path. Works in all
+three runtimes (browser tab, Creator iframe, and the store side is unchanged).
+
+**Possible lift:** LottieFiles adding `allow-downloads` to the plugin iframe's
+sandbox attribute would make real file export possible again; the copy/paste
+flow would stay as the universal path.
+
 ## ~~Single-layer recording scope~~ — LIFTED (2026-08-22, engine v3)
 
 Recording is now whole-scene: edits on any layer, layer duplication/copy-paste

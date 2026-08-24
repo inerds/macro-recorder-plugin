@@ -218,7 +218,7 @@ recolor macro, the distance of a slide. Instead of editing the macro:
 3. Change what you want and click **Play**; the macro runs with those values
    (the saved macro is unchanged). **Cancel** returns to the list.
 
-Parameters survive export/import and duplicate. Deleting a pinned step drops
+Parameters survive Copy JSON/Import and duplicate. Deleting a pinned step drops
 its pin; *Simplify* keeps a pin when the pinned step is the first of a merged
 run (the survivor) and drops pins on steps it merged away.
 
@@ -234,13 +234,16 @@ hear the full "4 steps".
 |---|---|
 | Rename | ⋮ menu → Rename, Enter to commit |
 | Duplicate | ⋮ menu → Duplicate (creates *name copy*) |
-| Export JSON | ⋮ menu → Export JSON — downloads `name.macro.json` |
-| Import | **Import** button on the **Saved macros** header — accepts any macro-export `.json`, regenerates ids |
+| Copy JSON | ⋮ menu → Copy JSON — puts the macro's JSON on your clipboard. If the clipboard is blocked (Creator's sandbox can do that), a dialog opens with the JSON pre-selected so you can copy it yourself |
+| Import | **Import** button on the **Saved macros** header — opens a dialog: paste the JSON that Copy JSON produced and press **Import**. Ids are regenerated, so importing never collides with an existing macro |
 | Delete | ⋮ menu → Delete, then confirm inline |
 | Expand | click the row to see and edit its steps |
 
-Exported files are plain JSON: steps, disabled flags, and parameters ride
-along, so macros can be shared between people and projects.
+A macro travels as plain JSON: steps, disabled flags, and parameters ride
+along, so macros can be shared between people and projects — paste the text
+into chat, a note, or a file, and Import takes it back on the other side.
+(There is no file download: Creator's plugin sandbox blocks downloads, which
+is why sharing is copy/paste.)
 
 ---
 
@@ -276,5 +279,6 @@ you are most likely to meet:
 - Mask edits and layer-reorder replay are implemented but not yet verified in
   a live Creator session.
 - Fast drags are sampled at 2 steps/second — use *Simplify*.
-- Export relies on a browser download, which Creator's sandbox may block;
-  copy from the console in that case.
+- File downloads are blocked by Creator's plugin sandbox — that's why
+  sharing is **Copy JSON** / paste into **Import** rather than a file
+  export.
