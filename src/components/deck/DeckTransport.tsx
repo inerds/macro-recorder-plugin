@@ -1,5 +1,4 @@
 import { Button } from "@lottiefiles/creator-plugins-ui";
-import { Square } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { deckLabel, deckLamp, type DeckState } from "./deckState";
@@ -80,9 +79,6 @@ export function DeckTransport({
             disabled={recordDisabled}
             onClick={onRecord}
           >
-            <span className="key-dot" aria-hidden>
-              <span />
-            </span>
             {/* The faceplate legend is the abbreviation a deck actually
                 wears. The accessible name stays the full word via
                 aria-label, so screen readers still hear "Record". */}
@@ -96,7 +92,6 @@ export function DeckTransport({
             disabled={stopDisabled}
             onClick={onStop}
           >
-            <Square className="fill-current" strokeWidth={2.5} aria-hidden />
             Stop
           </Button>
         </span>

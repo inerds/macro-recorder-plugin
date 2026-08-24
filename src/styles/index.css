@@ -50,11 +50,34 @@ body::before {
   position: relative;
 }
 
+/* The plugin sits as a plate on Creator's own chrome: an 8px gutter wearing
+   the HOST's interface background, framing the cream panel. The colour comes
+   from Creator's theme relay (useHostBackground sets --host-frame-bg inline);
+   the fallback is theme.css's `.dark --background` for before the host has
+   said anything — it cannot be a live token, VINTAGE_TOKENS repaints those
+   cream. No transition on purpose: a theme flip should snap, not smear. The
+   gutter costs the panel 16px of height, so collapse thresholds fire at
+   window heights 16px taller than before. */
+.host-frame {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  background: var(--host-frame-bg, hsl(198 16.7% 11.8%));
+}
+
 /* The panel is the height container for the deck's collapse rule. It is a
    flex column of exactly 100% height, so `size` containment has the definite
-   block size it needs and nothing here can grow it. */
+   block size it needs and nothing here can grow it. Inside the dark frame it
+   is a plate: the skin's 10px radius (clipping the chassis's square corners
+   — the dark ground shows there now, not cream slivers) and one soft seat
+   shadow, highlight on the top edge per the one-light rule. */
 .panel-root {
   container: panel / size;
+  border-radius: 10px;
+  overflow: clip;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 16px -8px rgba(0, 0, 0, 0.55);
 }
 
 /*
@@ -130,10 +153,42 @@ body::before {
 .rack-row {
   position: relative;
   background: transparent;
+  transition:
+    margin 200ms cubic-bezier(0.2, 0, 0, 1),
+    border-radius 200ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 200ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rack-row {
+    transition: none;
+  }
 }
 
 .rack-row + .rack-row {
   border-top: 1px dotted rgba(42, 38, 35, 0.3);
+}
+
+/* The open macro POPS OUT of the rack as a raised card (user concept,
+   2026-08-24 — replaces the earlier seated-tray treatment): margins clear
+   the well on every side, the card takes the skin's paper treatment
+   (hairline ring, one soft drop, top-edge highlight), and the adjacent
+   dotted rules disappear — the gap does the separating. These rules sit
+   AFTER `.rack-row + .rack-row` on purpose: same specificity, later wins. */
+.rack-row-open {
+  margin: 6px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px rgba(42, 38, 35, 0.28),
+    0 2px 6px -2px rgba(42, 38, 35, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.rack-row + .rack-row-open,
+.rack-row-open + .rack-row {
+  border-top: none;
 }
 
 /* The index reads as a lit segment: --primary rather than the small-text red,
@@ -158,8 +213,11 @@ body::before {
    so it is aria-hidden and free to be a bare rule. */
 .rack-lead {
   flex: 1 1 auto;
-  min-width: 8px;
-  margin: 0 2px 3px;
+  min-width: 10px;
+  /* A wider start gap so a truncated name's ellipsis and the leader's dots
+     don't read as one stutter ("recolo….…03"). */
+  margin-block: 0 3px;
+  margin-inline: 6px 4px;
   border-bottom: 1px dotted rgba(42, 38, 35, 0.35);
 }
 
@@ -170,7 +228,33 @@ body::before {
  */
 .rack-drawer {
   background: var(--muted);
-  box-shadow: inset 0 3px 4px -3px rgba(42, 38, 35, 0.45);
+  /* Hairline top edge over the shadow: without it the recess has no lip and
+     the well just reads as a darker block. */
+  box-shadow:
+    inset 0 1px 0 rgba(42, 38, 35, 0.1),
+    inset 0 3px 4px -3px rgba(42, 38, 35, 0.45);
+}
+
+/*
+ * The steps are ONE strip of paper seated in the well — the rack's own
+ * grammar (one surface, dotted rules) one level down. N floating pills read
+ * as N objects; a log is one object. Rows are bg-inherit so the hover
+ * action lane (which paints bg-inherit too) always lands on the strip's own
+ * ground; the strip owns the tone, radius, and clips the rows' corners.
+ */
+.step-strip {
+  overflow: clip;
+  border-radius: 8px;
+  /* One tone below the card so the strip reads seated IN it (and lighter
+     than the recording feed's muted well, so it pops there). */
+  background: var(--background);
+  box-shadow:
+    0 0 0 1px rgba(42, 38, 35, 0.14),
+    0 1px 2px -1px rgba(42, 38, 35, 0.18);
+}
+
+.step-strip > li + li {
+  border-top: 1px dotted rgba(42, 38, 35, 0.25);
 }
 
 /* A recoverable problem, not a failure — amber, not the action red. */
@@ -193,11 +277,16 @@ body::before {
   padding-inline: 8px;
   gap: 5px;
   border: 1px solid var(--ink);
-  border-radius: 10px;
+  /* Geometry and finish shadow the deck's .key-plate caps (deck.css) — one
+     key family on two grounds. 6px, not the plates' 4px: this cap is a step
+     larger. Faces are moulded gradients with a top sheen, not flat paint;
+     the red gradient values are the plates' own, duplicated deliberately —
+     if you retune one, retune both. */
+  border-radius: 6px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   box-shadow: 0 1.5px 0 var(--ink);
   transition:
@@ -227,21 +316,138 @@ body::before {
 }
 
 .key-red.key-red {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: linear-gradient(180deg, #e0574a 0%, #c8382b 60%, #b3301f 100%);
+  color: #fff3ee;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 1.5px 0 var(--ink);
 }
 
 .key-red.key-red:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: linear-gradient(180deg, #e45c4a 0%, #bc3124 100%);
+}
+
+.key-red.key-red:active:not(:disabled) {
+  background: linear-gradient(180deg, #be3428 0%, #9e2a1e 100%);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.28),
+    0 0 0 var(--ink);
 }
 
 .key-outline.key-outline {
-  background: var(--card);
+  background: linear-gradient(180deg, #fbf8f2 0%, #f0ebe2 100%);
   color: var(--ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1.5px 0 var(--ink);
 }
 
 .key-outline.key-outline:hover:not(:disabled) {
-  background: var(--secondary);
+  background: linear-gradient(180deg, #f4efe6 0%, #e7e0d3 100%);
+}
+
+/* An armed destructive key: the label change must not be the only cue, and
+   `.instrument-red` alone loses to `.key-outline.key-outline` on specificity.
+   Text/ink red is --ink-red-text (5.2:1), never --primary. */
+.key-armed.key-armed {
+  background: var(--card);
+  color: var(--ink-red-text);
+  border-color: var(--ink-red-text);
+  box-shadow: 0 1.5px 0 var(--ink-red-text);
+}
+
+.key-armed.key-armed:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink-red-text) 8%, var(--card));
+}
+
+.key-armed.key-armed:active:not(:disabled) {
+  box-shadow: 0 0 0 var(--ink-red-text);
+}
+
+/*
+ * The third rank. The panel ranks its controls by how much chrome they wear:
+ * primary = red key (one per surface), secondary = cream key, tertiary =
+ * quiet — instrument type on nothing at all, no ink edge and no drop, so a
+ * standalone utility (Import, Simplify) cannot outrank the decision beside
+ * it. Doubled selector for the same tailwind-merge reason as `.key.key`.
+ * Feedback is `.press`'s scale: travel belongs to keys that have a shadow to
+ * travel into.
+ */
+.key-quiet.key-quiet {
+  /* 24px, not the 22px the type wants: the WCAG 2.5.8 target floor. */
+  height: 24px;
+  padding-inline: 6px;
+  gap: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* Ink, not --label-fg: a quiet CONTROL has to be distinguishable from the
+     `.instrument` caption sitting right beside it, which is that colour. */
+  color: var(--ink);
+  /* `scale` rides along because this shorthand would otherwise replace
+     `.press`'s transition wholesale and leave the 0.96 snap uneased. */
+  transition:
+    background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    color 150ms cubic-bezier(0.2, 0, 0, 1),
+    scale 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.key-quiet.key-quiet svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* An ink wash rather than --secondary, which is a 1.05:1 no-op against the
+   drawer's --muted ground. Background only — the rest colour is already ink. */
+.key-quiet.key-quiet:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+/* One rule for both flavours of "off": SimplifyButton stays focusable with
+   aria-disabled, ImportButton would use the real attribute. */
+.key-quiet.key-quiet:disabled,
+.key-quiet.key-quiet[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+/*
+ * Keys wear an outline, not a ring. Tailwind's `ring-*` utilities are
+ * box-shadow, they live in `@layer utilities`, and the skin's unlayered
+ * `box-shadow` on `.key.key` / `.key-quiet.key-quiet` beats the whole layer —
+ * so a focused key showed nothing at all. Outline is a separate property and
+ * cannot be overwritten by the key's own drop.
+ */
+.key.key:focus-visible,
+.key-quiet.key-quiet:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The record glyph on the empty state's Record key (the transport's REC
+   wears a bare legend by user decision, 2026-08-24) — currentColor
+   throughout, so it recolors with the key. */
+.key-dot {
+  display: grid;
+  width: 9px;
+  height: 9px;
+  flex: none;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.key-dot > span {
+  display: block;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 /* ------------------------------------------------------------- feedback --- */
@@ -279,6 +485,24 @@ body::before {
 
 .success-flash {
   animation: success-flash 1.5s ease-out forwards;
+}
+
+/* `forwards` holds the last frame, so the flash's transparent end-state would
+   sit on top of `.rack-row-open`'s ground for the full 1.5s and blink the
+   open row back to the rack's colour. Same flash, landing where it started. */
+@keyframes success-flash-open {
+  0% {
+    background-color: color-mix(in srgb, var(--primary) 25%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 60%, transparent);
+  }
+  100% {
+    background-color: var(--card);
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+
+.rack-row-open.success-flash {
+  animation-name: success-flash-open;
 }
 
 /* Pressable affordance for every button that isn't a playback decision. */

@@ -460,6 +460,16 @@
   height: 9px;
 }
 
+/*
+ * Same reason `.key` uses an outline (see index.css): Tailwind's ring
+ * utilities are layered box-shadows and lose to the keycap's unlayered one.
+ * Light, not `--ring` — ink is invisible against the dark faceplate.
+ */
+.key-plate.key-plate:focus-visible {
+  outline: 2px solid #F8F4EC;
+  outline-offset: 2px;
+}
+
 .key-plate.key-plate:hover:not(:disabled) {
   background: linear-gradient(180deg, #FFFCF5 0%, #E6DFD2 100%);
 }
@@ -523,23 +533,8 @@
 }
 
 /* The record dot, drawn rather than imported: it inherits the cap's ink. */
-.key-dot {
-  display: grid;
-  width: 9px;
-  height: 9px;
-  flex: none;
-  place-items: center;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-}
-
-.key-dot > span {
-  display: block;
-  width: 3.5px;
-  height: 3.5px;
-  border-radius: 999px;
-  background: currentColor;
-}
+/* .key-dot moved to index.css — worn by the empty state's Record key.
+   The transport keys carry bare legends (user decision, 2026-08-24). */
 
 /* -------------------------------------------------------------- readout --- */
 

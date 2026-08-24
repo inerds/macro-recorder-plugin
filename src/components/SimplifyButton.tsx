@@ -29,7 +29,7 @@ export function SimplifyButton({ steps, onSimplify }: SimplifyButtonProps) {
       <Button
         size="sm"
         variant="ghost"
-        className="press key key-outline aria-disabled:cursor-default aria-disabled:opacity-50"
+        className="press key-quiet shrink-0 aria-disabled:cursor-default"
         aria-disabled={!canSimplify}
         aria-describedby={hintId}
         onClick={() => {
@@ -43,7 +43,14 @@ export function SimplifyButton({ steps, onSimplify }: SimplifyButtonProps) {
         <Wand2 className="size-3!" strokeWidth={2.5} aria-hidden />
         Simplify
         {canSimplify && (
-          <span className="mono opacity-70" aria-hidden>
+          // The verb is quiet, the saving is the information — so it is the
+          // one lit thing here. --ink-red-text, not the rack's lit --primary:
+          // that red is 4.05:1 on the drawer's --muted, under the bar small
+          // red text has to clear (and a glow does not buy contrast).
+          <span
+            className="mono shrink-0 text-11 font-bold tabular-nums text-[color:var(--ink-red-text)]"
+            aria-hidden
+          >
             {steps.length} → {simplified}
           </span>
         )}
