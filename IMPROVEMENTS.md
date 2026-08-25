@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-25 — Capture carries the whole fill (rev .45)
+
+| Issue | Fix |
+|---|---|
+| **"Add all" still lost the fill's KIND** — component steps can't say "this is a radial gradient", so a captured radial degraded to linear on conversion, and a target with no fill note-skipped the look entirely. | Capture now emits each fill first as a `replace-paint` with its complete snapshot (kind, gradientType, statics — animated-only components seeded from their earliest keyframe), then the animated components as keyframes ops on the fresh paint. Replay replaces a mismatched fill outright and adds one where none exists. Text layers' singular fills keep component capture (no replace surface). Also recorded live: `creator.selection.keyframes` exists on the real host ("Add selected (0)" rendered) — noted in RUNTIME-API. |
+
+---
+
 ## 2026-08-25 — Gradient macros convert solid fills (rev .44)
 
 | Issue | Fix |

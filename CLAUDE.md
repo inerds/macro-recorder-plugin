@@ -206,7 +206,11 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   defensive `selection.nodes` read, never a second serialize.
   `record.captureKeyframes` (sync handler) synthesizes steps via
   `shared/capture.ts` from **`lastSnapshot`** — never a fresh serialize.
-  Scope "all" is a FULL-STATE capture (rev .43): keyframes ops, then
+  Scope "all" is a FULL-STATE capture (rev .43, fills whole since .45):
+  each fill first as `replace-paint` with its complete PaintSnapshot —
+  kind and gradientType survive replay, animated-only components seeded
+  from their earliest keyframe (TEXT_LAYER singular fills stay
+  component-captured; no replace surface) — then keyframes ops, then
   static animatables as `set-static` and content plain flags as `set-plain`
   with before === after — deep paths replay exactly, length-1 transform
   statics are additive-zero (style capture never teleports the target;

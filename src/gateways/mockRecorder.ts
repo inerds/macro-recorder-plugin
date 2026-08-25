@@ -67,8 +67,18 @@ const CAPTURE_ALL_SCRIPT: StepPayload[] = [
     changed: [],
     layer: LAYER,
   },
-  // Full-state capture: statics and content flags ride along as
-  // before === after ("captured state") payloads.
+  // Full-state capture: the whole fill (kind included) as replace-paint,
+  // then statics and content flags as before === after payloads.
+  {
+    op: "replace-paint",
+    path: ["fills", 0],
+    spec: {
+      kind: "gradient",
+      gradientType: "GRADIENT_RADIAL",
+      stops: { animated: false, static: [{ offset: 0, color: { r: 255, g: 90, b: 0 } }] },
+    },
+    layer: LAYER,
+  },
   { op: "set-static", path: ["rotation"], before: 15, after: 15, layer: LAYER },
   { op: "set-static", path: ["strokes", 0, "width"], before: 3, after: 3, layer: LAYER },
   { op: "set-plain", path: ["blendMode"], before: "multiply", after: "multiply", layer: LAYER },

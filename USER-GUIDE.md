@@ -94,8 +94,11 @@ a card appears above the live feed ("*Layer* has N keyframes on M
 properties") with:
 
 - **Add all** — the layer's whole state: every animated property becomes
-  keyframe steps, and its current *look* — static transform values, colors,
-  stroke widths, text and font, blend mode — rides along as value steps
+  keyframe steps, its fills travel whole (solid stays solid, a radial
+  gradient stays radial — replaying replaces a mismatched fill and adds
+  one where none exists), and the rest of its current *look* — static
+  transform values, stroke widths, text and font, blend mode — rides
+  along as value steps
   (they read as `property = value` in the feed). Playing the saved macro
   recreates the motion and the look on any selected layer, at the playhead,
   with stagger. Position/scale/rotation values deliberately don't move a

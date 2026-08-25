@@ -1470,3 +1470,30 @@ describe("gradient steps convert a solid fill (fill-type change)", () => {
     expect(stops.every((s: { color: Json }) => JSON.stringify(s.color) === JSON.stringify({ r: 9, g: 9, b: 9 }))).toBe(true);
   });
 });
+
+describe("captured whole-fill specs (replace-paint) round-trip", () => {
+  const RADIAL: Any = {
+    kind: "gradient",
+    gradientType: "GRADIENT_RADIAL",
+    stops: { animated: false, static: [{ offset: 0, color: { r: 255, g: 0, b: 0 } }] },
+  };
+
+  it("replaces a solid target fill with the captured radial gradient", () => {
+    const ids = makeIds();
+    const target = makeNode("Shape", { fills: [{ r: 1, g: 2, b: 3 }] }, ids);
+    const outcome = apply(target, { op: "replace-paint", path: ["fills", 0], spec: RADIAL });
+    expect(outcome.notes).toEqual([]);
+    expect(target.fills).toHaveLength(1);
+    expect(target.fills[0].stops.staticValue).toEqual([
+      { offset: 0, color: { r: 255, g: 0, b: 0 } },
+    ]);
+  });
+
+  it("adds the captured fill when the target has none (with a note)", () => {
+    const ids = makeIds();
+    const target = makeNode("Bare", {}, ids);
+    const outcome = apply(target, { op: "replace-paint", path: ["fills", 0], spec: RADIAL });
+    expect(outcome.notes.length).toBeGreaterThan(0);
+    expect(target.fills).toHaveLength(1);
+  });
+});

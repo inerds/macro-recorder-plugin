@@ -104,10 +104,11 @@ describe("countKeyframes", () => {
 });
 
 describe("captureKeyframePayloads — scope all", () => {
-  it("emits keyframes per animated path, then set-static per static animatable", () => {
+  it("emits whole fills, then keyframes, then statics", () => {
     const payloads = captureKeyframePayloads(richLayer(), { scope: "all" });
-    // motion first (differ-addressed), then the layer's current look
+    // fills as whole paints (kind survives), then motion, then the look
     expect(pathsOf(payloads)).toEqual([
+      ["fills", 0],
       ["position"],
       ["fills", 0, "color"],
       ["strokes", 0, "width"],
@@ -121,8 +122,9 @@ describe("captureKeyframePayloads — scope all", () => {
       ["masks", 0, "opacity"],
     ]);
     const kinds = payloads.map((p) => p.op);
-    expect(kinds.slice(0, 7).every((op) => op === "keyframes")).toBe(true);
-    expect(kinds.slice(7).every((op) => op === "set-static")).toBe(true);
+    expect(kinds[0]).toBe("replace-paint");
+    expect(kinds.slice(1, 8).every((op) => op === "keyframes")).toBe(true);
+    expect(kinds.slice(8).every((op) => op === "set-static")).toBe(true);
     for (const p of payloads) {
       expect("layer" in p ? p.layer : undefined).toEqual({ id: "layer-1", name: "Text 1" });
       if (p.op === "keyframes") {
@@ -178,6 +180,60 @@ describe("captureKeyframePayloads — scope all", () => {
 
   it("returns [] for a layer with no keyframes", () => {
     expect(captureKeyframePayloads(makeNode(), { scope: "all" })).toEqual([]);
+  });
+
+  it("captures the fill KIND: a radial gradient's spec survives whole", () => {
+    const layer = makeNode({
+      props: { position: anim(undefined, [kf(0, { x: 0, y: 0 })]) },
+      fills: [
+        {
+          kind: "gradient",
+          gradientType: "GRADIENT_RADIAL",
+          stops: anim([{ offset: 0, color: RED }]),
+          start: anim({ x: 0, y: 0 }),
+          end: anim({ x: 1, y: 1 }),
+        },
+      ],
+    });
+    const payloads = captureKeyframePayloads(layer, { scope: "all" });
+    const paint = payloads.find((p) => p.op === "replace-paint");
+    expect(paint && paint.op === "replace-paint" ? paint.spec : null).toMatchObject({
+      kind: "gradient",
+      gradientType: "GRADIENT_RADIAL",
+    });
+    // static components ride the spec, not their own steps
+    expect(pathsOf(payloads.filter((p) => p.op === "set-static"))).toEqual([]);
+  });
+
+  it("seeds an animated-only fill component's static from its earliest keyframe", () => {
+    const layer = makeNode({
+      props: { position: anim(undefined, [kf(0, { x: 0, y: 0 })]) },
+      fills: [solid(anim(undefined, [kf(40, BLUE), kf(10, RED)]))],
+    });
+    const payloads = captureKeyframePayloads(layer, { scope: "all" });
+    const paint = payloads.find((p) => p.op === "replace-paint");
+    expect(
+      paint && paint.op === "replace-paint" && paint.spec.kind === "solid"
+        ? paint.spec.color.static
+        : null,
+    ).toEqual(RED);
+    // and the animation still rides its own keyframes op
+    expect(
+      payloads.some((p) => p.op === "keyframes" && p.path.join(".") === "fills.0.color"),
+    ).toBe(true);
+  });
+
+  it("TEXT_LAYER singular fills stay component-captured (no replace-paint)", () => {
+    const layer = makeNode({
+      nodeType: "TEXT_LAYER",
+      props: { position: anim(undefined, [kf(0, { x: 0, y: 0 })]) },
+      fills: [solid(anim(RED))],
+    });
+    const payloads = captureKeyframePayloads(layer, { scope: "all" });
+    expect(payloads.some((p) => p.op === "replace-paint")).toBe(false);
+    expect(
+      payloads.some((p) => p.op === "set-static" && p.path.join(".") === "fills.0.color"),
+    ).toBe(true);
   });
 });
 

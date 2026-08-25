@@ -69,12 +69,22 @@ interface StaticPath {
   shapeHint?: string;
 }
 
+interface PaintPath {
+  /** Path to the fill itself, e.g. ["fills", 0] or ["shapes", 0, "fills", 0]. */
+  path: Path;
+  spec: PaintSnapshot;
+}
+
 interface Collected {
   animated: AnimatedPath[];
   /** Animatables holding only a static value (scope "all" captures these). */
   statics: StaticPath[];
   /** Content plain flags (scope "all" captures these). */
   plain: StaticPath[];
+  /** Whole fills, captured as replace-paint so the paint KIND (solid vs
+   *  linear vs radial gradient) survives replay — component steps alone
+   *  cannot change or create a fill's type on the target. */
+  paints: PaintPath[];
 }
 
 function pushAnimatable(
@@ -93,25 +103,67 @@ function pushAnimatable(
   }
 }
 
+/**
+ * @param coveredBySpec the paint is also captured whole as a replace-paint
+ *   spec — its STATIC components are already in the spec, so only animated
+ *   components need their own steps.
+ */
 function walkPaint(
   out: Collected,
   basePath: Path,
   paint: PaintSnapshot,
   shapeHint: string | undefined,
+  coveredBySpec = false,
 ) {
+  const push = (path: Path, snap: AnimatableSnapshot | undefined) => {
+    if (coveredBySpec && !(snap?.keyframes && snap.keyframes.length > 0)) return;
+    pushAnimatable(out, path, snap, shapeHint);
+  };
   if (paint.kind === "solid") {
-    pushAnimatable(out, [...basePath, "color"], paint.color, shapeHint);
-    pushAnimatable(out, [...basePath, "opacity"], paint.opacity, shapeHint);
+    push([...basePath, "color"], paint.color);
+    push([...basePath, "opacity"], paint.opacity);
     return;
   }
   if (paint.kind === "gradient") {
-    pushAnimatable(out, [...basePath, "stops"], paint.stops, shapeHint);
-    pushAnimatable(out, [...basePath, "start"], paint.start, shapeHint);
-    pushAnimatable(out, [...basePath, "end"], paint.end, shapeHint);
-    pushAnimatable(out, [...basePath, "highlightAngle"], paint.highlightAngle, shapeHint);
-    pushAnimatable(out, [...basePath, "highlightLength"], paint.highlightLength, shapeHint);
-    pushAnimatable(out, [...basePath, "opacity"], paint.opacity, shapeHint);
+    push([...basePath, "stops"], paint.stops);
+    push([...basePath, "start"], paint.start);
+    push([...basePath, "end"], paint.end);
+    push([...basePath, "highlightAngle"], paint.highlightAngle);
+    push([...basePath, "highlightLength"], paint.highlightLength);
+    push([...basePath, "opacity"], paint.opacity);
   }
+}
+
+/** Static value of a component, falling back to its earliest keyframe —
+ *  a spec must carry a usable static seed even for animated-only paints. */
+function seededSnap(snap: AnimatableSnapshot | undefined): AnimatableSnapshot | undefined {
+  if (!snap) return undefined;
+  if (snap.static !== undefined || !snap.keyframes || snap.keyframes.length === 0) return snap;
+  const earliest = [...snap.keyframes].sort((a, b) => a.frame - b.frame)[0];
+  return earliest ? { ...snap, static: earliest.value } : snap;
+}
+
+/** A PaintSnapshot whose every component carries a static (see seededSnap). */
+function seededPaint(paint: PaintSnapshot): PaintSnapshot {
+  if (paint.kind === "solid") {
+    return {
+      ...paint,
+      color: seededSnap(paint.color) ?? paint.color,
+      ...(paint.opacity ? { opacity: seededSnap(paint.opacity) } : {}),
+    };
+  }
+  if (paint.kind === "gradient") {
+    return {
+      ...paint,
+      stops: seededSnap(paint.stops) ?? paint.stops,
+      ...(paint.start ? { start: seededSnap(paint.start) } : {}),
+      ...(paint.end ? { end: seededSnap(paint.end) } : {}),
+      ...(paint.highlightAngle ? { highlightAngle: seededSnap(paint.highlightAngle) } : {}),
+      ...(paint.highlightLength ? { highlightLength: seededSnap(paint.highlightLength) } : {}),
+      ...(paint.opacity ? { opacity: seededSnap(paint.opacity) } : {}),
+    };
+  }
+  return paint;
 }
 
 /** Differ-order walk of one node level, recursing into shapes. */
@@ -134,7 +186,16 @@ function walkNode(
       out.plain.push({ path: [...basePath, flag], value, ...(hint ? { shapeHint: hint } : {}) });
     }
   }
-  node.fills.forEach((fill, i) => walkPaint(out, [...basePath, "fills", i], fill, hint));
+  // Text layers carry a SINGULAR fill modeled as a one-item list — there is
+  // no removal/creation surface to replace into, so their fills stay
+  // component-captured. Everything else captures the whole paint (kind and
+  // gradientType included) as replace-paint, plus its animated components.
+  const wholePaints = node.nodeType !== "TEXT_LAYER";
+  node.fills.forEach((fill, i) => {
+    const covered = wholePaints && fill.kind !== "unknown";
+    if (covered) out.paints.push({ path: [...basePath, "fills", i], spec: seededPaint(fill) });
+    walkPaint(out, [...basePath, "fills", i], fill, hint, covered);
+  });
   node.strokes.forEach((stroke, i) => {
     pushAnimatable(out, [...basePath, "strokes", i, "width"], stroke.width, hint);
     walkPaint(out, [...basePath, "strokes", i, "fill"], stroke.fill, hint);
@@ -152,7 +213,7 @@ function walkNode(
 }
 
 function collect(layer: NodeSnapshot): Collected {
-  const out: Collected = { animated: [], statics: [], plain: [] };
+  const out: Collected = { animated: [], statics: [], plain: [], paints: [] };
   walkNode(out, [], layer, undefined);
   return out;
 }
@@ -235,6 +296,14 @@ export function captureKeyframePayloads(
   };
   const collected = collect(layer);
   const out: StepPayload[] = [];
+  if (opts.scope === "all") {
+    // Whole fills first: replace-paint recreates the paint with its KIND
+    // (solid / linear / radial) and static look; the keyframes ops that
+    // follow re-animate its components on the fresh paint.
+    for (const { path, spec } of collected.paints) {
+      out.push({ op: "replace-paint", path, spec, layer: ref });
+    }
+  }
   for (const { path, keyframes, shapeHint } of collected.animated) {
     const kept =
       opts.scope === "all"
