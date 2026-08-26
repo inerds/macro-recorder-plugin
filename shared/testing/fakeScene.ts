@@ -239,11 +239,54 @@ const DEFAULTS: Record<string, Json> = {
 const PLAIN_DEFAULTS: Record<string, Json> = {
   visible: true,
   locked: false,
-  blendMode: "NORMAL",
+  blendMode: "normal",
   startFrame: 0,
   endFrame: 150,
   timelineOffset: 0,
   isMatte: false,
+};
+
+/**
+ * The real host's BlendMode is a LOWERCASE string union
+ * (plugin-api.d.ts's `BlendMode` type). Assigning anything outside this set —
+ * including the differently-cased "NORMAL" — throws "✗ Invalid input" on a
+ * live host (trace 2026-08-26T08-15-55-277_playback-Style-stamp.json, rev
+ * .51). Validating it here is what lets a demo-macro / test-fixture casing
+ * bug get caught instead of silently "working" only in the fake.
+ */
+const BLEND_MODES = new Set([
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+]);
+
+/**
+ * Text layers carry these as PLAIN writable properties, never animatables
+ * (RUNTIME-API "Text layer": `text`/`fontFamily`/`fontStyle`/`alignment`
+ * strings, `fontSize` a plain number) — which is why the serializer records
+ * them through the plain channel. Note `fontSize` is also listed in
+ * TYPE_PROPS.TEXT_LAYER; it stays plain here because DEFAULTS has no entry
+ * for it, so no animatable is ever defined under the same name.
+ */
+const TEXT_PLAIN_DEFAULTS: Record<string, Json> = {
+  text: "Text",
+  fontFamily: "Inter",
+  fontStyle: "Regular",
+  fontSize: 32,
+  alignment: "left",
 };
 
 /**
@@ -401,7 +444,12 @@ export function makeNode(
       node.trimPaths.push(trim);
       return trim;
     },
-    addMask(spec: Any) {
+    /**
+     * Real host has no `addMask` — only `createMask` (RUNTIME-API.md:89-92,
+     * live-verified). Modelling `addMask` here would hide the applier's
+     * add-mask case (plugin/applier.ts) only checking for `addMask`.
+     */
+    createMask(spec: Any) {
       const mask = {
         mode: spec?.mode ?? "add",
         pathData: makeAnimatable(spec?.pathData ?? { points: [], closed: true }, nextId),
@@ -474,9 +522,19 @@ export function makeNode(
     });
   }
 
-  // plain layer flags — containers only, like the real API
-  if (nodeType === "CONTAINER" || nodeType === "SHAPE_LAYER" || nodeType === "SCENE_INSTANCE") {
-    for (const [flag, initial] of Object.entries(PLAIN_DEFAULTS)) {
+  // plain layer flags — layers only, like the real API (text layers add the
+  // text/font group on top; geometry shape nodes carry none of them)
+  if (
+    nodeType === "CONTAINER" ||
+    nodeType === "SHAPE_LAYER" ||
+    nodeType === "SCENE_INSTANCE" ||
+    nodeType === "TEXT_LAYER"
+  ) {
+    const flags =
+      nodeType === "TEXT_LAYER"
+        ? { ...PLAIN_DEFAULTS, ...TEXT_PLAIN_DEFAULTS }
+        : PLAIN_DEFAULTS;
+    for (const [flag, initial] of Object.entries(flags)) {
       let value: Json = initial;
       Object.defineProperty(node, flag, {
         enumerable: true,
@@ -485,6 +543,9 @@ export function makeNode(
           return value;
         },
         set(next: Json) {
+          if (flag === "blendMode" && !BLEND_MODES.has(next as string)) {
+            throw new Error("✗ Invalid input");
+          }
           value = next;
         },
       });
