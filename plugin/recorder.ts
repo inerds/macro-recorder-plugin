@@ -256,6 +256,70 @@ function introspectPaint(node: AnyProxy): Json {
   } catch (error) {
     out.huntError = error instanceof Error ? error.message : String(error);
   }
+  // Token/slot hunt (rev .51): motion-token bindings are invisible on every
+  // enumerated proxy surface (traces 2026-08-26T07-26-13/-32 — paint/color/
+  // node/scene prototype walks all came back token-free, colorStaticKeys is
+  // exactly ["b","g","r"]). Three routes were never read, so dump them all;
+  // the next token-session trace then settles observability for good:
+  //   (a) the untyped `data` property enumerated on node/shape proxies,
+  //   (b) the node's raw document via toJSON() — the route that surfaced
+  //       per-fill opacity — where a Lottie slot binding would ride as an
+  //       `sid` key on the fl/st entry,
+  //   (c) the scene document root, where the spec parks the `slots` map.
+  try {
+    out.nodeData = toJson(tryReadValue(() => node.data)) ?? "absent";
+    const shapes: AnyProxy = tryReadValue(() => node.shapes);
+    const firstShape: AnyProxy = Array.isArray(shapes) ? shapes[0] : undefined;
+    if (firstShape) out.firstShapeData = toJson(tryReadValue(() => firstShape.data)) ?? "absent";
+
+    const raw: AnyProxy = tryReadValue(() =>
+      typeof node.toJSON === "function" ? node.toJSON() : undefined,
+    );
+    if (raw && typeof raw === "object") {
+      out.nodeJsonKeys = Object.keys(raw).sort();
+      // Full key set of every fl/st entry in the raw document, plus the
+      // spec-named binding fields, plus the first fill entry whole — an
+      // extra key of ANY name shows up here with its value shape.
+      const paintEntries: Json[] = [];
+      let firstFillJson: Json = "none";
+      const walk = (value: AnyProxy, depth: number): void => {
+        if (depth > 8 || value === null || typeof value !== "object") return;
+        if (Array.isArray(value)) {
+          for (const item of value) walk(item, depth + 1);
+          return;
+        }
+        if (value.ty === "fl" || value.ty === "st") {
+          paintEntries.push({
+            ty: String(value.ty),
+            keys: Object.keys(value).sort(),
+            sid: toJson(value.sid),
+          });
+          if (value.ty === "fl" && firstFillJson === "none") firstFillJson = toJson(value);
+        }
+        for (const key of Object.keys(value)) walk(value[key], depth + 1);
+      };
+      walk(raw, 0);
+      out.nodePaintJson = paintEntries;
+      out.firstFillJson = firstFillJson;
+    } else {
+      out.nodeToJSON = raw === undefined ? "absent" : String(raw);
+    }
+
+    const sceneRaw: AnyProxy = tryReadValue(() => {
+      const scene: AnyProxy = creator.activeScene;
+      return scene && typeof scene.toJSON === "function" ? scene.toJSON() : undefined;
+    });
+    if (sceneRaw && typeof sceneRaw === "object" && !Array.isArray(sceneRaw)) {
+      out.sceneJsonKeys = Object.keys(sceneRaw).sort();
+      for (const key of ["slots", "tokens", "themes", "styles", "vars"]) {
+        if (key in sceneRaw) out[`sceneJson_${key}`] = toJson(sceneRaw[key]);
+      }
+    } else {
+      out.sceneToJSON = sceneRaw === undefined ? "absent" : String(sceneRaw);
+    }
+  } catch (error) {
+    out.tokenHuntError = error instanceof Error ? error.message : String(error);
+  }
   return out;
 }
 

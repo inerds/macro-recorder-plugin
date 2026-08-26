@@ -43,7 +43,14 @@ corner-radius drag produces no snapshot change (LIMITATIONS.md, 2026-08-23).
 ## Methods that EXIST but are untyped
 
 - Every node/shape: `toJSON()` (raw Lottie document — how fill/stroke opacity
-  `o` is read), `moveBefore(sib)`, `moveAfter(sib)`, `bringToFront()`,
+  `o` is read). **Caveat (2026-08-26, rev .51 host):** on the live Creator
+  build probed that day, `node.toJSON()` AND `scene.toJSON()` returned bare
+  `{id, type}` stubs — no shapes, no fills, no document at all (traces
+  2026-08-26T07-39-25/-52, 07-40-35, two independent sessions). The raw-
+  document form is NOT guaranteed; anything reading `toJSON()` (per-fill
+  opacity recovery in `plugin/serialize.ts#collectPaintOpacities`, the rev
+  .51 token hunt) must treat an id/type stub as a normal, empty outcome —
+  which they do. `moveBefore(sib)`, `moveAfter(sib)`, `bringToFront()`,
   `sendToBack()`, `shiftTo(?)` (exists, but BOTH guessed signatures — `(node)` and `({to})` — throw; real signature unknown), `getBounds()`,
   `getMatrix()`, `clone()` (inserts copy after self, returns it — verified).
 - Every `Animatable`: `clearKeyframes()` (bulk animated→static),
