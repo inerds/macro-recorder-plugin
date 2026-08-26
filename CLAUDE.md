@@ -321,15 +321,22 @@ Where each piece lives and the invariants worth keeping:
   without it); the `createTextLayer` rebuild and the set-plain read-back
   DISCARD note (no add-TEXT_LAYER replay or host-discarded write has
   appeared in a ≥.41 trace). Set-plain text/font WRITES are live-verified
-  (the .41 traces of 2026-08-24T12:16 show real probe values applying);
-  the whole-fill capture (`replace-paint`, rev .45) and the
-  `selection:keyframes` event fallback (rev .46) await their first traces.
+  (the .41 traces of 2026-08-24T12:16 show real probe values applying).
+- Live-verified 2026-08-26 (rev .47–.49 trace sweep): whole-fill
+  `replace-paint` replay INCLUDING the topology remap (recorded
+  group-nested fill → flat target's root fill really replaced, trace
+  04-04-16; recorded solid→gradient kind change replayed clean, 06-03
+  session); relative-offset retarget math exact (04-05 session); the
+  .48/.49 `selectionCount` rollout; the #14 recorded-nothing fallback.
+  Fill swaps became VERIFIABLE in traces only at rev .50 (probe paint
+  summaries, taxonomy #19) — earlier paint probes are null/null artifacts.
 - Capture live status (2026-08-26): offer + "Add all" fully verified in
   five sessions (up to 198 steps, "Fish" → mismatched target, 0 failures,
   traces 2026-08-24T17-50…2026-08-25T05-27); "Add selected" blocked by
-  the empty `selection.keyframes` getter — platform limit, LIMITATIONS.md
-  + taxonomy #17; next debug trace's `selectionIntrospection.events`
-  settles the event route.
+  the platform — SETTLED both routes: the getter polls `array(0)` always,
+  and the `selection:keyframes` event fires (311× in trace 06-03-22) with
+  permanently empty payloads. LIMITATIONS.md + taxonomy #17; upstream ask.
+  The moment Creator populates either surface it lights up unchanged.
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
 - v3.1 live status: at-playhead, stagger and repeat verified in traces
