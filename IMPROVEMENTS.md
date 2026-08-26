@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-26 — Nudge toward single-layer recordings (rev .48)
+
+| Issue | Fix |
+|---|---|
+| **Nothing steered users toward selecting a layer before recording** — no-selection sessions that add fresh layers produce scene scripts pinned to those layers, and users didn't learn why their macros wouldn't retarget. | `record.start` now reports `selectionCount`; when it's 0 the UI nudges without gating: an info toast at start plus guidance in the empty live feed ("record with one layer selected to make a macro you can replay on any layer"). Whole-scene/structure recordings stay first-class — REC is never disabled, no confirm interstitial (user decision: option A only). |
+
+---
+
 ## 2026-08-26 — "This layer can't take fills" on retarget (rev .47)
 
 | Issue | Fix |

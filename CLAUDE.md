@@ -200,6 +200,11 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   `nest-layers` (added SCENE layer + removals in one tick). In-layer payloads
   carry a `layer: LayerRef {id, name, priorName}` binding and, on deep paths,
   a `shapeHint`.
+- **Selection nudge (rev .48)**: `record.start` returns `selectionCount`;
+  0 → an info toast + swapped empty-feed copy steer toward single-layer
+  (retargetable) recordings. A NUDGE, never a gate (user decision,
+  2026-08-26: option A only — no disabled REC, no confirm interstitial):
+  whole-scene/structure recordings are a designed feature.
 - **Keyframe capture (rev .42)**: while recording, `record.tick`'s result
   carries a `CaptureOffer` when exactly one non-`SCENE*` top-level layer
   with keyframes is selected — computed from the tick's OWN snapshot plus a

@@ -84,6 +84,12 @@ The review sheet shows the macro's name and every recorded step.
 All of these controls are also available later: expand a saved macro in the
 list to see its steps and edit them in place. Changes save immediately.
 
+**Tip — select a layer before you record.** A macro recorded on one selected
+layer replays on *any* selected layer later; a recording that builds new
+layers replays as a scene script bound to those layers. Recording with
+nothing selected still works (that's how structure macros are made) — the
+panel just reminds you of the trade-off when you start that way.
+
 ---
 
 ## 3½. Turn existing animation into a macro

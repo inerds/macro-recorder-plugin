@@ -266,6 +266,7 @@ export function recordStart(params: { debug?: boolean }): {
   keyframeIntrospection?: Json;
   shapeIntrospection?: Json;
   selectionIntrospection?: Json;
+  selectionCount?: number;
 } {
   // Whole-scene recording: no selection required — every layer is watched.
   const scene = creator.activeScene;
@@ -287,6 +288,7 @@ export function recordStart(params: { debug?: boolean }): {
     keyframeIntrospection?: Json;
     shapeIntrospection?: Json;
     selectionIntrospection?: Json;
+    selectionCount?: number;
   } = { nodeId: snapshot.sceneId ?? "scene" };
   const sceneName = ((): string | undefined => {
     try {
@@ -296,6 +298,7 @@ export function recordStart(params: { debug?: boolean }): {
     }
   })();
   if (sceneName) result.nodeName = sceneName;
+  result.selectionCount = selectedNodes().length;
   // Debug introspection still favors the selected node's paints when present.
   if (params?.debug === true) {
     const nodes = ((): AnyProxy[] => {

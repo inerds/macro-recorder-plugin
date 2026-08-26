@@ -135,8 +135,9 @@ check(
 posted.length = 0;
 sendToPlugin({ t: "req", id: 2, method: "record.start", params: {} });
 check(
-  "record.start sync response (whole scene)",
-  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.nodeId === "scene1",
+  "record.start sync response (whole scene, selection counted)",
+  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.nodeId === "scene1" &&
+    posted[0]?.result?.selectionCount === 1,
   JSON.stringify(posted[0] ?? null),
 );
 

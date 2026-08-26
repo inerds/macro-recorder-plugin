@@ -324,7 +324,20 @@ export function AppProvider({
           .start()
           .then((source) => {
             recordingSourceRef.current = source ?? null;
-            dispatch({ type: "RECORD_START", startedAt: Date.now() });
+            const noSelection = source?.selectionCount === 0;
+            dispatch({
+              type: "RECORD_START",
+              startedAt: Date.now(),
+              ...(noSelection ? { noSelection: true } : {}),
+            });
+            if (noSelection) {
+              // Nudge, never a gate: whole-scene/structure recordings are a
+              // designed feature; single-layer ones just retarget better.
+              notify(
+                "Nothing selected — recording the whole scene. One selected layer makes a macro you can replay anywhere.",
+                "info",
+              );
+            }
           })
           .catch((error: unknown) => {
             const message =

@@ -761,3 +761,16 @@ describe("keyframe capture offer", () => {
     expect(state.mode === "recording" && state.capturedAllLayerIds).toEqual([]);
   });
 });
+
+describe("record start selection nudge", () => {
+  it("stores the no-selection flag and defaults it off", () => {
+    const bare = appReducer(initialState, { type: "RECORD_START", startedAt: 1 });
+    expect(bare.mode === "recording" && bare.startedWithoutSelection).toBe(false);
+    const nudged = appReducer(initialState, {
+      type: "RECORD_START",
+      startedAt: 1,
+      noSelection: true,
+    });
+    expect(nudged.mode === "recording" && nudged.startedWithoutSelection).toBe(true);
+  });
+});

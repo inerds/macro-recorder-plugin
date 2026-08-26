@@ -134,6 +134,7 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             <RecordingView
               steps={state.steps}
               confirmingDiscard={state.confirmingDiscard}
+              startedWithoutSelection={state.startedWithoutSelection}
               captureOffer={state.captureOffer}
               capturedAllLayerIds={state.capturedAllLayerIds}
               onCapture={actions.captureLayerKeyframes}

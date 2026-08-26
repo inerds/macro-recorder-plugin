@@ -9,6 +9,8 @@ import { StepList } from "./StepList";
 export interface RecordingViewProps {
   steps: MacroStep[];
   confirmingDiscard: boolean;
+  /** Recording began with nothing selected — nudge, don't gate. */
+  startedWithoutSelection?: boolean;
   captureOffer: CaptureOffer | null;
   capturedAllLayerIds: string[];
   onCapture: (scope: "all" | "selected") => void;
@@ -26,6 +28,7 @@ export interface RecordingViewProps {
 export function RecordingView({
   steps,
   confirmingDiscard,
+  startedWithoutSelection,
   captureOffer,
   capturedAllLayerIds,
   onCapture,
@@ -74,9 +77,20 @@ export function RecordingView({
             macro list's drawer — steps always sit IN something. */}
         <div className="rack rack-drawer p-1">
           {steps.length === 0 ? (
-            <p className="px-2 py-6 text-center text-12 text-muted-foreground">
-              Recording. Edit your animation — steps appear here as you work.
-            </p>
+            startedWithoutSelection ? (
+              <p className="px-2 py-6 text-center text-12 text-muted-foreground">
+                Recording the whole scene — nothing was selected.
+                <br />
+                <span className="text-11">
+                  Tip: record with <strong className="font-medium">one layer selected</strong> to
+                  make a macro you can replay on any layer.
+                </span>
+              </p>
+            ) : (
+              <p className="px-2 py-6 text-center text-12 text-muted-foreground">
+                Recording. Edit your animation — steps appear here as you work.
+              </p>
+            )
           ) : (
             <StepList steps={steps} autoScroll />
           )}

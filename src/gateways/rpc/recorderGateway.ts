@@ -34,9 +34,13 @@ export class RpcRecorderGateway implements RecorderGateway {
           JSON.stringify(result.paintIntrospection, null, 2),
         );
       }
-      source = result.nodeName
-        ? { nodeId: result.nodeId, nodeName: result.nodeName }
-        : { nodeId: result.nodeId };
+      source = {
+        nodeId: result.nodeId,
+        ...(result.nodeName ? { nodeName: result.nodeName } : {}),
+        ...(typeof result.selectionCount === "number"
+          ? { selectionCount: result.selectionCount }
+          : {}),
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(

@@ -123,6 +123,9 @@ export type AppState =
       capturedAllLayerIds: string[];
       /** Capture feedback rides the same toast channel idle uses. */
       notice: Notice | null;
+      /** Recording began with nothing selected — the feed's empty state
+       *  nudges toward single-layer (retargetable) recordings. */
+      startedWithoutSelection: boolean;
     }
   | {
       mode: "reviewing";
@@ -155,7 +158,7 @@ export type AppState =
 
 export type AppEvent =
   | { type: "MACROS_LOADED"; macros: Macro[] }
-  | { type: "RECORD_START"; startedAt: number }
+  | { type: "RECORD_START"; startedAt: number; noSelection?: boolean }
   | { type: "CAPTURE_OFFER_UPDATED"; offer: CaptureOffer | null }
   | { type: "CAPTURE_DONE"; layerId: string; scope: "all" | "selected" }
   | { type: "STEP_RECEIVED"; step: MacroStep }
@@ -245,6 +248,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         captureOffer: null,
         capturedAllLayerIds: [],
         notice: null,
+        startedWithoutSelection: event.noSelection === true,
       };
 
     case "STEP_RECEIVED":

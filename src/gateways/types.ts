@@ -5,6 +5,8 @@ import type { Macro, MacroStep, StepResult } from "../types";
 export interface RecordingSource {
   nodeId: string;
   nodeName?: string;
+  /** Nodes selected when recording began (0 = whole-scene nudge). */
+  selectionCount?: number;
 }
 
 /** Emits recorded steps while the user edits the animation. */
