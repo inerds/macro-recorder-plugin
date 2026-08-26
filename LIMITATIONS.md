@@ -29,10 +29,12 @@ unaffected and fully live-verified.
 
 **Path to lift:** rev .46 subscribes to the typed `selection:keyframes`
 event (feature-detected) and feeds the capture offer from the latest event
-payload when the getter polls empty; the `selectionIntrospection` probe now
-reports `events: {supported, fired, lastCount}`, so the next debug trace
-proves whether the host ever fires it. If it never does, the ask upstream
-is for either surface to actually populate.
+payload when the getter polls empty. Verdict (trace 2026-08-26T03-55-48):
+the event FIRES (`events: {supported: true, fired: 32}`) but always with
+empty payloads (`lastCount: 0`) — both typed routes exist and neither
+carries the timeline selection. Conclusive: the ask is upstream, for
+Creator to populate either surface; the moment it does, "Add selected"
+lights up with no plugin changes.
 
 ---
 

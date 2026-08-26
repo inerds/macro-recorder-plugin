@@ -52,6 +52,13 @@ corner-radius drag produces no snapshot change (LIMITATIONS.md, 2026-08-23).
   `createStroke` (specs are plain objects, gradient specs accepted).
 - Scene: `toJSON()`, `export()`, `createShapeLayer()`, `createSceneLayer()`,
   `createImageLayer()`, `createTextLayer()`, `isNestableScene`.
+- Paint lists live at DIFFERENT DEPTHS per layer topology: a flat ellipse
+  keeps `fills` at the layer root; a group-based layer keeps them inside
+  `shapes[0]` (live: Circle 3 vs Ellipse 1, trace 2026-08-26T03-56-02).
+  Pre-existing geometry shape nodes can lack `fills` AND
+  `addFill`/`createFill` entirely — check capability before removal, and
+  resolve a recorded fill path by role (nearest paint list from the root),
+  never verbatim.
 - `creator.selection.keyframes` — **live but EMPTY in practice** (2026-08-25/26):
   a real own-property array on `creator.selection` (probe surface confirms),
   but `array(0)` at every `selectionIntrospection` probe and
@@ -59,8 +66,10 @@ corner-radius drag produces no snapshot change (LIMITATIONS.md, 2026-08-23).
   never reflects the timeline selection. Entry shape therefore still
   unknown. Rev .46 also listens for the typed `selection:keyframes` event
   (feature-detected) and reports `events: {supported, fired, lastCount}` in
-  the probe; whether the host ever FIRES it is the open question. See
-  LIMITATIONS.md.
+  the probe. SETTLED 2026-08-26: the event DOES fire (`events.fired: 32`,
+  trace 2026-08-26T03-55-48) but its payloads are as empty as the getter —
+  `lastCount: 0` throughout. Both typed routes exist and neither carries
+  the timeline selection; the ask is upstream. See LIMITATIONS.md.
 - Text layer: `text`, `fontFamily`, `fontStyle`, `alignment` (plain strings),
   `fontSize` (plain number), **singular** `fill` / `stroke` paints.
 - Scene-instance layer: `break()` (spills content into parent scene — works).
