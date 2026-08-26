@@ -219,10 +219,14 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   (a post-tick edit arrives as a diff step; nothing double-emits; ≤500ms
   staleness accepted). The walk mirrors `diffNodeInner`'s addressing exactly
   and strips host keyframe ids (recycled). `selection.keyframes` is
-  typed-but-unverified: `selectedCount` is present only when the surface
-  reads back as an array, and the `selectionIntrospection` debug probe on
-  `record.start` exists to settle it (RUNTIME-API item 10 pending trace
-  evidence). Offer emissions are deduped in `RpcRecorderGateway` — without
+  SETTLED: live but permanently EMPTY on the real host (five sessions of
+  probe evidence — LIMITATIONS.md, taxonomy #17); `selectedCount` is
+  present only when the getter reads as an array OR the feature-detected
+  `selection:keyframes` event listener (rev .46, `initSelectionEvents`)
+  has an event bus — the event cache feeds the offer/capture when the
+  getter polls empty, and `selectionIntrospection.events.{supported,fired,
+  lastCount}` in the next debug trace proves whether the host ever fires
+  it. Offer emissions are deduped in `RpcRecorderGateway` — without
   that the recording screen re-renders at 2Hz. UI: `CaptureOfferRow` shares
   the above-feed slot with the discard confirm, which wins; notices now
   ride in recording mode too (the toast bridge reads idle OR recording).
@@ -304,9 +308,18 @@ Where each piece lives and the invariants worth keeping:
   replay (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md);
   the interface-theme relay (`plugin/theme.ts` — `creator.ui.theme` /
   `change:theme` per the ui-library docs, feature-detected, silent on hosts
-  without it); the rev .41 text fixes (`createTextLayer` rebuild, set-plain
-  read-back note) — pinned by unit tests, but no Creator trace at .41 exists
-  yet, and pre-.41 traces can't verify text applies at all (taxonomy #15).
+  without it); the `createTextLayer` rebuild and the set-plain read-back
+  DISCARD note (no add-TEXT_LAYER replay or host-discarded write has
+  appeared in a ≥.41 trace). Set-plain text/font WRITES are live-verified
+  (the .41 traces of 2026-08-24T12:16 show real probe values applying);
+  the whole-fill capture (`replace-paint`, rev .45) and the
+  `selection:keyframes` event fallback (rev .46) await their first traces.
+- Capture live status (2026-08-26): offer + "Add all" fully verified in
+  five sessions (up to 198 steps, "Fish" → mismatched target, 0 failures,
+  traces 2026-08-24T17-50…2026-08-25T05-27); "Add selected" blocked by
+  the empty `selection.keyframes` getter — platform limit, LIMITATIONS.md
+  + taxonomy #17; next debug trace's `selectionIntrospection.events`
+  settles the event route.
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
 - v3.1 live status: at-playhead, stagger and repeat verified in traces

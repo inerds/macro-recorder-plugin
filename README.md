@@ -58,6 +58,14 @@ object. System fonts only; no network assets.
   flags), plus scene structure: **layer duplication and copy-paste** (detected
   structurally, replayed as real `clone()` calls), new layers, layer deletion,
   and layer reordering. No selection needed to start recording.
+- **Capture existing animation**: while recording, selecting a single
+  keyframed layer raises an offer to pull its state into the macro — **Add
+  all** takes every animated path as keyframe steps plus the layer's current
+  look (whole fills with their kind, static transforms, text/font, blend
+  mode), so existing timeline work becomes a reusable macro without
+  re-authoring. (**Add selected** — only the keyframes picked on the
+  timeline — ships feature-detected but is blocked by a host limit today:
+  Creator never populates `selection.keyframes`; see LIMITATIONS.md.)
 - **One playback semantics, no modes**: the layer's own position/rotation/skew
   shift each target from its own start and scale multiplies; everything else —
   colors, geometry, child-shape values, keyframe timing — applies exactly.

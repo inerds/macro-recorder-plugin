@@ -104,9 +104,11 @@ properties") with:
   with stagger. Position/scale/rotation values deliberately don't move a
   replay target — a style shouldn't teleport the layer it lands on.
 - **Add selected (n)** — only the keyframes you selected on the timeline.
-  This button appears only when Creator reports selected keyframes to
-  plugins; if you don't see it, your Creator build doesn't expose that yet
-  and **Add all** still works.
+  On current Creator builds this shows **(0), disabled**: Creator doesn't
+  yet report the timeline's keyframe selection to plugins (a host
+  limitation, not a broken button — the plugin also listens for the
+  selection event, so the key lights up by itself the moment a Creator
+  build starts delivering it). **Add all** is unaffected.
 
 The offer follows your selection: select a different layer and it updates,
 deselect and it leaves. It shows for a single selected layer only, and not
