@@ -762,15 +762,28 @@ describe("keyframe capture offer", () => {
   });
 });
 
-describe("record start selection nudge", () => {
-  it("stores the no-selection flag and defaults it off", () => {
+describe("record selection nudge (live count)", () => {
+  it("seeds the count from RECORD_START and defaults to null (unknown)", () => {
     const bare = appReducer(initialState, { type: "RECORD_START", startedAt: 1 });
-    expect(bare.mode === "recording" && bare.startedWithoutSelection).toBe(false);
+    expect(bare.mode === "recording" && bare.selectionCount).toBeNull();
     const nudged = appReducer(initialState, {
       type: "RECORD_START",
       startedAt: 1,
-      noSelection: true,
+      selectionCount: 0,
     });
-    expect(nudged.mode === "recording" && nudged.startedWithoutSelection).toBe(true);
+    expect(nudged.mode === "recording" && nudged.selectionCount).toBe(0);
+  });
+
+  it("ticks keep the count live so the nudge clears on selection", () => {
+    let state = appReducer(initialState, {
+      type: "RECORD_START",
+      startedAt: 1,
+      selectionCount: 0,
+    });
+    state = appReducer(state, { type: "RECORD_SELECTION_COUNT", count: 1 });
+    expect(state.mode === "recording" && state.selectionCount).toBe(1);
+    // and it's ignored outside recording (late tick)
+    const idle = appReducer(idleState([]), { type: "RECORD_SELECTION_COUNT", count: 0 });
+    expect(idle.mode).toBe("idle");
   });
 });

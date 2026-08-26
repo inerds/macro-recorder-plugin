@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-26.48";
+export const ENGINE_REV = "2026-08-26.49";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -136,6 +136,8 @@ export interface RpcContracts {
       steps: MacroStep[];
       /** See CaptureOffer — absent when no single keyframed layer is selected. */
       captureOffer?: CaptureOffer;
+      /** Live selection size — drives the standing "select a layer" nudge. */
+      selectionCount?: number;
       debug?: RecordDebug;
     };
   };

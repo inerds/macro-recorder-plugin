@@ -97,6 +97,50 @@ body::before {
   --tw-exit-translate-y: 0;
 }
 
+/*
+ * Toasts: the library ships a full-width near-black slab (bg 10% black,
+ * text-15 title, 20px icons, shadow-lg) sized for a full app window — at a
+ * 300px panel it dwarfs every instrument. Restyle as a compact ink chip in
+ * the skin's language: the panel's one dark object is the deck, so a small
+ * dark annunciator chip reads as part of the machine. The library classes
+ * are hardcoded (no props), hence attribute-contains selectors on the fixed
+ * z-100 viewport — same override strategy as the dialog fix above.
+ */
+[class*="z-100"][class*="fixed"] {
+  padding: 10px;
+  gap: 6px;
+}
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] {
+  width: auto;
+  max-width: 100%;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #2a2623; /* the skin's ink — matches the deck chassis family */
+  color: #f2ede3; /* panel cream on ink */
+  font-size: 12px;
+  box-shadow:
+    0 1px 2px -1px rgba(42, 38, 35, 0.3),
+    0 4px 12px -6px rgba(42, 38, 35, 0.45);
+}
+/* title/description arrive with text-15/text-13 — bring them to panel scale */
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] [class*="text-15"] {
+  font-size: 12px;
+  line-height: 1.35;
+}
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] [class*="text-13"] {
+  font-size: 11px;
+}
+/* 20px status icons read as dashboard warnings; 14px matches text-12 weight */
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] svg[class*="h-5"] {
+  width: 14px;
+  height: 14px;
+}
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] button svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* ---------------------------------------------------------------- type --- */
 
 .mono {

@@ -187,6 +187,13 @@ export function AppProvider({
     });
   }, [recorder]);
 
+  // Live selection size — keeps the "select a layer" nudge honest.
+  useEffect(() => {
+    return recorder.onSelectionCount?.((count) => {
+      dispatch({ type: "RECORD_SELECTION_COUNT", count });
+    });
+  }, [recorder]);
+
   // Recording ended on its own (e.g. the recorded layer was deleted).
   useEffect(() => {
     return recorder.onEnded?.((message) => {
@@ -324,20 +331,15 @@ export function AppProvider({
           .start()
           .then((source) => {
             recordingSourceRef.current = source ?? null;
-            const noSelection = source?.selectionCount === 0;
+            // Seeds the standing "select a layer" nudge; ticks keep it live
+            // and it clears itself the moment something is selected.
             dispatch({
               type: "RECORD_START",
               startedAt: Date.now(),
-              ...(noSelection ? { noSelection: true } : {}),
+              ...(typeof source?.selectionCount === "number"
+                ? { selectionCount: source.selectionCount }
+                : {}),
             });
-            if (noSelection) {
-              // Nudge, never a gate: whole-scene/structure recordings are a
-              // designed feature; single-layer ones just retarget better.
-              notify(
-                "Nothing selected — recording the whole scene. One selected layer makes a macro you can replay anywhere.",
-                "info",
-              );
-            }
           })
           .catch((error: unknown) => {
             const message =

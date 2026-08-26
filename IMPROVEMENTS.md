@@ -9,6 +9,15 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-26 — Standing inline nudge; compact toasts (rev .49)
+
+| Issue | Fix |
+|---|---|
+| **The no-selection nudge was a toast** — it vanished on its own timer instead of tracking the state it describes. | Now a standing inline row on the recording screen (dashed quiet chip above the feed, third in the slot chain after discard-confirm and the capture offer — which needs a selection, so they can never collide). It rides a live `selectionCount` in every tick and leaves by itself the moment a layer is selected. Toast dropped. |
+| **Toasts were a full-app-sized dark slab** — the library hardcodes `bg 10% black`, `text-15`, 20px icons, full width; at 300px it dwarfed every instrument. | Restyled via the panel's library-override pattern: a compact ink chip (26px tall, panel cream on `#2A2623`, 12px type, 14px status icons, width hugging content) that reads as the machine's annunciator. Also: captured `before === after` labels now render `= value` on fills/strokes branches too ("width 3 → 3" → "width = 3"). |
+
+---
+
 ## 2026-08-26 — Nudge toward single-layer recordings (rev .48)
 
 | Issue | Fix |

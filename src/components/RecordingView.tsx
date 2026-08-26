@@ -9,8 +9,9 @@ import { StepList } from "./StepList";
 export interface RecordingViewProps {
   steps: MacroStep[];
   confirmingDiscard: boolean;
-  /** Recording began with nothing selected — nudge, don't gate. */
-  startedWithoutSelection?: boolean;
+  /** Live selection size (null until the first report) — 0 keeps the
+   *  standing "select a layer" nudge visible until something is selected. */
+  selectionCount?: number | null;
   captureOffer: CaptureOffer | null;
   capturedAllLayerIds: string[];
   onCapture: (scope: "all" | "selected") => void;
@@ -28,7 +29,7 @@ export interface RecordingViewProps {
 export function RecordingView({
   steps,
   confirmingDiscard,
-  startedWithoutSelection,
+  selectionCount,
   captureOffer,
   capturedAllLayerIds,
   onCapture,
@@ -63,6 +64,20 @@ export function RecordingView({
               onCapture={onCapture}
             />
           </div>
+        ) : selectionCount === 0 ? (
+          <div className="mb-2">
+            {/* Standing nudge, not an alert: it tracks the live selection
+                and leaves by itself the moment a layer is selected. */}
+            <div
+              className="inline-enter rounded-[10px] border border-dashed border-border bg-muted/60 p-2 text-12 text-muted-foreground"
+              role="note"
+              data-testid="selection-nudge"
+            >
+              Nothing selected — recording the whole scene. Select{" "}
+              <strong className="font-medium text-foreground">one layer</strong> to make a
+              macro you can replay on any layer.
+            </div>
+          </div>
         ) : null}
         <div className="flex items-center justify-between gap-2 px-1 pb-1">
           <span className="instrument instrument-red truncate">Live steps</span>
@@ -77,20 +92,9 @@ export function RecordingView({
             macro list's drawer — steps always sit IN something. */}
         <div className="rack rack-drawer p-1">
           {steps.length === 0 ? (
-            startedWithoutSelection ? (
-              <p className="px-2 py-6 text-center text-12 text-muted-foreground">
-                Recording the whole scene — nothing was selected.
-                <br />
-                <span className="text-11">
-                  Tip: record with <strong className="font-medium">one layer selected</strong> to
-                  make a macro you can replay on any layer.
-                </span>
-              </p>
-            ) : (
-              <p className="px-2 py-6 text-center text-12 text-muted-foreground">
-                Recording. Edit your animation — steps appear here as you work.
-              </p>
-            )
+            <p className="px-2 py-6 text-center text-12 text-muted-foreground">
+              Recording. Edit your animation — steps appear here as you work.
+            </p>
           ) : (
             <StepList steps={steps} autoScroll />
           )}

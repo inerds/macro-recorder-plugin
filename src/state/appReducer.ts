@@ -123,9 +123,9 @@ export type AppState =
       capturedAllLayerIds: string[];
       /** Capture feedback rides the same toast channel idle uses. */
       notice: Notice | null;
-      /** Recording began with nothing selected — the feed's empty state
-       *  nudges toward single-layer (retargetable) recordings. */
-      startedWithoutSelection: boolean;
+      /** Live selection size (per tick; null until known) — 0 keeps the
+       *  standing "select a layer" nudge up until something is selected. */
+      selectionCount: number | null;
     }
   | {
       mode: "reviewing";
@@ -158,7 +158,8 @@ export type AppState =
 
 export type AppEvent =
   | { type: "MACROS_LOADED"; macros: Macro[] }
-  | { type: "RECORD_START"; startedAt: number; noSelection?: boolean }
+  | { type: "RECORD_START"; startedAt: number; selectionCount?: number }
+  | { type: "RECORD_SELECTION_COUNT"; count: number }
   | { type: "CAPTURE_OFFER_UPDATED"; offer: CaptureOffer | null }
   | { type: "CAPTURE_DONE"; layerId: string; scope: "all" | "selected" }
   | { type: "STEP_RECEIVED"; step: MacroStep }
@@ -248,12 +249,16 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         captureOffer: null,
         capturedAllLayerIds: [],
         notice: null,
-        startedWithoutSelection: event.noSelection === true,
+        selectionCount: typeof event.selectionCount === "number" ? event.selectionCount : null,
       };
 
     case "STEP_RECEIVED":
       if (state.mode !== "recording") return state;
       return { ...state, steps: [...state.steps, event.step] };
+
+    case "RECORD_SELECTION_COUNT":
+      if (state.mode !== "recording") return state;
+      return { ...state, selectionCount: event.count };
 
     case "CAPTURE_OFFER_UPDATED":
       // Late gateway callbacks after stop land here harmlessly.

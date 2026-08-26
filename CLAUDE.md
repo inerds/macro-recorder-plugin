@@ -200,11 +200,16 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   `nest-layers` (added SCENE layer + removals in one tick). In-layer payloads
   carry a `layer: LayerRef {id, name, priorName}` binding and, on deep paths,
   a `shapeHint`.
-- **Selection nudge (rev .48)**: `record.start` returns `selectionCount`;
-  0 → an info toast + swapped empty-feed copy steer toward single-layer
-  (retargetable) recordings. A NUDGE, never a gate (user decision,
-  2026-08-26: option A only — no disabled REC, no confirm interstitial):
-  whole-scene/structure recordings are a designed feature.
+- **Selection nudge (rev .48, inline since .49)**: `record.start` seeds and
+  every `record.tick` carries `selectionCount`; 0 → a standing dashed chip
+  above the live feed that clears ITSELF when a layer is selected (slot
+  chain: discard confirm > capture offer > nudge — offer needs a selection,
+  nudge needs none, so the last two never collide). A NUDGE, never a gate
+  (user decision: no disabled REC, no confirm interstitial, no toast) —
+  whole-scene/structure recordings are a designed feature. Toasts
+  themselves are restyled in index.css as compact ink chips (the library's
+  hardcoded dark slab is full-app-scale; attribute-contains selectors on
+  the fixed z-100 viewport, same strategy as the dialog-slide fix).
 - **Keyframe capture (rev .42)**: while recording, `record.tick`'s result
   carries a `CaptureOffer` when exactly one non-`SCENE*` top-level layer
   with keyframes is selected — computed from the tick's OWN snapshot plus a

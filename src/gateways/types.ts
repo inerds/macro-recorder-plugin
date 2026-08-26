@@ -34,6 +34,9 @@ export interface RecorderGateway {
   onCaptureOffer?(callback: (offer: CaptureOffer | null) => void): () => void;
   /** Synthesize keyframe steps from a layer's existing animation. */
   captureKeyframes?(layerId: string, scope: "all" | "selected"): Promise<MacroStep[]>;
+  /** Live selection size per tick, deduped — drives the standing
+   *  "select a layer" nudge on the recording screen. */
+  onSelectionCount?(callback: (count: number) => void): () => void;
 }
 
 export interface PlaybackRun {

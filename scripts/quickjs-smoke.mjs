@@ -222,7 +222,8 @@ check(
     offer?.layerId === "n1" &&
     offer?.keyframeCount === 2 &&
     offer?.pathCount === 1 &&
-    offer?.selectedCount === undefined,
+    offer?.selectedCount === undefined &&
+    posted[0]?.result?.selectionCount === 1,
   JSON.stringify(offer ?? posted[0] ?? null),
 );
 
@@ -271,8 +272,9 @@ vm.unwrapResult(vm.evalCode(`globalThis.__fakeSelection = [];`)).dispose();
 posted.length = 0;
 sendToPlugin({ t: "req", id: 23, method: "record.tick", params: { seq: 3 } });
 check(
-  "tick with empty selection carries no captureOffer",
-  posted.length === 1 && posted[0]?.result?.captureOffer === undefined,
+  "tick with empty selection carries no captureOffer and selectionCount 0",
+  posted.length === 1 && posted[0]?.result?.captureOffer === undefined &&
+    posted[0]?.result?.selectionCount === 0,
   JSON.stringify(posted[0]?.result ?? null),
 );
 vm.unwrapResult(vm.evalCode(`delete globalThis.__fakeSelection;`)).dispose();

@@ -186,6 +186,20 @@ function bareLabelOf(payload: StepPayload): string {
   switch (payload.op) {
     case "set-static": {
       const root = payload.path[0];
+      // A captured state (before === after) is a value, not a transition —
+      // checked FIRST so fills/strokes read "= v" too, not "v → v".
+      if (
+        payload.path[payload.path.length - 1] !== "pathData" &&
+        jsonEqual(payload.before, payload.after)
+      ) {
+        const prefix0 =
+          payload.path.length === 1 &&
+          typeof root === "string" &&
+          TRANSFORM_SET.has(root)
+            ? "Transform · "
+            : "";
+        return `${prefix0}${propName(payload.path)} = ${fmt(payload.after)}`;
+      }
       if (root === "fills") {
         const rest = payload.path.slice(2);
         if (rest.length === 0 || rest[0] === "color" || rest[rest.length - 1] === "stops") {
@@ -211,11 +225,6 @@ function bareLabelOf(payload: StepPayload): string {
             ? payload.after.points.length
             : null;
         return `${display} edited${count !== null ? ` (${count} points)` : ""}`;
-      }
-      // A captured state (before === after, from keyframe/property capture)
-      // is a value, not a transition — recorded diffs never emit equal pairs.
-      if (jsonEqual(payload.before, payload.after)) {
-        return `${prefix}${display} = ${fmt(payload.after)}`;
       }
       const component = changedComponent(payload.before, payload.after);
       if (component) {

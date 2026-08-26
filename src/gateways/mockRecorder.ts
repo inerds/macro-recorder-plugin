@@ -116,6 +116,7 @@ const LONG_SCRIPT: StepPayload[] = Array.from({ length: 20 }, (_, i) => {
 export class MockRecorderGateway implements RecorderGateway {
   private listeners = new Set<(step: MacroStep) => void>();
   private offerListeners = new Set<(offer: CaptureOffer | null) => void>();
+  private selectionListeners = new Set<(count: number) => void>();
   private captured: MacroStep[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -135,10 +136,17 @@ export class MockRecorderGateway implements RecorderGateway {
     this.captured = [];
     if (this.scenario === "keyframes") {
       // Quiet feed; the story is the standing offer.
-      setTimeout(() => this.offerListeners.forEach((cb) => cb(CAPTURE_OFFER)), this.intervalMs);
+      setTimeout(() => {
+        this.selectionListeners.forEach((cb) => cb(1));
+        this.offerListeners.forEach((cb) => cb(CAPTURE_OFFER));
+      }, this.intervalMs);
       return null;
     }
-    if (this.scenario === "silent") return null;
+    if (this.scenario === "silent") {
+      // Demos the standing "select a layer" nudge.
+      setTimeout(() => this.selectionListeners.forEach((cb) => cb(0)), this.intervalMs);
+      return null;
+    }
     const script = this.scenario === "long" ? LONG_SCRIPT : BURST_SCRIPT;
     let index = 0;
     this.timer = setInterval(() => {
@@ -181,6 +189,11 @@ export class MockRecorderGateway implements RecorderGateway {
     const steps = script.map(buildStep);
     this.captured.push(...steps);
     return steps;
+  }
+
+  onSelectionCount(callback: (count: number) => void): () => void {
+    this.selectionListeners.add(callback);
+    return () => this.selectionListeners.delete(callback);
   }
 
   onCaptureOffer(callback: (offer: CaptureOffer | null) => void): () => void {

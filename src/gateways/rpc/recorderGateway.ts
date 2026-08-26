@@ -11,6 +11,8 @@ export class RpcRecorderGateway implements RecorderGateway {
   private stepListeners = new Set<(step: MacroStep) => void>();
   private endedListeners = new Set<(message: string) => void>();
   private offerListeners = new Set<(offer: CaptureOffer | null) => void>();
+  private selectionListeners = new Set<(count: number) => void>();
+  private lastSelectionCount: number | null = null;
   /** JSON of the last emitted offer — the tick recomputes a structurally
    *  identical offer every 500ms and re-emitting would re-render at 2Hz. */
   private lastOfferJson: string | null = null;
@@ -54,6 +56,7 @@ export class RpcRecorderGateway implements RecorderGateway {
     // A stale in-flight tick can emit past stop()'s null; without this
     // reset the dedupe would swallow an identical offer next session.
     this.lastOfferJson = null;
+    this.lastSelectionCount = null;
     this.scheduleTick();
     return source;
   }
@@ -85,6 +88,10 @@ export class RpcRecorderGateway implements RecorderGateway {
       // will not repeat them — dropping them here would lose them for good.
       result.steps.forEach((step) => this.stepListeners.forEach((cb) => cb(step)));
       this.emitOffer(result.captureOffer ?? null);
+      if (typeof result.selectionCount === "number" && result.selectionCount !== this.lastSelectionCount) {
+        this.lastSelectionCount = result.selectionCount;
+        this.selectionListeners.forEach((cb) => cb(result.selectionCount as number));
+      }
       if (this.active) this.scheduleTick();
     } catch (error) {
       if (!this.active) return;
@@ -141,6 +148,11 @@ export class RpcRecorderGateway implements RecorderGateway {
   onEnded(callback: (message: string) => void): () => void {
     this.endedListeners.add(callback);
     return () => this.endedListeners.delete(callback);
+  }
+
+  onSelectionCount(callback: (count: number) => void): () => void {
+    this.selectionListeners.add(callback);
+    return () => this.selectionListeners.delete(callback);
   }
 
   onCaptureOffer(callback: (offer: CaptureOffer | null) => void): () => void {

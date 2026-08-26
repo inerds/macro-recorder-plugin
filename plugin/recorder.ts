@@ -477,8 +477,7 @@ function selectedKeyframes(): SelectedKf[] | undefined {
  * SCENE_INSTANCE layers are excluded — their shapes channel is the source
  * scene's shared content, and capturing it would edit every instance.
  */
-function computeCaptureOffer(next: SceneSnapshot): CaptureOffer | undefined {
-  const nodes = selectedNodes();
+function computeCaptureOffer(next: SceneSnapshot, nodes: AnyProxy[]): CaptureOffer | undefined {
   if (nodes.length !== 1) return undefined;
   let selectedId: string;
   try {
@@ -507,17 +506,21 @@ export function recordTick(seq: number): {
   seq: number;
   steps: MacroStep[];
   captureOffer?: CaptureOffer;
+  selectionCount?: number;
   debug?: RecordDebug;
 } {
   const recording = session.recording;
   const delta = collectDelta();
   // collectDelta advanced lastSnapshot to this tick's serialization; the
-  // offer is computed from that same snapshot — no second serialize.
-  const offer = recording ? computeCaptureOffer(recording.lastSnapshot) : undefined;
+  // offer is computed from that same snapshot — no second serialize. One
+  // selection read serves both the offer and the live nudge count.
+  const nodes = selectedNodes();
+  const offer = recording ? computeCaptureOffer(recording.lastSnapshot, nodes) : undefined;
   return {
     seq,
     steps: delta.steps,
     ...(offer ? { captureOffer: offer } : {}),
+    ...(recording ? { selectionCount: nodes.length } : {}),
     ...(delta.debug ? { debug: delta.debug } : {}),
   };
 }
