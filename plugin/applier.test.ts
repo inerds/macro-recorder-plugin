@@ -1623,3 +1623,35 @@ describe("paint topology mismatch on retarget (trace 2026-08-26T03-56-02)", () =
     expect(outcome.notes.length).toBeGreaterThan(0);
   });
 });
+
+describe("set-plain refuses phantom properties (trace 2026-08-26T04-04, idx 15)", () => {
+  // A shapes[0].blendMode step resolved (via the best-effort shape fallback)
+  // onto an ELLIPSE geometry node that has no blendMode at all — the bare
+  // assignment CREATED the property and the read-back trivially passed.
+  // Contract: a flag the owner doesn't carry is a skip note, like the
+  // sibling set-static behavior — never a phantom write.
+  it("notes and skips when the resolved owner lacks the flag", () => {
+    const geometry: Any = { type: "ELLIPSE", name: "ellipse geometry" };
+    const target: Any = { type: "SHAPE_LAYER", name: "Ellipse 1", shapes: [geometry] };
+    const outcome = apply(target, {
+      op: "set-plain",
+      path: ["shapes", 0, "blendMode"],
+      before: "normal",
+      after: "multiply",
+    });
+    expect(outcome.notes.length).toBeGreaterThan(0);
+    expect("blendMode" in geometry).toBe(false); // no phantom property
+  });
+
+  it("still writes a flag the owner genuinely carries", () => {
+    const target: Any = { type: "SHAPE_LAYER", name: "L", blendMode: "normal" };
+    const outcome = apply(target, {
+      op: "set-plain",
+      path: ["blendMode"],
+      before: "normal",
+      after: "multiply",
+    });
+    expect(outcome.notes).toEqual([]);
+    expect(target.blendMode).toBe("multiply");
+  });
+});

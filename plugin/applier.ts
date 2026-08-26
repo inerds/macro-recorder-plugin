@@ -806,6 +806,28 @@ export function applyStep(
       } catch (error) {
         return skipNote(notes, error);
       }
+      // A flag the owner doesn't carry is a skip, not a write: resolvePath's
+      // best-effort shape fallback can hand back a node of a different type
+      // (e.g. an ELLIPSE geometry for a GROUP's blendMode path), and a bare
+      // assignment would CREATE a phantom property the read-back then
+      // trivially "verifies" (live: trace 2026-08-26T04-04, idx 15).
+      {
+        // A THROWING getter means the flag exists but is unreadable
+        // (write-only) — still write it. Only a clean `undefined` read
+        // proves the node doesn't carry the flag.
+        let missing = false;
+        try {
+          missing = owner[flag as string] === undefined;
+        } catch {
+          missing = false;
+        }
+        if (missing) {
+          return skipNote(
+            notes,
+            new Error(`${String(flag)} not found on this layer`),
+          );
+        }
+      }
       try {
         owner[flag as string] = payload.after;
       } catch (error) {
@@ -1116,7 +1138,7 @@ function findNearestFills(
   return undefined;
 }
 
-function resolvePaint(target: AnyProxy, path: Path): ResolvedPaint | undefined {
+export function resolvePaint(target: AnyProxy, path: Path): ResolvedPaint | undefined {
   // support deep paths: [...(shapes,i)*, 'fills', i, leaf]
   const fillsAt = path.lastIndexOf("fills");
   const strokesAt = path.lastIndexOf("strokes");

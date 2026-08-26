@@ -7,7 +7,7 @@ import type { NodeSnapshot, Path } from "../shared/snapshot";
 import { pathKey, propClassOf } from "../shared/snapshot";
 import { nodeTypeName } from "../shared/labels";
 import type { LayerRef, StepPayload } from "../shared/steps";
-import {
+import { resolvePaint,
   applyNodeSpec,
   applyStep,
   readBaseline,
@@ -180,6 +180,27 @@ function countOf(target: AnyProxy, key: "fills" | "strokes"): number {
   }
 }
 
+/** A Paint proxy has no staticValue — summarize what it IS so paint swaps
+ *  (replace-paint) are verifiable in traces instead of probing null/null. */
+function paintSummary(paint: AnyProxy): Json {
+  const out: Record<string, Json> = {};
+  const t = tryRead(() => toJson(paint.type));
+  if (t !== undefined && t !== null) out.paintType = t;
+  const color = tryRead(() => toJson(paint.color?.staticValue));
+  if (color !== undefined && color !== null) out.color = color;
+  const stops = tryRead(() => toJson(paint.stops?.staticValue));
+  if (stops !== undefined && stops !== null) out.stops = stops;
+  return out;
+}
+
+function isPaintShaped(prop: AnyProxy): boolean {
+  return (
+    tryRead(() => prop.staticValue) === undefined &&
+    tryRead(() => prop.type) !== undefined &&
+    (tryRead(() => prop.color) !== undefined || tryRead(() => prop.stops) !== undefined)
+  );
+}
+
 function probe(target: AnyProxy, name: string, path: Path | undefined): TargetProbe {
   const base: TargetProbe = {
     target: name,
@@ -194,7 +215,25 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
   try {
     prop = resolvePath(target, path);
   } catch (error) {
+    // Topology fallback: the RECORDED path may not exist on this target
+    // even though the write itself remapped to the target's own paint
+    // (resolvePaint's role-based descent). Follow it so the trace shows
+    // the paint that was actually written, not "unreadable".
+    if (path.lastIndexOf("fills") >= 0) {
+      const probePath =
+        typeof path[path.length - 1] === "number" ? [...path, "color"] : path;
+      const resolved = tryRead(() => resolvePaint(target, probePath));
+      if (resolved) {
+        base.value = paintSummary(resolved.paint);
+        return base;
+      }
+    }
     return { ...base, unreadable: error instanceof Error ? error.message : String(error) };
+  }
+  // A paint itself (replace-paint's path) — report what it is.
+  if (prop !== null && typeof prop === "object" && isPaintShaped(prop)) {
+    base.value = paintSummary(prop);
+    return base;
   }
   // set-plain paths terminate at a raw scalar (text, fontSize, visible, …),
   // not an Animatable proxy — report the value itself; probing .staticValue

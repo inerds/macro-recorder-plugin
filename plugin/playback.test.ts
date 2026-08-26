@@ -768,3 +768,63 @@ describe("debug probes on a set-plain scalar path (probe() assumes an Animatable
     expect(result.debug?.after?.[0]?.value).toBe("world");
   });
 });
+
+describe("debug probes on paint paths (replace-paint verifiability)", () => {
+  // Live gap (traces 2026-08-26T06-03-3x): replace-paint probes read
+  // .staticValue off a Paint proxy -> null/null with no unreadable flag,
+  // so a fill swap is indistinguishable from a silent failure. Contract:
+  // a Paint-shaped resolved value probes as a summary {type, color, stops},
+  // and a topology-remapped path (recorded deep, target flat) follows the
+  // paint to where the write actually lands.
+  it("reports a paint summary before and after a replace-paint", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(
+      makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids),
+    );
+    stubCreator(scene, [layer]);
+    const steps = [
+      step({
+        op: "replace-paint",
+        path: ["fills", 0],
+        spec: {
+          kind: "gradient",
+          gradientType: "GRADIENT_LINEAR",
+          stops: { animated: false, static: [{ offset: 0, color: { r: 1, g: 2, b: 3 } }] },
+        },
+        layer: { id: "REC", name: "Circle 3" },
+      }),
+    ];
+    playbackBegin({ steps: steps as Any, debug: true });
+    const result = playbackStep({ index: 0 }) as Any;
+    expect(result.failures).toEqual([]);
+    const before = result.debug.before[0];
+    const after = result.debug.after[0];
+    expect(before.value).toMatchObject({ paintType: "SOLID" });
+    expect(after.value).toMatchObject({ paintType: expect.stringContaining("GRADIENT") });
+    expect(before.unreadable).toBeUndefined();
+  });
+
+  it("follows the paint on a topology-remapped path (recorded deep, target flat)", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(
+      makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids),
+    );
+    stubCreator(scene, [layer]);
+    const steps = [
+      step({
+        op: "replace-paint",
+        path: ["shapes", 0, "fills", 0],
+        spec: { kind: "solid", color: { animated: false, static: { r: 32, g: 106, b: 255 } } },
+        layer: { id: "REC", name: "Circle 3" },
+      }),
+    ];
+    playbackBegin({ steps: steps as Any, debug: true });
+    const result = playbackStep({ index: 0 }) as Any;
+    expect(result.failures).toEqual([]);
+    const after = result.debug.after[0];
+    expect(after.unreadable).toBeUndefined();
+    expect(after.value).toMatchObject({ color: { r: 32, g: 106, b: 255 } });
+  });
+});

@@ -9,6 +9,16 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-26 — Trace sweep: fill fix confirmed live; two probe/apply gaps closed (rev .50)
+
+| Issue | Fix |
+|---|---|
+| **Trace sweep verdicts (10 traces, revs .47–.49):** the fill fix works live (topology remap replaced Ellipse 1's root fill for real), Macro 2's relative-offset replay is exact, simplify folding correct, .48/.49 field rollout clean, all fixed taxonomy items holding. The `selection:keyframes` event fired 311× in one session — every payload empty (limitation now conclusively triple-evidenced). | Evidence appended to LIMITATIONS.md's entry; historical 08-24 backlog marked processed (superseded by fixes). |
+| **`probe()` was blind to paints** — `replace-paint` probes read `.staticValue` off a Paint proxy (null/null, no unreadable flag), and topology-remapped writes probed at the *recorded* path — a fill swap was indistinguishable from a silent failure in traces. | Paint-shaped resolved values probe as a summary (`{paintType, color, stops}`), and a path that fails to resolve on the target follows `resolvePaint`'s role-based descent to the paint that was actually written. |
+| **`set-plain` could create phantom properties** — the best-effort shape fallback can resolve a different node type (an ELLIPSE geometry for a group's `blendMode` path); bare assignment then *created* the flag and the read-back trivially passed — a mis-applied write reporting success. | The applier pre-reads the flag: a clean `undefined` means the node doesn't carry it → skip note (a *throwing* getter still writes — write-only flags stay writable). |
+
+---
+
 ## 2026-08-26 — Standing inline nudge; compact toasts (rev .49)
 
 | Issue | Fix |
