@@ -740,6 +740,56 @@ describe("v2: deep paths and structural ops", () => {
     expect(target.masks).toHaveLength(0);
   });
 
+  // Live trace 2026-08-26T08-15-40-511_playback-Masked-spotlight.json (rev
+  // .51): add-mask only checks `container.addMask`, but the real host has no
+  // `addMask` at all — only `createMask` (RUNTIME-API.md:89-92, live-
+  // verified, same pattern as add-stroke's addStroke→createStroke fallback).
+  // Every bare add-mask step skips on a real host and the follow-on
+  // masks.0 edits cascade into "masks[0] not found" skips.
+  it("creates the mask via createMask when the host has no addMask (currently skips with a note instead)", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+    expect(typeof target.addMask).toBe("undefined");
+    expect(typeof target.createMask).toBe("function");
+
+    const outcome = apply(target, {
+      op: "add-mask",
+      path: ["masks", 0],
+      spec: {
+        mode: "add",
+        pathData: { animated: false, static: { points: [], closed: true } },
+        opacity: { animated: false, static: 100 },
+      },
+    });
+
+    expect(target.masks).toHaveLength(1);
+    expect(target.masks[0]?.opacity.staticValue).toBe(100);
+    expect(outcome.notes).toEqual([]);
+  });
+
+  it("applies a follow-on set-static to masks[0] after add-mask (currently cascades into a 'not found' skip)", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+
+    apply(target, {
+      op: "add-mask",
+      path: ["masks", 0],
+      spec: {
+        mode: "add",
+        pathData: { animated: false, static: { points: [], closed: true } },
+        opacity: { animated: false, static: 100 },
+      },
+    });
+
+    const outcome = apply(target, {
+      op: "set-static",
+      path: ["masks", 0, "opacity"],
+      before: 100,
+      after: 55,
+    });
+
+    expect(target.masks[0]?.opacity.staticValue).toBe(55);
+    expect(outcome.notes).toEqual([]);
+  });
+
   it("reports a not-replayable step as a skip note", () => {
     const target = makeNode("Layer A", {}, makeIds());
 
@@ -1651,6 +1701,43 @@ describe("set-plain refuses phantom properties (trace 2026-08-26T04-04, idx 15)"
       before: "normal",
       after: "multiply",
     });
+    expect(outcome.notes).toEqual([]);
+    expect(target.blendMode).toBe("multiply");
+  });
+});
+
+describe("set-plain blendMode is a lowercase union on the real host (rev .51 trace)", () => {
+  // Confirmed live: plugin-api.d.ts's BlendMode is "normal" | "multiply" |
+  // ... (all lowercase, hyphenated multi-word members). Assigning the
+  // differently-cased "NORMAL" throws "✗ Invalid input" on a real host
+  // (trace 2026-08-26T08-15-55-277_playback-Style-stamp.json). The applier
+  // must catch that throw and report it as a skip note, never a silent
+  // half-apply — this is what caught the demoMacros.ts:377 "NORMAL" seed bug.
+  it("throws on wrong-case blendMode and the applier reports it as a skipped write, not a silent apply", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+
+    const outcome = apply(target, {
+      op: "set-plain",
+      path: ["blendMode"],
+      before: "normal",
+      after: "NORMAL",
+    });
+
+    expect(outcome.notes).toEqual(["✗ Invalid input — skipped"]);
+    // the throw happens before assignment, so the value is left untouched
+    expect(target.blendMode).toBe("normal");
+  });
+
+  it("applies cleanly with honest read-back for a real lowercase blendMode value", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+
+    const outcome = apply(target, {
+      op: "set-plain",
+      path: ["blendMode"],
+      before: "normal",
+      after: "multiply",
+    });
+
     expect(outcome.notes).toEqual([]);
     expect(target.blendMode).toBe("multiply");
   });

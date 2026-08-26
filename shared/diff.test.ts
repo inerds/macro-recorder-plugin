@@ -778,8 +778,35 @@ describe("diffScene — whole-scene recording", () => {
     expect(diffScene(scene(a, b), scene(a))).toEqual([
       { op: "remove-layer", layer: { id: "B", name: "b" } },
     ]);
+    // (the `layers` identities the same payload now carries are asserted in
+    // full by the next test)
     expect(diffScene(scene(a, b, c), scene(c, a, b))).toEqual([
-      { op: "reorder-layers", order: [2, 0, 1] },
+      {
+        op: "reorder-layers",
+        order: [2, 0, 1],
+        layers: [
+          { id: "C", name: "c" },
+          { id: "A", name: "a" },
+          { id: "B", name: "b" },
+        ],
+      },
+    ]);
+  });
+
+  it("carries the reordered layers' identities (id + name), not just positional indices (trace 2026-08-26T08-15-02, rev .51: a foreign scene replays reorder-layers by raw position with no identity to check)", () => {
+    const a = layer("A", "a"), b = layer("B", "b"), c = layer("C", "c");
+    const ops = diffScene(scene(a, b, c), scene(c, a, b));
+
+    expect(ops).toEqual([
+      {
+        op: "reorder-layers",
+        order: [2, 0, 1],
+        layers: [
+          { id: "C", name: "c" },
+          { id: "A", name: "a" },
+          { id: "B", name: "b" },
+        ],
+      },
     ]);
   });
 

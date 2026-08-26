@@ -116,7 +116,18 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
   return referenced.size > 0 ? { mode: "scene" } : { mode: "targets" };
 }
 
-/** The path a payload touches, when it has a single one. */
+/**
+ * The path a payload touches, when it has a single one.
+ *
+ * Structural ops (add-mask / add-trim / add-stroke) get a path one segment
+ * DEEPER than the entry they create, at a member `probe()` can actually read:
+ * probing the bare `masks[0]` reads no staticValue, so before and after both
+ * came back null and traces couldn't tell "created" from "silently skipped"
+ * (traces 2026-08-26T08-13-16, add-trim null/null). With a sub-path the
+ * BEFORE is unreadable (the entry doesn't exist yet) and the AFTER carries a
+ * value — that asymmetry IS the creation signal. Removals probe the entry
+ * itself, so the signal runs the other way.
+ */
 function pathOf(payload: StepPayload | undefined): Path | undefined {
   if (!payload) return undefined;
   switch (payload.op) {
@@ -127,6 +138,15 @@ function pathOf(payload: StepPayload | undefined): Path | undefined {
     case "replace-paint":
     case "add-paint":
     case "remove-shape":
+      return payload.path;
+    case "add-mask":
+      return [...payload.path, "opacity"];
+    case "add-trim":
+      return [...payload.path, "end"];
+    case "add-stroke":
+      return [...payload.path, "width"];
+    case "remove-mask":
+    case "remove-trim":
       return payload.path;
     default:
       return undefined;
@@ -288,6 +308,47 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
     // leave empty
   }
   return base;
+}
+
+/** How many layers a scene summary reports before it stops counting. */
+const SCENE_SUMMARY_CAP = 25;
+
+/**
+ * A scene op's observable state: the top-level layer list, in order.
+ *
+ * Scene ops used to probe `[]` on both sides, which made reorder / nest /
+ * break structurally BLIND in traces — trace 2026-08-26T08-15-02 shows a
+ * reorder executing with no way to tell what the scene looked like before or
+ * after. An ordered {id, name, type} list makes every one of them auditable.
+ * Every read is guarded: a scene op often runs while nodes are being created
+ * or destroyed, and any getter can throw.
+ */
+function sceneSummary(label: string): TargetProbe {
+  const layers = sceneLayers();
+  const entries: Json[] = [];
+  for (const layer of layers) {
+    if (entries.length >= SCENE_SUMMARY_CAP) break;
+    const entry: Record<string, Json> = {};
+    const id = tryRead(() => String(layer.id));
+    if (id !== undefined) entry.id = id;
+    const name = tryRead(() => toJson(layer.name));
+    if (name !== undefined && name !== null) entry.name = name;
+    const type = tryRead(() => String(layer.type));
+    if (type !== undefined) entry.type = type;
+    entries.push(entry);
+  }
+  const probe: TargetProbe = {
+    target: label,
+    value: entries,
+    animated: false,
+    keyframes: [],
+    fills: 0,
+    strokes: 0,
+  };
+  if (layers.length > entries.length) {
+    probe.unreadable = `${layers.length} layers — summary capped at ${SCENE_SUMMARY_CAP}`;
+  }
+  return probe;
 }
 
 // ---------------------------------------------------------------------------
@@ -651,7 +712,92 @@ function applySceneOp(
     return;
   }
 
-  reorderChildren(scene, "layers", payload.order, notes);
+  applyReorderLayers(scene, payload, notes);
+}
+
+/**
+ * Reorders the scene's top-level layers.
+ *
+ * A reorder payload used to be pure POSITIONS, which meant replaying it into
+ * any other scene blindly permuted whatever layers happened to sit there
+ * (trace 2026-08-26T08-15-02: order [1,0] applied to a scene that shared
+ * nothing with the recording, notes empty). Since rev .52 the payload also
+ * carries the recorded layers' identities in their new order, and this route
+ * is a GATE: every ref must resolve (id → name → priorName, the same chain
+ * every other scene op uses) or nothing moves at all — a partial reorder is
+ * worse than none, because the user can't tell which half is theirs.
+ *
+ * Layers the recording never saw keep their absolute positions: the recorded
+ * layers are redistributed across the slots they already occupy, in the
+ * recorded relative order, and everything else stays where it is. That is
+ * the most the moveBefore/moveAfter mechanism can promise — it can only
+ * express "this node goes next to that node".
+ */
+function applyReorderLayers(
+  scene: AnyProxy,
+  payload: Extract<StepPayload, { op: "reorder-layers" }>,
+  notes: string[],
+): void {
+  const refs = payload.layers;
+  if (!refs || refs.length === 0) {
+    // Legacy payload (pre rev .52): no identities to check. Still reorders —
+    // same-scene replays are the common case — but says so.
+    reorderChildren(scene, "layers", payload.order, notes);
+    notes.push(
+      "this recording didn't capture layer identities — reordered by position without verifying the layers match; check the result",
+    );
+    return;
+  }
+
+  const current = sceneLayers();
+  const slots: number[] = [];
+  const missing: string[] = [];
+  for (const ref of refs) {
+    const layer = resolveLayer(ref);
+    const at = layer === undefined ? -1 : current.indexOf(layer);
+    if (at < 0 || slots.includes(at)) {
+      missing.push(layerLabel(ref));
+      continue;
+    }
+    slots.push(at);
+  }
+  if (missing.length > 0) {
+    notes.push(
+      `couldn't find ${missing.join(", ")} in this scene — left the layer order untouched`,
+    );
+    return;
+  }
+
+  // Every identity checked out. `order` indexes into the RECORDED list, so
+  // read the recorded layers off the live scene in their current relative
+  // order and permute that sub-list; the slots they occupy stay the slots,
+  // which is how unrecorded layers keep their absolute positions (the
+  // moveBefore/moveAfter mechanism can only say "next to this one", so
+  // holding the slots is the strongest promise available here).
+  const targetSlots = [...slots].sort((a, b) => a - b);
+  const recorded = targetSlots.map((slot) => current[slot]);
+  const permuted: AnyProxy[] = [];
+  const used = new Set<number>();
+  for (const from of payload.order) {
+    if (Number.isInteger(from) && from >= 0 && from < recorded.length && !used.has(from)) {
+      permuted.push(recorded[from]);
+      used.add(from);
+    }
+  }
+  recorded.forEach((layer, i) => {
+    if (!used.has(i)) permuted.push(layer);
+  });
+
+  const desired = [...current];
+  targetSlots.forEach((slot, i) => {
+    desired[slot] = permuted[i]!;
+  });
+  reorderChildren(
+    scene,
+    "layers",
+    desired.map((layer) => current.indexOf(layer)),
+    notes,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -804,6 +950,10 @@ export function playbackStep(params: { index: number }): {
     const stepNotes: string[] = [];
 
     if (payload && isSceneOp(payload)) {
+      // Scene ops change the LAYER LIST, not a property — so their probe is
+      // the list itself (rev .52). Without it add/remove/reorder/nest/break
+      // were unauditable in traces.
+      if (playback.debug) before = [sceneSummary(label)];
       try {
         applySceneOp(payload as Extract<StepPayload, { op: "add-layer" }>, stepNotes);
       } catch (error) {
@@ -812,6 +962,7 @@ export function playbackStep(params: { index: number }): {
           message: error instanceof Error ? error.message : String(error),
         });
       }
+      if (playback.debug) after = [sceneSummary(label)];
     } else if (payload && ref) {
       const layer = resolveLayer(ref);
       if (!layer) {

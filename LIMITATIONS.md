@@ -39,6 +39,58 @@ lights up with no plugin changes.
 
 ---
 
+## Motion-token (color token/slot) bindings — record captures only the resolved color
+
+**What doesn't work:** applying a color *token* to a fill records as a plain
+resolved-RGB color edit; replay applies that flat color to the target. The
+token binding (the slot reference) is neither recorded nor re-applied.
+
+**Why (evidence, 2026-08-26, rev .50 traces):**
+- The recorded step is already resolved at capture time: trace
+  `2026-08-26T07-26-32-741_record.json` shows the token application arriving
+  as `set-static ["fills",0,"color"] {r:255,g:102,b:153} → {r:75,g:112,b:235}`
+  — nothing token-shaped anywhere in the payload or snapshots.
+- The same trace's `record.start` introspection walked the full prototype
+  chain (5 levels) of the touched Paint proxy, its `Animatable<Color>`, the
+  layer node, and the scene: no `token`/`slot`/`variable`/`binding`/`alias`/
+  `swatch`/`sid`-shaped key exists on any of them. `colorStaticKeys` is
+  exactly `["b","g","r"]`. A whole-trace grep for those terms: zero hits.
+- Replay is value-faithful, not the culprit: trace
+  `2026-08-26T07-26-42-276_playback-Macro-43.json` shows the recorded RGB
+  applied exactly (probe before ≠ after, `failures: []`, `notes: []`).
+- Applying the token *before* pressing REC records nothing at all (trace
+  `2026-08-26T07-26-13-866_record.json` — every tick empty; the fill already
+  probed at the resolved value in `record.start`), consistent with a
+  resolved-color-only surface.
+
+**What the user sees:** the macro replays the token's color value as a
+plain fill; the target does not become bound to the token.
+
+**Verdict (2026-08-26, rev .51 — CONCLUSIVE):** the rev .51 `record.start`
+probe dumped the three routes never read before, across two independent
+token sessions (traces `2026-08-26T07-39-25` / `07-39-52` / `07-40-35`),
+and all came back empty:
+- `node.data` / `shape.data` is the plugin's own per-node storage — an
+  inert, empty quota map (`usedQuota: 0`, `get`/`set` null), not a
+  document surface;
+- `node.toJSON()` and `activeScene.toJSON()` return bare `{id, type}`
+  stubs on this host — there is no raw-document route to carry an `sid`
+  or a `slots` map (see RUNTIME-API.md toJSON caveat);
+- the scene JSON root has no `slots`/`tokens`/`themes`/`styles`/`vars`
+  key, and a whole-trace search for token vocabulary is zero-hit in
+  every session.
+A token-driven fill edit is therefore indistinguishable at every readable
+layer from a manual RGB edit (07-40-35 captured one as a normal resolved
+`set-static`; 07-39-52 showed re-applying a token whose color already
+matched produces zero observable change at all). **Path to lift:** entirely
+upstream — Creator would need to expose both a readable binding (an `sid`
+on the paint surface or a document route) and a write path
+(`paint.color` accepts only `{r,g,b}` today) before apply-by-reference
+could work. The rev .51 hunt stays in the debug probe, so a host that adds
+any of it shows up in the next trace without code changes.
+
+---
+
 ## Fill / stroke opacity (per-paint) — cannot record or replay
 
 **What:** Changing a fill's own opacity slider (Appearance panel, under the
@@ -134,6 +186,19 @@ motion between the same keyframes; no step or note mentions the curve
 The engine already reads and writes them defensively (`KfSnap.inTangent/
 outTangent`, applier read-back verification with a note on refusal), so a
 host that adds them starts recording/replaying curves with no code change.
+
+> **Re-confirmed live 2026-08-26 (rev .52, traces 08-15-14 / 08-30-20 /
+> 08-32-08):** all three guess-chain routes still move 0 layers (breadcrumbs
+> now in traces). Sub-finding from the 08-32-08 replay: the honest rebuild
+> fallback is also structurally incapable of restoring the scene layer's
+> CONTENT — `createLayerFromSpec`'s child recursion knows only shape
+> primitives (`SHAPE_FACTORIES`: rectangle/ellipse/polygon/star/path), so
+> LAYER-typed children note "can't re-create a shape layer — skipped" and
+> the fallback can only ever produce an empty shell. Lifting that half needs
+> a way to create layers INSIDE a scene layer's content, which is the same
+> upstream ask. Same-scene replays are unaffected: the recorded id resolves
+> to the original nested scene (adoption), as the 08-32-08 transform step
+> shows.
 
 ## Nesting layers programmatically — CONFIRMED
 

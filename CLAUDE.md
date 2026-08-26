@@ -15,7 +15,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (373 tests, <1s)
+pnpm test                      # vitest run (409 tests, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 ```
@@ -105,7 +105,14 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   taxonomy #14). Same fidelity rule for probes: `probe()` reads plain
   scalars as themselves and includes keyframe `easing` — in traces before
   rev .41, `set-plain` steps probe `null`/`null` and easing-only edits look
-  like no-ops; both are artifacts there, not findings.
+  like no-ops; both are artifacts there, not findings. Two more rev fences
+  for triage (rev .52): scene ops (`add/remove-layer`, `reorder-layers`,
+  `nest-layers`, `break-scene`) probe an ordered `{id, name, type}` scene
+  summary and structural ops (`add-mask`/`add-trim`/`add-stroke`) probe a
+  readable sub-path (unreadable-before / valued-after IS the creation
+  signal) — in traces before .52 both probe empty/null and prove nothing;
+  and `debug.breadcrumbs` (guess-chain logs, e.g. the nest routes) exists
+  only from .52 on.
 
 `DevSettings` (`src/dev/`) is the ONE dev strip at the panel foot — gated on
 `import.meta.env.DEV` alone so it works in both modes, collapsed to a single
@@ -196,7 +203,11 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   flags (incl. text props), names. `diffScene` matches layers by id and emits
   scene ops: `add-layer` (with structural duplicate detection → `cloneOf`,
   transform-agnostic, plus recorded position `offset`), `remove-layer`,
-  `reorder-layers`, `break-scene` (removed SCENE layer + adds in one tick),
+  `reorder-layers` (since rev .52 the payload also carries `layers:
+  LayerRef[]` — replay verifies those identities and refuses to permute a
+  scene that isn't the recorded one; legacy identity-less payloads reorder
+  positionally WITH a caution note), `break-scene` (removed SCENE layer +
+  adds in one tick),
   `nest-layers` (added SCENE layer + removals in one tick). In-layer payloads
   carry a `layer: LayerRef {id, name, priorName}` binding and, on deep paths,
   a `shapeHint`.
@@ -310,18 +321,50 @@ Where each piece lives and the invariants worth keeping:
 
 ## Open threads (as of last update)
 
+- Motion-token (color token/slot) bindings: SETTLED — not observable,
+  conclusively (LIMITATIONS.md). Rev .51's record.start token hunt ran in two
+  independent sessions (traces 2026-08-26T07-39-25/-52, 07-40-35): proxy
+  chains carry only `{r,g,b}`, `node.data`/`shape.data` is the plugin's own
+  empty storage, and `node.toJSON()`/`scene.toJSON()` are `{id,type}` STUBS
+  on this host (RUNTIME-API.md caveat — this also means the per-fill-opacity
+  toJSON recovery finds nothing live). The hunt stays in the debug probe so a
+  host that adds any surface shows up unchanged; the full ask (read a binding
+  AND apply-by-reference) is upstream.
+- Verification gap noted in the 08-26 triage sweep: `set-static` in
+  plugin/applier.ts has no post-write read-back (unlike `set-plain`, fixes
+  #13/#20), so a host-swallowed absolute write is indistinguishable from a
+  coincidental value match in probes. No trace shows it firing; watch for it.
+
 - Nesting-from-selection: CONFIRMED platform limitation (see LIMITATIONS.md
   for the breadcrumb evidence and the upstream ask). The guess-chain stays in
   place so a future host that adds any of the routes starts working without
   code changes.
-- Never live-verified yet: mask add/remove/edit replay; scene-layer reorder
-  replay (`shiftTo` throws for both guessed signatures — see RUNTIME-API.md);
-  the interface-theme relay (`plugin/theme.ts` — `creator.ui.theme` /
-  `change:theme` per the ui-library docs, feature-detected, silent on hosts
-  without it); the `createTextLayer` rebuild and the set-plain read-back
-  DISCARD note (no add-TEXT_LAYER replay or host-discarded write has
-  appeared in a ≥.41 trace). Set-plain text/font WRITES are live-verified
-  (the .41 traces of 2026-08-24T12:16 show real probe values applying).
+- Never live-verified yet: the interface-theme relay (`plugin/theme.ts` —
+  `creator.ui.theme` / `change:theme` per the ui-library docs,
+  feature-detected, silent on hosts without it); the set-plain read-back
+  DISCARD note (no host-discarded write has appeared in a ≥.41 trace);
+  break-scene's fallback-restore path (live runs have only ever broken an
+  EMPTY shell, so the rebuild-from-`fallback` branch is still untested).
+  Set-plain text/font WRITES are live-verified (the .41 traces of
+  2026-08-24T12:16 show real probe values applying).
+- Live-verified 2026-08-26 (rev .51 seed-macro sweep): the `createTextLayer`
+  rebuild — trace 08-15-26 built a REAL text layer with honest read-backs,
+  the singular-fill remap and keyframes routed through
+  `layerByRecordedId`. Mask add/edit replay is live-verified BROKEN (the
+  applier only checked `addMask`; the host has only `createMask`) and fixed
+  in rev .52 — pending a live re-verify. Nest-layers reconfirmed
+  platform-blocked (08-15-14: the guess-chain exhausted every route and fell
+  back with honest notes). v3.1 params + the configure-sheet edit are now
+  live-verified in Creator (Parametric slide trace: the edited param value
+  flowed through BOTH repeat passes), as are repeat compounding and
+  disabled-step filtering in the same trace.
+- Scene-layer reorder: the moveBefore/moveAfter mechanism executed live in
+  08-15-02, but its outcome was unverifiable (scene ops probed `[]` on both
+  sides) AND the payload was positions-only, so a foreign scene got
+  reshuffled silently. Rev .52 gates it on recorded layer identities and
+  adds the scene-summary probe that closes the audit gap; the reorder itself
+  still needs one clean live confirmation. (`shiftTo` throws for both guessed
+  signatures — see RUNTIME-API.md.)
 - Live-verified 2026-08-26 (rev .47–.49 trace sweep): whole-fill
   `replace-paint` replay INCLUDING the topology remap (recorded
   group-nested fill → flat target's root fill really replaced, trace

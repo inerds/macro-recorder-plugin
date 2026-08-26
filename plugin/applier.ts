@@ -935,16 +935,23 @@ export function applyStep(
 
     case "add-mask": {
       const { container } = splitStructural(target, payload.path, notes);
-      if (typeof container.addMask !== "function") {
-        notes.push("this layer can't take masks — skipped");
-        return { notes };
-      }
       const spec: Record<string, Json> = {
         pathData: staticOf(payload.spec.pathData),
         opacity: staticOf(payload.spec.opacity, 100),
       };
       if (payload.spec.mode) spec.mode = payload.spec.mode;
-      container.addMask(spec);
+      // The real host exposes createMask, NOT addMask (RUNTIME-API.md:89-92,
+      // live trace 2026-08-26T08-15-40) — checking only addMask skipped every
+      // mask step on a live host and cascaded into "masks[0] not found" on the
+      // follow-on edits. Same addX→createX fallback as add-stroke above and
+      // applyNodeSpec's mask loop.
+      if (typeof container.addMask === "function") {
+        container.addMask(spec);
+      } else if (typeof container.createMask === "function") {
+        container.createMask(spec);
+      } else {
+        notes.push("this layer can't take masks — skipped");
+      }
       return { notes };
     }
 

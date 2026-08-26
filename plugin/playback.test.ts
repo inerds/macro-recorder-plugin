@@ -294,6 +294,81 @@ describe("break-scene replay", () => {
   });
 });
 
+describe("reorder-layers replay checks layer identity before reindexing (trace 2026-08-26T08-15-02, rev .51)", () => {
+  it("does NOT reindex a foreign scene whose layers don't match the recorded identities, and reports it instead of misapplying silently (BUG: today it blindly permutes by raw position — order:[] notes:[])", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const x = scene.addLayer(makeNode("X", {}, ids));
+    const y = scene.addLayer(makeNode("Y", {}, ids));
+    const z = scene.addLayer(makeNode("Z", {}, ids));
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "reorder-layers",
+          order: [2, 0, 1],
+          layers: [
+            { id: "A", name: "a" },
+            { id: "B", name: "b" },
+            { id: "C", name: "c" },
+          ],
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+
+    expect(scene.layers).toEqual([x, y, z]);
+    expect((result.notes ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("reorders when the live scene's layers match the recorded identities (by name, since ids are host-assigned fresh on replay)", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("a", {}, ids));
+    const b = scene.addLayer(makeNode("b", {}, ids));
+    const c = scene.addLayer(makeNode("c", {}, ids));
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "reorder-layers",
+          order: [2, 0, 1],
+          layers: [
+            { id: "A", name: "a" },
+            { id: "B", name: "b" },
+            { id: "C", name: "c" },
+          ],
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    expect(scene.layers).toEqual([c, a, b]);
+  });
+
+  it("a legacy payload with no recorded identities still reorders (as today) but pushes a caution note that identity wasn't checked", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("a", {}, ids));
+    const b = scene.addLayer(makeNode("b", {}, ids));
+    const c = scene.addLayer(makeNode("c", {}, ids));
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [step({ op: "reorder-layers", order: [2, 0, 1] })] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+
+    expect(scene.layers).toEqual([c, a, b]);
+    expect(
+      (result.notes ?? []).some((n: Any) => /identity|caution|verify/i.test(n.message)),
+    ).toBe(true);
+  });
+});
+
 describe("layer resolution across renames", () => {
   it("finds a pre-rename layer via the recorded priorName", () => {
     const ids = makeIds();
@@ -826,5 +901,73 @@ describe("debug probes on paint paths (replace-paint verifiability)", () => {
     const after = result.debug.after[0];
     expect(after.unreadable).toBeUndefined();
     expect(after.value).toMatchObject({ color: { r: 32, g: 106, b: 255 } });
+  });
+});
+
+describe("debug probes on structural and scene ops (rev .52)", () => {
+  // Live gap: a structural op's probe used the entry's own path, which has
+  // no readable staticValue — so add-trim probed null/null (trace
+  // 2026-08-26T08-13-16) and a creation was indistinguishable from a skip.
+  // Contract: probe a MEMBER of the created entry, so BEFORE is unreadable
+  // (nothing there yet) and AFTER carries the value.
+  it("an add-mask probe distinguishes created from skipped (unreadable before, value after)", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Ellipse 1", {}, ids));
+    stubCreator(scene, [layer]);
+    const steps = [
+      step({
+        op: "add-mask",
+        path: ["masks", 0],
+        spec: {
+          mode: "add",
+          pathData: { animated: false, static: { points: [], closed: true } },
+          opacity: { animated: false, static: 100 },
+        },
+        layer: { id: "REC", name: "Ellipse 1" },
+      }),
+    ];
+    playbackBegin({ steps: steps as Any, debug: true });
+    const result = playbackStep({ index: 0 }) as Any;
+
+    expect(result.failures).toEqual([]);
+    expect(result.debug.path).toEqual(["masks", 0, "opacity"]);
+    expect(result.debug.before[0].unreadable).toBeDefined();
+    expect(result.debug.after[0].unreadable).toBeUndefined();
+    expect(result.debug.after[0].value).toBe(100);
+  });
+
+  // Scene ops used to probe [] on both sides, leaving reorder / nest / break
+  // structurally blind in traces (trace 2026-08-26T08-15-02).
+  it("a scene op probes the ordered layer list before and after", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    scene.addLayer(makeNode("a", {}, ids));
+    scene.addLayer(makeNode("b", {}, ids));
+    scene.addLayer(makeNode("c", {}, ids));
+    stubCreator(scene, []);
+
+    playbackBegin({
+      debug: true,
+      steps: [
+        step({
+          op: "reorder-layers",
+          order: [2, 0, 1],
+          layers: [
+            { id: "A", name: "a" },
+            { id: "B", name: "b" },
+            { id: "C", name: "c" },
+          ],
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 }) as Any;
+
+    expect(result.failures).toEqual([]);
+    expect(result.debug.before[0].value.map((entry: Any) => entry.name)).toEqual(["a", "b", "c"]);
+    expect(result.debug.after[0].value.map((entry: Any) => entry.name)).toEqual(["c", "a", "b"]);
+    // ids and types travel too, so a rename or a wrong-factory rebuild shows
+    expect(result.debug.after[0].value[0]).toMatchObject({ type: expect.any(String) });
+    expect(result.debug.after[0].value[0].id).toEqual(expect.any(String));
   });
 });

@@ -9,6 +9,33 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-26 — Seed-macro trace sweep: three fixes (rev .52)
+
+| Issue | Fix |
+|---|---|
+| **Every add-mask step was skipped on the live host.** The applier only looked for `container.addMask`, which the real host does not have — it exposes `createMask` (live trace 08-15-40). The mask was never created, and every follow-on edit on `masks[0]` cascaded into a "not found" skip, so a masking macro replayed as nothing at all. | `add-mask` now mirrors its siblings exactly: `addMask` → `createMask` → the "this layer can't take masks — skipped" note, the same fallback `add-stroke` and the new-layer rebuild already used. |
+| **A reorder-layers step could silently reshuffle a foreign scene's real layers.** The payload carried raw positions and nothing else, so replaying it anywhere but the recorded scene permuted whichever layers happened to sit in those slots — with no note, no failure and no way to see it in a trace (08-15-02). | The payload now carries the reordered layers' identities. Replay resolves every one of them against the live scene first (id → name → priorName) and reorders only when they ALL check out; a single miss changes nothing and says which layer it couldn't find. Layers the recording never saw keep their positions. A legacy payload with no identities still reorders, but now says it did so without verifying. |
+| **The Style stamp demo's blendMode step never applied.** It seeded `"NORMAL"`, but the host's `BlendMode` is a lowercase union, so a live host threw "✗ Invalid input" and the step the macro exists to demonstrate was skipped every time. | The seed uses `"normal"`, and the fake scene now validates the union on assignment — the same class of casing bug can no longer pass in tests while failing on a real host. |
+| **Structural and scene ops were invisible to trace probes.** add-mask / add-trim / add-stroke probed the entry they create, which has no readable value, so both sides read null and "created" looked exactly like "silently skipped" (08-13-16); scene ops probed `[]` on both sides, leaving reorder, nest and break structurally unauditable (08-15-02). | Structural probes read a member of the created entry (mask opacity, trim end, stroke width), so an unreadable before against a readable after IS the creation signal; removals probe the entry itself. Scene ops probe an ordered {id, name, type} summary of the scene's layers, capped at 25 and defensively read, so their outcome is visible in the trace. |
+
+---
+
+## 2026-08-26 — Demo seed macros
+
+| Issue | Fix |
+|---|---|
+| **The dev seed data was three trivial macros** — a move, a recolor and a spin, all one layer, all targets mode. Nothing in the panel ever exercised scene scripts, masks, trims, text layers, capture-shaped steps, disabled steps, pinned params or play options without recording them by hand first, and one of the three carried a stroke-color step on a path the applier can't resolve, so it silently skipped on every play. | Ten seed macros that combine features: both playback modes, every scene op (add/remove/reorder/nest/break), cross-kind paint adaptation, masks, trims, a text layer, a chained retargeted duplicate, a capture-shaped style stamp, a disabled step and pinned parameters with stagger + repeat. Every one is replay-verified in tests — `plugin/demoMacros.replay.test.ts` drives all ten through the real playback orchestrator against the shared fake scene and asserts zero failures, with `src/dev/demoMacros.test.ts` pinning their shape (labels, param targets, disabled steps, mode). |
+
+---
+
+## 2026-08-26 — Motion tokens triaged; token hunt added to the debug probe (rev .51)
+
+| Issue | Fix |
+|---|---|
+| **Applying a color token recorded/replayed as a flat RGB fill** — the token binding never survived a macro. | Confirmed a platform limit, not a recorder/playback bug (LIMITATIONS.md, conclusive): no token/slot surface exists on any enumerated paint/node/scene proxy, and the rev .51 probe's hunt through the last unprobed routes (`node.data`, `node.toJSON()`, scene-root `slots`) came back empty in two independent sessions — `toJSON()` is an `{id,type}` stub on this host, so no document route exists at all. The recorder can only ever see the resolved color; the ask is upstream. |
+
+---
+
 ## 2026-08-26 — Paced playback
 
 | Issue | Fix |

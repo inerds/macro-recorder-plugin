@@ -459,9 +459,19 @@ export function diffScene(prev: SceneSnapshot, next: SceneSnapshot): StepPayload
     survivorsPrev.length === survivorsNext.length &&
     survivorsPrev.some((id, i) => survivorsNext[i] !== id)
   ) {
+    // Identities travel WITH the order (rev .52): `layers[i]` is the layer
+    // that ends up at position i, so replay can resolve each one against the
+    // live scene and refuse to permute a scene that isn't the recorded one.
     out.push({
       op: "reorder-layers",
       order: survivorsNext.map((id) => survivorsPrev.indexOf(id)),
+      layers: survivorsNext.map((id) => {
+        const nextLayer = nextById.get(id)!.layer;
+        const ref = layerRefOf(nextLayer);
+        const prevName = prevById.get(id)?.layer.nodeName;
+        if (prevName !== undefined && prevName !== nextLayer.nodeName) ref.priorName = prevName;
+        return ref;
+      }),
     });
   }
 

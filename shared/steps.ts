@@ -66,7 +66,13 @@ export type StepPayload =
   /** Layers were nested into a new scene instance. Replay resolves the
    *  layers and calls createSceneInstance(them); spec is the fallback. */
   | { op: "nest-layers"; layers: LayerRef[]; spec: NodeSnapshot }
-  | { op: "reorder-layers"; order: number[] }
+  /** Scene layers were reordered. `order[newPos]` is the layer's previous
+   *  index; `layers` (rev .52+) names those same layers IN THE NEW ORDER so
+   *  replay can VERIFY it is looking at the recorded layers before permuting
+   *  anything — a positional-only payload silently reshuffled a foreign
+   *  scene's real layers (trace 2026-08-26T08-15-02). Absent on legacy
+   *  payloads, which replay positionally with a caution note. */
+  | { op: "reorder-layers"; order: number[]; layers?: LayerRef[] }
   /** observable but not replayable via the plugin API (e.g. reorder) */
   | { op: "not-replayable"; description: string }
   /** legacy v1 payloads still found in saved macros */
