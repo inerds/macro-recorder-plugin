@@ -98,6 +98,18 @@ export type PlayingState = {
   total: number;
   /** Index of the step whose failure awaits a Continue/Stop decision. */
   error: { stepIndex: number; message: string } | null;
+  /**
+   * How many step executions have completed — raw playback indices, so
+   * enabled-space and climbing across repeats, same as `currentStep`. A step
+   * is done when its index is below this.
+   */
+  doneCount: number;
+  /**
+   * Raw indices of steps that failed. Kept for the rest of the run (a
+   * continued failure stays marked) rather than cleared with `error`, which
+   * is only the pending decision.
+   */
+  failedSteps: number[];
 };
 
 export type AppState =
@@ -205,6 +217,7 @@ export type AppEvent =
   | { type: "CONFIGURE_CANCEL" }
   | { type: "PLAY_START"; macroId: string; total: number }
   | { type: "PLAY_PROGRESS"; stepIndex: number }
+  | { type: "PLAY_STEP_DONE"; stepIndex: number }
   | { type: "PLAY_STEP_FAILED"; stepIndex: number; message: string }
   | { type: "PLAY_FAILURE_RESOLVED"; action: "continue" | "stop" }
   | { type: "PLAY_DONE" }
@@ -488,12 +501,16 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       return {
         mode: "playing",
         macros: state.macros,
-        expandedId: state.expandedId,
+        // Playing walks the step list visibly, so the card it walks has to be
+        // open — whatever was expanded before gives way to the macro playing.
+        expandedId: event.macroId,
         playing: {
           macroId: event.macroId,
           currentStep: 0,
           total: event.total,
           error: null,
+          doneCount: 0,
+          failedSteps: [],
         },
       };
 
@@ -504,6 +521,18 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         playing: { ...state.playing, currentStep: event.stepIndex, error: null },
       };
 
+    case "PLAY_STEP_DONE":
+      if (state.mode !== "playing") return state;
+      return {
+        ...state,
+        playing: {
+          ...state.playing,
+          // Indices are 0-based and arrive in order; the count is the high
+          // water mark, so a late duplicate can't walk it backwards.
+          doneCount: Math.max(state.playing.doneCount, event.stepIndex + 1),
+        },
+      };
+
     case "PLAY_STEP_FAILED":
       if (state.mode !== "playing") return state;
       return {
@@ -511,6 +540,9 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         playing: {
           ...state.playing,
           error: { stepIndex: event.stepIndex, message: event.message },
+          failedSteps: state.playing.failedSteps.includes(event.stepIndex)
+            ? state.playing.failedSteps
+            : [...state.playing.failedSteps, event.stepIndex],
         },
       };
 

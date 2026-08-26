@@ -1,5 +1,7 @@
 import {
+  Check,
   Circle,
+  CircleAlert,
   CircleSlash,
   Diamond,
   Eye,
@@ -17,6 +19,7 @@ import {
 import { useRef, useState } from "react";
 
 import { editableValueOf, type EditableValue } from "../../shared/editing";
+import type { PlayStepStatus } from "../state/stepStatus";
 import type { MacroStep, StepKind } from "../types";
 import { StepValueEditor } from "./StepValueEditor";
 
@@ -73,6 +76,11 @@ export interface StepRowProps {
   param?: boolean;
   /** Highlight as the currently-running playback step. */
   active?: boolean;
+  /**
+   * Where this step is in a paced run. Absent outside the playing macro's
+   * card; a skipped step never gets one (it isn't part of the run).
+   */
+  status?: PlayStepStatus;
   /** A "Layer · " prefix shared by the whole list, shown once in its header. */
   hidePrefix?: string;
 }
@@ -86,6 +94,7 @@ export function StepRow({
   onToggleParam,
   param,
   active,
+  status,
   hidePrefix = "",
 }: StepRowProps) {
   const shownLabel =
@@ -125,15 +134,34 @@ export function StepRow({
   return (
     <li
       className={`group relative flex min-h-[26px] items-center gap-1.5 px-2 text-12 ${
-        active
-          ? "bg-accent text-accent-foreground shadow-[inset_2px_0_0_var(--primary)]"
-          : "bg-inherit text-foreground"
+        // A failed step is marked, not current: it keeps the row's own ground
+        // and swaps the inset bar to the small-text red.
+        status === "failed"
+          ? "bg-inherit text-foreground shadow-[inset_2px_0_0_var(--ink-red-text)]"
+          : active
+            ? "bg-accent text-accent-foreground shadow-[inset_2px_0_0_var(--primary)]"
+            : "bg-inherit text-foreground"
       }`}
       aria-current={active ? "step" : undefined}
+      data-status={status}
       data-testid="step-row"
     >
-      <span className="mono w-5 shrink-0 text-end text-10 text-muted-foreground">
-        {index + 1}
+      {/* The numeral slot doubles as the run's result glyph — a done step's
+          number has served its purpose, and the check lands where the eye
+          already is. The state is also in the sr-only suffix below, so the
+          glyph is never the only channel. */}
+      <span className="step-num mono w-5 shrink-0 text-end text-10 text-muted-foreground">
+        {status === "done" ? (
+          <Check className="inline size-3 align-[-1px]" strokeWidth={2.5} aria-hidden />
+        ) : status === "failed" ? (
+          <CircleAlert
+            className="inline size-3 align-[-1px] text-[color:var(--ink-red-text)]"
+            strokeWidth={2.5}
+            aria-hidden
+          />
+        ) : (
+          index + 1
+        )}
       </span>
       <Icon
         className={`size-3.5 shrink-0 ${
@@ -198,6 +226,8 @@ export function StepRow({
           )}
           {disabled && <span className="sr-only"> (skipped)</span>}
           {param && <span className="sr-only"> (parameter)</span>}
+          {status === "done" && <span className="sr-only"> (completed)</span>}
+          {status === "failed" && <span className="sr-only"> (failed)</span>}
         </span>
       )}
 

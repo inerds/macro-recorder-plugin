@@ -293,6 +293,7 @@ export function AppProvider({
           break;
         }
         case "step-done":
+          dispatch({ type: "PLAY_STEP_DONE", stepIndex: event.stepIndex });
           break;
       }
     },

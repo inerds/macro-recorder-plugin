@@ -9,6 +9,15 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-26 — Paced playback
+
+| Issue | Fix |
+|---|---|
+| **The completion flash was red** — the run-finished row flash used the action red, which reads as failure/danger, and now clashed outright with the red failed-step marker. | The flash uses a new `--lamp-green` success pilot-lamp token (muted green, matched to the amber lamp), so finished reads as finished. |
+| **Playback applied instantly with no per-step feedback** — a macro landed as one jump, the step list only ever marked the "current" row (usually too briefly to see), and nothing said afterwards which steps had actually run. A failed step's mark vanished the moment you pressed Continue. | Playing now auto-expands the macro's card and walks its steps one at a time, Photoshop-actions style: pending rows dim, the running row's numeral lights up, a landed step shows a ✓ and a failed one a red marker that stays for the rest of the run. The dwell is a whole-run budget (~4.5s, clamped 45–300ms per step), so a 200-step macro walks as fast as a 5-step one is deliberate. UI-only — no engine change. |
+
+---
+
 ## 2026-08-26 — Trace sweep: fill fix confirmed live; two probe/apply gaps closed (rev .50)
 
 | Issue | Fix |

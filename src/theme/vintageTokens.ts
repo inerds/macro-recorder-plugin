@@ -79,6 +79,9 @@ export const VINTAGE_TOKENS: Record<string, string> = {
   /** 5.2:1 on cream — small red text NEVER uses --primary. */
   "--ink-red-text": "#B5301F",
   "--lamp-amber": "#D9A441",
+  /** Success pilot-lamp. Red is action/failure on this panel, so the
+      completion flash gets its own green — muted to match the amber. */
+  "--lamp-green": "#5C9457",
   "--deck": "#1C1A18",
   "--deck-edge": "#3A3632",
   /** Instrument labels: 4.4:1 at 10px/600, which is over the large-text bar. */

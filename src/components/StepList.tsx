@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import type { EditableValue } from "../../shared/editing";
 import { sharedLayerName } from "../../shared/labels";
+import type { PlayStepStatus } from "../state/stepStatus";
 import type { MacroStep } from "../types";
 import { StepRow } from "./StepRow";
 
@@ -17,6 +18,12 @@ export interface StepListProps {
   autoScroll?: boolean;
   /** Index of the step currently being played back. */
   activeIndex?: number;
+  /**
+   * Per-step playback status, keyed by index into `steps`. Set only by the
+   * macro card while THAT macro plays — the live feed and the review sheet
+   * pass nothing and render exactly as before.
+   */
+  statuses?: ReadonlyMap<number, PlayStepStatus>;
 }
 
 /** Shared step renderer for the live feed, review sheet, and macro detail. */
@@ -29,6 +36,7 @@ export function StepList({
   paramIds,
   autoScroll,
   activeIndex,
+  statuses,
 }: StepListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -96,6 +104,7 @@ export function StepList({
             onToggleParam={onToggleParam}
             param={paramIds?.includes(step.id)}
             active={index === activeIndex}
+            {...(statuses?.get(index) ? { status: statuses.get(index) } : {})}
           />
         ))}
       </ul>

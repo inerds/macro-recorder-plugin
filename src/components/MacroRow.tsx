@@ -7,6 +7,7 @@ import { describePlaybackMode, playbackModeHint } from "../../shared/playbackMod
 import { keyframeSpan } from "../../shared/steps";
 import type { PlayOptions } from "../gateways/types";
 import type { PlayingState } from "../state/appReducer";
+import { stepStatusFor, type PlayStepStatus } from "../state/stepStatus";
 import type { Macro } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
 import { OverflowMenu } from "./OverflowMenu";
@@ -94,10 +95,20 @@ export function MacroRow({
   // the list renders every step, so map back to its own index.
   const enabled = macro.steps.filter((step) => step.disabled !== true);
   let activeIndex: number | undefined;
+  // Per-row pending/running/done/failed, keyed by FULL-array index — the same
+  // enabled→full walk, so a skipped step simply gets no entry (it is not part
+  // of the run and must keep its own skipped treatment).
+  const stepStatuses = new Map<number, PlayStepStatus>();
   if (playing && enabled.length > 0) {
     const step = enabled[playing.currentStep % enabled.length];
     const position = step ? macro.steps.indexOf(step) : -1;
     if (position >= 0) activeIndex = position;
+    enabled.forEach((enabledStep, enabledIndex) => {
+      const full = macro.steps.indexOf(enabledStep);
+      if (full >= 0) {
+        stepStatuses.set(full, stepStatusFor(enabledIndex, playing, enabled.length));
+      }
+    });
   }
 
   /** Renaming is a detour: hand focus back to the row it started from. */
@@ -316,6 +327,7 @@ export function MacroRow({
                 onToggleParam={onToggleParam}
                 paramIds={(macro.params ?? []).map((param) => param.stepId)}
                 activeIndex={activeIndex}
+                {...(isPlayingThis ? { statuses: stepStatuses } : {})}
               />
               {/* The card's control footer: play leads it, so the open
                   card carries every lid ability (user ask, 2026-08-25 —

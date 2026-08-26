@@ -1,6 +1,7 @@
 import { RPC_ERRORS } from "../../../shared/protocol";
 import { trace } from "../../dev/trace";
 import type { Macro, StepResult } from "../../types";
+import { paceDelayMs, SETTLE_MS } from "../pacing";
 import {
   enabledSteps,
   repeatCount,
@@ -21,8 +22,13 @@ export class RpcPlaybackGateway implements PlaybackGateway {
     const rpc = this.rpc;
     const steps = enabledSteps(macro);
     const repeats = repeatCount(options);
+    // One budget for the whole run — see gateways/pacing.ts.
+    const delay = paceDelayMs(steps.length);
     let cancelled = false;
     let failureResolver: ((action: "continue" | "stop") => void) | null = null;
+
+    const sleep = (ms: number) =>
+      ms > 0 ? new Promise<void>((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 
     const awaitDecision = () =>
       new Promise<"continue" | "stop">((resolve) => {
@@ -53,6 +59,12 @@ export class RpcPlaybackGateway implements PlaybackGateway {
         for (let index = 0; index < begin.total; index++) {
           if (cancelled) return false;
           onEvent({ kind: "progress", stepIndex: offset + index });
+          // The dwell is "step selected, about to execute" — it belongs
+          // BETWEEN the progress event and the call, so the row is lit while
+          // the step runs. A sleep is an await like any other: Stop during it
+          // must not fire the step it was waiting on.
+          await sleep(delay);
+          if (cancelled) return false;
           const result = await rpc.call("playback.step", { index });
           if (cancelled) return false;
           const stepNotes = (result.notes ?? []).map(
@@ -111,6 +123,9 @@ export class RpcPlaybackGateway implements PlaybackGateway {
         for (let iteration = 0; iteration < repeats; iteration++) {
           if (!(await pass(iteration, allNotes))) return;
         }
+        if (cancelled) return;
+        // The settle beat: the last row shows done before the run does.
+        await sleep(SETTLE_MS);
         if (!cancelled) onEvent({ kind: "done", notes: allNotes });
       } finally {
         void trace.flush(`playback-${macro.name}`);

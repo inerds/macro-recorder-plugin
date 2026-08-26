@@ -199,8 +199,21 @@ adding one on an occupied frame updates it in place.
 
 ### While it plays
 
-The row shows *Playing step X of Y*, and the expanded step list follows
-along. Three things can interrupt it:
+Playing **opens the macro's card** and walks its step list, one step at a
+time, so you can watch the macro happen rather than see it land all at once:
+
+- the step about to run is **lit and highlighted**; steps not reached yet
+  are dimmed
+- a step that lands swaps its number for a **✓**
+- a step that fails swaps its number for a **red marker** and keeps it for
+  the rest of the run, even if you Continue past it
+- the row shows *Playing step X of Y* throughout
+
+The pace scales with the macro: a short one steps about three times a
+second, a long one (a whole captured timeline, say) speeds up so the walk
+still takes a few seconds rather than a minute.
+
+Three things can interrupt it:
 
 - **A step fails** (e.g. "Step 3 failed — couldn't find fill 2 to remove"):
   the row pauses with **Continue** / **Stop**.

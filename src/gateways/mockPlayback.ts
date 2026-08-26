@@ -1,4 +1,5 @@
 import type { Macro, StepResult } from "../types";
+import { paceDelayMs, SETTLE_MS } from "./pacing";
 import {
   enabledSteps,
   repeatCount,
@@ -15,9 +16,10 @@ export type PlaybackScenario = "pass" | "fail-step-3" | "no-selection";
  */
 export class MockPlaybackGateway implements PlaybackGateway {
   private scenario: PlaybackScenario;
-  private stepMs: number;
+  /** Explicit per-step timing; unset means the real run's pacing budget. */
+  private stepMs?: number;
 
-  constructor(scenario: PlaybackScenario = "pass", stepMs = 500) {
+  constructor(scenario: PlaybackScenario = "pass", stepMs?: number) {
     this.scenario = scenario;
     this.stepMs = stepMs;
   }
@@ -32,7 +34,10 @@ export class MockPlaybackGateway implements PlaybackGateway {
     let cancelled = false;
     let pendingFailure: ((action: "continue" | "stop") => void) | null = null;
     const scenario = this.scenario;
-    const stepMs = this.stepMs;
+    // Demo mode must feel like Creator, so it walks on the same budget
+    // (keyed on the ENABLED count, not the repeat-multiplied total, exactly
+    // as the RPC gateway does). A constructor override still wins.
+    const stepMs = this.stepMs ?? paceDelayMs(steps.length);
 
     const sleep = (ms: number) =>
       new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -73,6 +78,10 @@ export class MockPlaybackGateway implements PlaybackGateway {
 
         onEvent({ kind: "step-done", stepIndex: i });
       }
+      if (cancelled) return;
+      // Same settle beat as the real gateway — the last row reads as done
+      // before the run does.
+      await sleep(SETTLE_MS);
       if (!cancelled) onEvent({ kind: "done" });
     }
 

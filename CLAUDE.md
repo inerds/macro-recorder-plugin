@@ -15,7 +15,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (127 tests, ~350ms)
+pnpm test                      # vitest run (373 tests, <1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 ```
@@ -421,7 +421,9 @@ load-bearing:
   network assets, system font stacks only (`--font-sans`, `--font-mono` are
   overridden too).
 - Small red text uses `--ink-red-text` (#B5301F, 5.2:1), never `--primary`
-  (#C8382B) — that one is for fills. Muted body copy is `--muted-foreground`
+  (#C8382B) — that one is for fills. Success signals (the completion flash)
+  use `--lamp-green` (#5C9457); red on this panel always means action or
+  failure, never "done". Muted body copy is `--muted-foreground`
   (#6B635B); instrument labels are `--label-fg` (#5E564F).
 - `.key`, `.key-quiet`, `.card`, `.instrument`, `.mono`, `.lamp` are the
   skin's vocabulary. `.key` is written as `.key.key` on purpose: the

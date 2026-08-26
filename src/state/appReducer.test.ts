@@ -203,6 +203,67 @@ describe("playback flow", () => {
     });
   });
 
+  it("starts with nothing done and nothing failed", () => {
+    expect(playing).toMatchObject({
+      mode: "playing",
+      playing: { doneCount: 0, failedSteps: [] },
+    });
+  });
+
+  it("counts completed steps, and a late duplicate can't walk the count back", () => {
+    let state = appReducer(playing, { type: "PLAY_STEP_DONE", stepIndex: 0 });
+    expect(state.mode === "playing" && state.playing.doneCount).toBe(1);
+    state = appReducer(state, { type: "PLAY_STEP_DONE", stepIndex: 1 });
+    expect(state.mode === "playing" && state.playing.doneCount).toBe(2);
+    state = appReducer(state, { type: "PLAY_STEP_DONE", stepIndex: 0 });
+    expect(state.mode === "playing" && state.playing.doneCount).toBe(2);
+  });
+
+  it("remembers which steps failed, and Continue keeps the mark", () => {
+    const failed = appReducer(playing, {
+      type: "PLAY_STEP_FAILED",
+      stepIndex: 1,
+      message: "x",
+    });
+    expect(failed.mode === "playing" && failed.playing.failedSteps).toEqual([1]);
+    const continued = appReducer(failed, {
+      type: "PLAY_FAILURE_RESOLVED",
+      action: "continue",
+    });
+    expect(continued.mode === "playing" && continued.playing.failedSteps).toEqual([1]);
+    expect(continued.mode === "playing" && continued.playing.error).toBeNull();
+    // The same index twice (one failure, re-reported) is still one mark.
+    const again = appReducer(continued, {
+      type: "PLAY_STEP_FAILED",
+      stepIndex: 1,
+      message: "x",
+    });
+    expect(again.mode === "playing" && again.playing.failedSteps).toEqual([1]);
+  });
+
+  it("opens the played macro's card so the run is visible", () => {
+    const collapsed = appReducer(idleState([macro("m1"), macro("m2")]), {
+      type: "PLAY_START",
+      macroId: "m2",
+      total: 3,
+    });
+    expect(collapsed.mode === "playing" && collapsed.expandedId).toBe("m2");
+    // It wins over whatever was open before.
+    const other = appReducer(
+      idleState([macro("m1"), macro("m2")], { expandedId: "m1" }),
+      { type: "PLAY_START", macroId: "m2", total: 3 },
+    );
+    expect(other.mode === "playing" && other.expandedId).toBe("m2");
+  });
+
+  it("ignores PLAY_STEP_DONE outside playing", () => {
+    expect(appReducer(base, { type: "PLAY_STEP_DONE", stepIndex: 1 })).toBe(base);
+    const recording = recordWithSteps(1);
+    expect(appReducer(recording, { type: "PLAY_STEP_DONE", stepIndex: 0 })).toBe(
+      recording,
+    );
+  });
+
   it("records a step failure awaiting a decision", () => {
     const state = appReducer(playing, {
       type: "PLAY_STEP_FAILED",
