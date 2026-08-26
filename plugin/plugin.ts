@@ -1,10 +1,14 @@
 import type { Macro } from "../shared/macro";
 import { ENGINE_REV, isRpcMessage, PROTOCOL_VERSION } from "../shared/protocol";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
-import { recordCaptureKeyframes, recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
+import { initSelectionEvents, recordCaptureKeyframes, recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
 import { handleMessage, registerHandler } from "./rpc-server";
 import { listMacros, removeMacro, renameMacro, saveMacro } from "./store";
 import { sendTheme, watchTheme } from "./theme";
+
+// Feature-detected: caches selection:keyframes events for the capture
+// offer (the polled getter is empty-in-practice on the live host).
+initSelectionEvents();
 
 creator.ui.show({ width: 300, height: 520 });
 

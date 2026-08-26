@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-26 — "Add selected" verified against live traces; event fallback (rev .46)
+
+| Issue | Fix |
+|---|---|
+| **"Add selected" never worked live** — five debug sessions (revs .42–.44) prove `creator.selection.keyframes` is a real but permanently EMPTY array on the host: `selectedCount` stayed 0 even with 21 keyframes on the offered layer, so the key was always disabled. ("Add all", by contrast, is fully live-verified: up to 198 captured steps retargeted with 0 failures.) | Filed in LIMITATIONS.md with the trace evidence. Rev .46 subscribes to the typed `selection:keyframes` event (feature-detected) and feeds the offer/capture from the latest event payload when the getter polls empty — the remaining route by which the host could deliver the selection; `selectionIntrospection` now reports `events: {supported, fired, lastCount}` so the next trace settles it. The disabled key's tooltip now tells the truth ("Creator hasn't reported any selected keyframes to plugins"). Triage taxonomy gains #16 (zero-delta transform statics: intentional) and #17 (this platform limit). |
+
+---
+
 ## 2026-08-25 — Capture carries the whole fill (rev .45)
 
 | Issue | Fix |

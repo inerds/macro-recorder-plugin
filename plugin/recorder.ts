@@ -85,6 +85,11 @@ function introspectSelection(): Json {
     } catch (error) {
       result.keyframesType = `threw: ${error instanceof Error ? error.message : String(error)}`;
     }
+    result.events = {
+      supported: selectionEvents.supported,
+      fired: selectionEvents.fired,
+      lastCount: selectionEvents.entries.length,
+    };
     if (Array.isArray(keyframes) && keyframes.length > 0) {
       const first: AnyProxy = keyframes[0];
       result.firstEntrySurface = surfaceOf(first) as unknown as Json;
@@ -379,20 +384,8 @@ function selectedNodes(): AnyProxy[] {
   }
 }
 
-/**
- * Defensive read of the SELECTED-KEYFRAMES surface. Returns undefined when
- * the surface is missing/non-array (feature detection — it is typed but has
- * never been live-verified); otherwise the entries' {frame, value} pairs,
- * value null when unreadable. Ids are useless (host recycles them).
- */
-function selectedKeyframes(): SelectedKf[] | undefined {
-  let list: AnyProxy;
-  try {
-    list = (creator.selection as AnyProxy).keyframes;
-  } catch {
-    return undefined;
-  }
-  if (!Array.isArray(list)) return undefined;
+/** Reads a host keyframe list into {frame, value} pairs, defensively. */
+function readSelectedList(list: AnyProxy[]): SelectedKf[] {
   const out: SelectedKf[] = [];
   for (const kf of list) {
     let frame: number;
@@ -411,6 +404,67 @@ function selectedKeyframes(): SelectedKf[] | undefined {
     out.push({ frame, value });
   }
   return out;
+}
+
+/**
+ * Latest `selection:keyframes` EVENT payload. Live sessions proved the
+ * polled getter (`creator.selection.keyframes`) reads as a permanently
+ * EMPTY array on the real host (LIMITATIONS.md, traces 2026-08-24/25) —
+ * this typed event is the remaining route by which a host could deliver
+ * the selection. The cache is replaced wholly per fire; `fired` counts
+ * land in the selectionIntrospection probe so traces settle whether the
+ * event exists in practice.
+ */
+const selectionEvents = {
+  supported: false,
+  fired: 0,
+  entries: [] as SelectedKf[],
+};
+
+export function initSelectionEvents(): void {
+  try {
+    const on = (creator as AnyProxy).on;
+    if (typeof on !== "function") return;
+    on.call(creator, "selection:keyframes", (event: AnyProxy) => {
+      selectionEvents.fired += 1;
+      // Typed as PluginEvent {type, data}; accept a bare array defensively.
+      let data: AnyProxy;
+      try {
+        data = Array.isArray(event) ? event : event?.data;
+      } catch {
+        data = undefined;
+      }
+      selectionEvents.entries = readSelectedList(Array.isArray(data) ? data : []);
+    });
+    selectionEvents.supported = true;
+  } catch {
+    // host without an event bus — the getter path still runs
+  }
+}
+
+/**
+ * Defensive read of the SELECTED-KEYFRAMES surface. Returns undefined when
+ * neither the getter nor the event bus exists (feature detection);
+ * otherwise the entries' {frame, value} pairs — from the polled getter
+ * when it has entries, else from the latest selection:keyframes event.
+ */
+function selectedKeyframes(): SelectedKf[] | undefined {
+  let list: AnyProxy;
+  let getterLive = false;
+  try {
+    list = (creator.selection as AnyProxy).keyframes;
+    getterLive = Array.isArray(list);
+  } catch {
+    // fall through to the event cache
+  }
+  if (getterLive && (list as AnyProxy[]).length > 0) {
+    return readSelectedList(list as AnyProxy[]);
+  }
+  if (selectionEvents.supported && selectionEvents.entries.length > 0) {
+    return [...selectionEvents.entries];
+  }
+  if (getterLive || selectionEvents.supported) return [];
+  return undefined;
 }
 
 /**

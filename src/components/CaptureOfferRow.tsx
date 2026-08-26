@@ -48,7 +48,9 @@ export function CaptureOfferRow({ offer, alreadyCapturedAll, onCapture }: Captur
             className="press key-quiet"
             disabled={selectedCount === 0}
             title={
-              selectedCount === 0 ? "The selected keyframes are on another layer" : undefined
+              selectedCount === 0
+                ? "Creator hasn't reported any selected keyframes to plugins"
+                : undefined
             }
             onClick={() => onCapture("selected")}
             data-testid="capture-selected-button"

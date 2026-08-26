@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-25.45";
+export const ENGINE_REV = "2026-08-26.46";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =

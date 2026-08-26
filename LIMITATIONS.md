@@ -9,6 +9,33 @@ the user sees instead, and any path that could lift it.
 
 ---
 
+## Selected keyframes (`creator.selection.keyframes`) — empty in practice
+
+**What doesn't work:** the capture offer's "Add selected" — pulling only the
+keyframes the user selected on the timeline into a recording.
+
+**Why (evidence):** the surface is typed (`SelectionAPI.keyframes`, event
+`selection:keyframes`) and IS live — `introspectSelection` probes show a real
+own-property array, no throw — but it read `array(0)` at every probe and
+`selectedCount` stayed 0 on every tick across five debug sessions at revs
+.42/.43/.44 (traces 2026-08-24T17-50-25 / 18-18-05, 2026-08-25T03-47-55 /
+03-49-39 / 05-27-04), including the "Pink Flower" session where the layer
+under offer carried 21 keyframes of its own. The polled getter never
+reflects the timeline selection in this host build.
+
+**What the user sees:** "Add selected (0)", disabled, with the tooltip
+"Creator hasn't reported any selected keyframes to plugins". "Add all" is
+unaffected and fully live-verified.
+
+**Path to lift:** rev .46 subscribes to the typed `selection:keyframes`
+event (feature-detected) and feeds the capture offer from the latest event
+payload when the getter polls empty; the `selectionIntrospection` probe now
+reports `events: {supported, fired, lastCount}`, so the next debug trace
+proves whether the host ever fires it. If it never does, the ask upstream
+is for either surface to actually populate.
+
+---
+
 ## Fill / stroke opacity (per-paint) — cannot record or replay
 
 **What:** Changing a fill's own opacity slider (Appearance panel, under the

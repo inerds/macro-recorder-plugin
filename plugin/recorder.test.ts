@@ -92,3 +92,81 @@ describe("recordStop's whole-session debug fallback", () => {
     expect(result.debug?.prev.layers[0]?.props.position?.static).toEqual({ x: 0, y: 0 });
   });
 });
+
+describe("selection:keyframes event fallback", () => {
+  // Live sessions proved the polled getter is a permanently EMPTY array on
+  // the real host; the typed selection:keyframes event is the remaining
+  // route. The recorder caches the latest event payload and the offer /
+  // capture read it when the getter has nothing.
+  function stubCreatorWithEvents(scene: Any) {
+    const handlers: Record<string, (e: Any) => void> = {};
+    (globalThis as Any).creator = {
+      activeScene: scene,
+      selection: { nodes: [], keyframes: [] }, // getter live but empty — the observed host shape
+      on(type: string, cb: (e: Any) => void) {
+        handlers[type] = cb;
+      },
+      ui: { postMessage() {}, onMessage() {}, show() {} },
+    };
+    return handlers;
+  }
+
+  async function setup() {
+    const nextId = makeIds();
+    const layer = makeNode(
+      "Flower",
+      { props: { position: { x: 0, y: 0 } } },
+      nextId,
+    );
+    layer.position.addKeyframes([
+      { frame: 0, value: { x: 0, y: 0 } },
+      { frame: 30, value: { x: 9, y: 9 } },
+    ]);
+    const scene = makeSceneRoot(nextId, [layer]);
+    const handlers = stubCreatorWithEvents(scene);
+    const { initSelectionEvents, recordCaptureKeyframes } = await import("./recorder");
+    initSelectionEvents();
+    (globalThis as Any).creator.selection.nodes = [layer];
+    recordStart({});
+    return { layer, handlers, recordCaptureKeyframes };
+  }
+
+  it("event entries feed selectedCount when the getter polls empty", async () => {
+    const { handlers, layer } = await setup();
+    expect(recordTick(1).captureOffer?.selectedCount).toBe(0);
+
+    // Host pushes the selection through the event (PluginEvent {type, data}).
+    handlers["selection:keyframes"]?.({
+      type: "selection:keyframes",
+      data: [{ id: "k1", frame: 30, value: { x: 9, y: 9 } }],
+    });
+    const offer = recordTick(2).captureOffer;
+    expect(offer?.layerId).toBe(layer.id);
+    expect(offer?.selectedCount).toBe(1);
+  });
+
+  it("scope=selected captures the event-selected keyframes", async () => {
+    const { handlers, layer, recordCaptureKeyframes } = await setup();
+    handlers["selection:keyframes"]?.({
+      type: "selection:keyframes",
+      data: [{ id: "k1", frame: 30, value: { x: 9, y: 9 } }],
+    });
+    recordTick(1);
+    const { steps } = recordCaptureKeyframes({ layerId: String(layer.id), scope: "selected" });
+    expect(steps).toHaveLength(1);
+    const payload = steps[0]!.payload as Any;
+    expect(payload.op).toBe("keyframes");
+    expect(payload.added).toEqual([{ frame: 30, value: { x: 9, y: 9 } }]);
+  });
+
+  it("an emptying event clears the cache (deselection)", async () => {
+    const { handlers } = await setup();
+    handlers["selection:keyframes"]?.({
+      type: "selection:keyframes",
+      data: [{ id: "k1", frame: 30, value: { x: 9, y: 9 } }],
+    });
+    expect(recordTick(1).captureOffer?.selectedCount).toBe(1);
+    handlers["selection:keyframes"]?.({ type: "selection:keyframes", data: [] });
+    expect(recordTick(2).captureOffer?.selectedCount).toBe(0);
+  });
+});

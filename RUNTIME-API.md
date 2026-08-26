@@ -52,12 +52,15 @@ corner-radius drag produces no snapshot change (LIMITATIONS.md, 2026-08-23).
   `createStroke` (specs are plain objects, gradient specs accepted).
 - Scene: `toJSON()`, `export()`, `createShapeLayer()`, `createSceneLayer()`,
   `createImageLayer()`, `createTextLayer()`, `isNestableScene`.
-- `creator.selection.keyframes` — **live-verified to exist** (2026-08-25):
-  the capture offer's "Add selected (0)" rendered in a real Creator session,
-  which requires the surface to read back as an array. Entry shape and
-  whether selected entries actually match layer keyframes are still
-  unverified — the `selectionIntrospection` probe on a debug `record.start`
-  will settle that with the next trace.
+- `creator.selection.keyframes` — **live but EMPTY in practice** (2026-08-25/26):
+  a real own-property array on `creator.selection` (probe surface confirms),
+  but `array(0)` at every `selectionIntrospection` probe and
+  `selectedCount: 0` on every tick across five debug sessions — the getter
+  never reflects the timeline selection. Entry shape therefore still
+  unknown. Rev .46 also listens for the typed `selection:keyframes` event
+  (feature-detected) and reports `events: {supported, fired, lastCount}` in
+  the probe; whether the host ever FIRES it is the open question. See
+  LIMITATIONS.md.
 - Text layer: `text`, `fontFamily`, `fontStyle`, `alignment` (plain strings),
   `fontSize` (plain number), **singular** `fill` / `stroke` paints.
 - Scene-instance layer: `break()` (spills content into parent scene — works).

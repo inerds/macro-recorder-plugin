@@ -61,6 +61,8 @@ Event kinds:
 | 9 | Transient tick error hard-stops recording (the UI is told via `onEnded`, but one flaky RPC ends the session) | `src/gateways/rpc/recorderGateway.ts:63-73` |
 | 10 | Keyframe values apply verbatim in offset mode, unlike the same property's static form | `plugin/applier.ts:142-197,246-250` |
 | 11 | Single-node recording — no child recursion, no selection listener (**accepted, not a bug to file**) | `plugin/recorder.ts:10-29` |
+| 16 | Captured scope-"all" transform statics (`position/scale/rotation/skew/skewAxis`, path length 1, before === after) replay with identical probes, no failures, no notes — matches the silent-no-op signature but is **intentional zero-delta design** (a retargeted style capture must not teleport the target; `shared/relative.ts` combine() yields baseline+0 / baseline×1 deterministically). In SCENE mode they apply exactly (state restore). **Accepted, not a bug to file.** | `shared/capture.ts`, `shared/snapshot.ts` propClassOf |
+| 17 | `captureOffer.selectedCount` stuck at 0 / "Add selected" disabled — `creator.selection.keyframes` is live but EMPTY in practice on the real host (LIMITATIONS.md, five sessions of evidence). Since rev .46 a `selection:keyframes` event listener feeds the offer when it fires; check `selectionIntrospection.events.fired` in the trace before classifying. **Platform limit, not a plugin bug.** | `plugin/recorder.ts` selectedKeyframes/initSelectionEvents |
 
 ### Fixed — a trace showing one of these means a regression, not a known bug
 
