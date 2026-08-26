@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, open findings in the failure taxonomy.
 
 ---
 
+## 2026-08-26 — "This layer can't take fills" on retarget (rev .47)
+
+| Issue | Fix |
+|---|---|
+| **Replaying a captured fill onto another ellipse failed at step 0** ("Ellipse 1: this layer can't take fills") — a topology mismatch: the source layer kept its fill inside a GROUP (`shapes[0].fills[0]`), the target keeps its own at the layer root, and replay resolved the target's bare geometry shape (no fills, no `addFill`) and threw. Worse, the code path removed the old fill *before* discovering it couldn't create the new one (harmless in the live traces only because the removal happened to fail first). | Paint ops now resolve the target's fill **by role, not recorded path**: `resolvePaint` descends the first-shape chain from the root when the recorded container holds no paints (works in both directions, group→flat and flat→group), `replace-paint` checks creation capability **before** removing anything, degrades to writing the spec onto the existing paint in place when the host can't swap fills, creates the fill on capable bare targets, and notes every adaptation. Deep component recolors gain the same fallback. |
+
+---
+
 ## 2026-08-26 — "Add selected" verified against live traces; event fallback (rev .46)
 
 | Issue | Fix |

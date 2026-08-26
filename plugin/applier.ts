@@ -462,6 +462,81 @@ function addPaintTo(container: AnyProxy, spec: PaintSnapshot): void {
   throw new Error("this layer can't take fills");
 }
 
+function canCreatePaint(container: AnyProxy): boolean {
+  return (
+    typeof tryRead(() => container?.addFill) === "function" ||
+    typeof tryRead(() => container?.createFill) === "function"
+  );
+}
+
+/** One spec component written onto an existing paint prop's staticValue. */
+function writeComponent(paint: AnyProxy, key: string, snap: { static?: Json } | undefined): boolean {
+  if (!snap || snap.static === undefined) return false;
+  const prop = tryRead(() => paint[key]);
+  if (prop === undefined || prop === null || typeof prop !== "object") return false;
+  try {
+    (prop as AnyProxy).staticValue = snap.static;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Writes a recorded PaintSnapshot onto an EXISTING paint in place — for
+ * hosts whose containers expose readable fills but no addFill/createFill
+ * (live: "Ellipse 1 can't take fills", trace 2026-08-26T03-56-02). Same
+ * kind writes every component; cross-kind adapts (first stop's color /
+ * tint every stop) since the kind can't change without re-creation.
+ */
+function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, notes: string[]): void {
+  if (spec.kind === "solid") {
+    if (writeComponent(paint, "color", spec.color)) {
+      writeComponent(paint, "opacity", spec.opacity);
+      notes.push(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
+      return;
+    }
+    // solid spec onto a gradient paint: tint every stop
+    const stopsProp = tryRead(() => paint.stops);
+    const current = stopsProp ? toJson(tryRead(() => (stopsProp as AnyProxy).staticValue)) : null;
+    if (Array.isArray(current) && current.length > 0 && spec.color.static !== undefined) {
+      try {
+        (stopsProp as AnyProxy).staticValue = current.map((stop) =>
+          stop !== null && typeof stop === "object" && !Array.isArray(stop)
+            ? { ...stop, color: spec.color.static as Json }
+            : stop,
+        );
+        notes.push(`this layer's ${label} is a gradient — applied the recorded color to every stop`);
+        return;
+      } catch {
+        // fall through
+      }
+    }
+    notes.push(`couldn't apply the recorded fill to this layer's ${label}`);
+    return;
+  }
+  if (spec.kind === "gradient") {
+    if (writeComponent(paint, "stops", spec.stops)) {
+      writeComponent(paint, "start", spec.start);
+      writeComponent(paint, "end", spec.end);
+      writeComponent(paint, "highlightAngle", spec.highlightAngle);
+      writeComponent(paint, "highlightLength", spec.highlightLength);
+      writeComponent(paint, "opacity", spec.opacity);
+      notes.push(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
+      return;
+    }
+    // gradient spec onto a solid paint: first stop's color
+    const color = firstStopColor(staticOf(spec.stops, []));
+    if (color !== undefined && writeComponent(paint, "color", { static: color })) {
+      notes.push(`this layer's ${label} is solid — applied the gradient's first color`);
+      return;
+    }
+    notes.push(`couldn't apply the recorded fill to this layer's ${label}`);
+    return;
+  }
+  notes.push(`couldn't apply the recorded fill to this layer's ${label}`);
+}
+
 /** Applies keyframes recorded on a spec's animatable onto a fresh property. */
 function seedAnimatable(prop: AnyProxy, snap: { static?: Json; keyframes?: KfSnap[] } | undefined) {
   if (!prop || !snap) return;
@@ -766,8 +841,46 @@ export function applyStep(
     }
 
     case "replace-paint": {
-      const { container, marker, index } = splitStructural(target, payload.path, notes);
-      if (!removeListEntry(container, marker, index)) {
+      const marker = payload.path[payload.path.length - 2];
+      if (marker === "fills") {
+        // Topology-aware: the recorded path says where the SOURCE kept its
+        // fill; resolvePaint finds the TARGET's corresponding paint even
+        // when its structure differs (group-nested vs flat — the live
+        // "Ellipse 1: this layer can't take fills" failure). Capability is
+        // checked BEFORE any removal, so a host whose containers can't
+        // create fills degrades to writing the spec onto the existing
+        // paint in place — never destroy-then-throw.
+        const resolved = resolvePaint(target, [...payload.path, "color"]);
+        if (!resolved) {
+          // No existing fill anywhere — CREATE one where the host allows it
+          // ("make it look like this" includes a layer that had no fill).
+          const { container } = splitStructural(target, payload.path, notes);
+          const creator_ = canCreatePaint(container)
+            ? container
+            : canCreatePaint(target)
+              ? target
+              : undefined;
+          if (creator_) {
+            addPaintTo(creator_, payload.spec);
+            notes.push("this layer had no fill — added the recorded one");
+          } else {
+            notes.push("this layer can't hold a fill — skipped");
+          }
+          return { notes };
+        }
+        if (resolved.remapped) notes.push("applied to this layer's first fill");
+        if (canCreatePaint(resolved.container)) {
+          if (!removeListEntry(resolved.container, "fills", resolved.index)) {
+            notes.push("couldn't remove the old fill — the new one was added alongside");
+          }
+          addPaintTo(resolved.container, payload.spec);
+        } else {
+          applySpecInPlace(resolved.paint, payload.spec, resolved.label, notes);
+        }
+        return { notes };
+      }
+      const { container, marker: m, index } = splitStructural(target, payload.path, notes);
+      if (!removeListEntry(container, m, index)) {
         notes.push("couldn't remove the old fill — the new one was added alongside");
       }
       addPaintTo(container, payload.spec);
@@ -979,6 +1092,30 @@ interface ResolvedPaint {
 }
 
 /** Finds the paint a fills/strokes color path refers to, remapping index. */
+/**
+ * Topology fallback: the recorded path said where the SOURCE kept its fill
+ * (e.g. inside a GROUP at shapes[0]); the target may keep its own at the
+ * layer root, or vice versa (live: Circle 3's group fill retargeted onto a
+ * flat Ellipse 1 — trace 2026-08-26T03-56-02). A recolor is a recolor:
+ * find the target's nearest paint list by descending the first-shape chain
+ * from the root.
+ */
+function findNearestFills(
+  target: AnyProxy,
+): { container: AnyProxy; fills: AnyProxy[] } | undefined {
+  let node: AnyProxy = target;
+  for (let depth = 0; node && depth < 5; depth++) {
+    const fills = tryRead(() => node.fills);
+    if (Array.isArray(fills) && fills.length > 0) return { container: node, fills };
+    const single = tryRead(() => node.fill);
+    if (single !== undefined && single !== null) return { container: node, fills: [single] };
+    const shapes = tryRead(() => node.shapes);
+    if (!Array.isArray(shapes) || shapes.length === 0) return undefined;
+    node = shapes[0];
+  }
+  return undefined;
+}
+
 function resolvePaint(target: AnyProxy, path: Path): ResolvedPaint | undefined {
   // support deep paths: [...(shapes,i)*, 'fills', i, leaf]
   const fillsAt = path.lastIndexOf("fills");
@@ -986,19 +1123,29 @@ function resolvePaint(target: AnyProxy, path: Path): ResolvedPaint | undefined {
   if (fillsAt >= 0 && typeof path[fillsAt + 1] === "number" && path.length === fillsAt + 3) {
     const container =
       fillsAt > 0 ? tryRead(() => resolvePath(target, path.slice(0, fillsAt))) : target;
-    let fills = tryRead(() => container?.fills);
+    let host = container;
+    let fills = tryRead(() => host?.fills);
     if (!Array.isArray(fills)) {
       // text layers: singular fill
-      const single = tryRead(() => container?.fill);
+      const single = tryRead(() => host?.fill);
       fills = single !== undefined && single !== null ? [single] : undefined;
     }
-    if (!Array.isArray(fills) || fills.length === 0) return undefined;
+    let topologyRemap = false;
+    if (!Array.isArray(fills) || fills.length === 0) {
+      // The recorded container has no paints on THIS target — different
+      // topology (group-nested vs flat). Find the target's own fill.
+      const nearest = findNearestFills(target);
+      if (!nearest) return undefined;
+      host = nearest.container;
+      fills = nearest.fills;
+      topologyRemap = true;
+    }
     const index = path[fillsAt + 1] as number;
-    const remapped = fills[index] === undefined;
+    const remapped = topologyRemap || fills[index] === undefined;
     return {
       paint: fills[index] ?? fills[0],
-      container,
-      index: remapped ? 0 : index,
+      container: host,
+      index: fills[index] === undefined ? 0 : index,
       leaf: String(path[fillsAt + 2]),
       label: "fill",
       remapped,

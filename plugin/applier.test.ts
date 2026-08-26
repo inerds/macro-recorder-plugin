@@ -1497,3 +1497,129 @@ describe("captured whole-fill specs (replace-paint) round-trip", () => {
     expect(target.fills).toHaveLength(1);
   });
 });
+
+describe("replace-paint on a host container that can't create fills", () => {
+  // Live failure (trace 2026-08-26T03-56-02): "Ellipse 1: this layer can't
+  // take fills" — the real host's pre-existing layer containers expose
+  // readable fills but no addFill/createFill. The old code REMOVED the
+  // target's fill first and then threw. Contract: check capability BEFORE
+  // touching anything; without it, write the recorded paint's values onto
+  // the existing fill in place (kind kept, cross-kind adapts), noted.
+  function solidPaint(color: Any) {
+    return {
+      type: "SOLID",
+      color: { staticValue: color, isAnimated: false, keyframes: [], addKeyframes() {} },
+    };
+  }
+  function gradientPaint(stops: Any) {
+    return {
+      type: "GRADIENT_LINEAR",
+      stops: { staticValue: stops, isAnimated: false, keyframes: [], addKeyframes() {} },
+    };
+  }
+
+  it("same-kind solid: writes the color in place, keeps the fill, never throws", () => {
+    const target: Any = { name: "Ellipse 1", fills: [solidPaint({ r: 1, g: 2, b: 3 })] };
+    const outcome = apply(target, {
+      op: "replace-paint",
+      path: ["fills", 0],
+      spec: { kind: "solid", color: { animated: false, static: { r: 200, g: 10, b: 10 } } },
+    });
+    expect(target.fills).toHaveLength(1);
+    expect(target.fills[0].color.staticValue).toEqual({ r: 200, g: 10, b: 10 });
+    expect(outcome.notes.length).toBeGreaterThan(0);
+  });
+
+  it("same-kind gradient: writes stops in place", () => {
+    const STOPS = [{ offset: 0, color: { r: 9, g: 9, b: 9 } }];
+    const target: Any = { name: "Ellipse 1", fills: [gradientPaint([{ offset: 0, color: { r: 0, g: 0, b: 0 } }])] };
+    const outcome = apply(target, {
+      op: "replace-paint",
+      path: ["fills", 0],
+      spec: { kind: "gradient", stops: { animated: false, static: STOPS } },
+    });
+    expect(target.fills[0].stops.staticValue).toEqual(STOPS);
+    expect(outcome.notes.length).toBeGreaterThan(0);
+  });
+
+  it("cross-kind (gradient spec, solid fill): adapts via the first stop's color", () => {
+    const target: Any = { name: "Ellipse 1", fills: [solidPaint({ r: 1, g: 2, b: 3 })] };
+    const outcome = apply(target, {
+      op: "replace-paint",
+      path: ["fills", 0],
+      spec: {
+        kind: "gradient",
+        stops: { animated: false, static: [{ offset: 0, color: { r: 77, g: 0, b: 0 } }] },
+      },
+    });
+    expect(target.fills[0].color.staticValue).toEqual({ r: 77, g: 0, b: 0 });
+    expect(outcome.notes.some((n) => /solid/i.test(n))).toBe(true);
+  });
+
+  it("no fill at that index at all: notes and skips, no throw", () => {
+    const target: Any = { name: "Bare", fills: [] };
+    const outcome = apply(target, {
+      op: "replace-paint",
+      path: ["fills", 0],
+      spec: { kind: "solid", color: { animated: false, static: { r: 1, g: 1, b: 1 } } },
+    });
+    expect(outcome.notes.length).toBeGreaterThan(0);
+  });
+});
+
+describe("paint topology mismatch on retarget (trace 2026-08-26T03-56-02)", () => {
+  // Recorded on a GROUP-based layer (fill nested at shapes[0].fills[0]),
+  // replayed onto a flat layer (fill at the root) — and the reverse. A
+  // recolor is a recolor: the paint resolves by role, not recorded path.
+  const SPEC: Any = { kind: "solid", color: { animated: false, static: { r: 32, g: 106, b: 255 } } };
+
+  it("group-nested replace-paint lands on a flat target's root fill (host with addFill)", () => {
+    const ids = makeIds();
+    const target = makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids);
+    const outcome = apply(target, { op: "replace-paint", path: ["shapes", 0, "fills", 0], spec: SPEC });
+    expect(outcome.notes).toContain("applied to this layer's first fill");
+    expect(target.fills).toHaveLength(1);
+    expect(target.fills[0].color.staticValue).toEqual({ r: 32, g: 106, b: 255 });
+  });
+
+  it("group-nested replace-paint writes in place on a flat target without addFill", () => {
+    const target: Any = {
+      name: "Ellipse 1",
+      fills: [{ type: "SOLID", color: { staticValue: { r: 9, g: 9, b: 9 }, isAnimated: false, keyframes: [], addKeyframes() {} } }],
+      shapes: [{ name: "ellipse geometry" }], // like the live host: shapes[0] holds no paints
+    };
+    const outcome = apply(target, { op: "replace-paint", path: ["shapes", 0, "fills", 0], spec: SPEC });
+    expect(target.fills).toHaveLength(1);
+    expect(target.fills[0].color.staticValue).toEqual({ r: 32, g: 106, b: 255 });
+    expect(outcome.notes.length).toBeGreaterThan(0);
+  });
+
+  it("a deep component recolor also lands on the flat target's fill", () => {
+    const ids = makeIds();
+    const target = makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids);
+    const outcome = apply(target, {
+      op: "set-static",
+      path: ["shapes", 0, "fills", 0, "color"],
+      before: { r: 0, g: 0, b: 0 },
+      after: { r: 32, g: 106, b: 255 },
+    });
+    expect(outcome.notes.length).toBeGreaterThan(0);
+    expect(target.fills[0].color.staticValue).toEqual({ r: 32, g: 106, b: 255 });
+  });
+
+  it("flat-recorded replace-paint descends into a group-nested target", () => {
+    const nested: Any = {
+      name: "Circle target",
+      fills: [],
+      shapes: [
+        {
+          name: "group",
+          fills: [{ type: "SOLID", color: { staticValue: { r: 9, g: 9, b: 9 }, isAnimated: false, keyframes: [], addKeyframes() {} } }],
+        },
+      ],
+    };
+    const outcome = apply(nested, { op: "replace-paint", path: ["fills", 0], spec: SPEC });
+    expect(nested.shapes[0].fills[0].color.staticValue).toEqual({ r: 32, g: 106, b: 255 });
+    expect(outcome.notes.length).toBeGreaterThan(0);
+  });
+});
