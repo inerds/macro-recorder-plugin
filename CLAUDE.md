@@ -8,6 +8,15 @@ run it, the playback modes, and the accepted v1 limitations. Read it first. This
 file covers what the README leaves out — the invariants that make the code the
 shape it is, and the commands the README doesn't list.
 
+## Documentation style
+
+`STYLE-GUIDE.md` is the standard for every Markdown document in this project:
+ASD-STE100 sentence construction, Google developer style mechanics, and the
+terminology table. Apply it to every documentation edit you make. Facts, paths,
+numbers, and trace ids are content, not style — a style edit never changes
+them. `CLAUDE.md` itself keeps its rationale under a lighter application of the
+guide: tighten its sentences, but never remove the "why".
+
 ## Commands
 
 ```bash
@@ -73,7 +82,7 @@ move it to `IMPROVEMENTS.md`.
 
 Add a row to `IMPROVEMENTS.md` — what was wrong, what changed, two columns, a
 sentence or two each. It is a running log the user reads to track what has been
-addressed, so a fix is not done until it is listed there. Do not put reasoning
+addressed, so a fix is not done until you list it there. Do not put reasoning
 or design notes in it; those belong here.
 
 ## Diagnostics traces
@@ -120,8 +129,8 @@ header row by default. Everything dev-only renders as sections inside its
 drawer: load demo macros / clear all / preload-when-empty, then `TraceStrip`
 (both modes), then `DebugStrip`'s mock scenario controls — which render only
 when `gateways.mocks` exists, i.e. only when the handshake *fails*, never
-inside Creator. Demo macros are built from real `StepPayload`s through
-`buildStep` (`src/dev/demoMacros.ts`) so they replay — keep them that way.
+inside Creator. `src/dev/demoMacros.ts` builds demo macros from real
+`StepPayload`s through `buildStep` so they replay — keep them that way.
 There is no bulk delete on the store surface; clear-all loops `list()` +
 `remove()`. Clear-all is a two-tap arm/confirm: `.key-armed` (index.css) is
 the armed style — `instrument-red` alone loses to `.key-outline.key-outline`
@@ -165,7 +174,7 @@ re-attempt to record it; it is a documented platform limit.
 
 ## Layering — where the proxies stop
 
-Creator's live node proxies are touched in exactly **two** files:
+Exactly **two** files touch Creator's live node proxies:
 `plugin/serialize.ts` (proxy → `NodeSnapshot`) and `plugin/applier.ts`
 (`StepPayload` → proxy writes). Everything downstream of those is plain data and
 unit-testable without a Creator mock. Preserve this: new engine logic belongs in
@@ -173,12 +182,13 @@ unit-testable without a Creator mock. Preserve this: new engine logic belongs in
 
 `shared/testing/fakeScene.ts` is the test double for that proxy surface, shared
 by `public/host-harness.html` and vitest. It reproduces the real API's traps on
-purpose — most importantly that assigning `staticValue` is silently discarded
-when keyframes exist (`plugin-api.d.ts:17-18`). Never make the fake more
-permissive than the real host; that would hide the bugs it exists to catch.
+purpose — most importantly that the host silently discards an assignment to
+`staticValue` when keyframes exist (`plugin-api.d.ts:17-18`). Never make the
+fake more permissive than the real host; that would hide the bugs it exists to
+catch.
 
-Both proxy files are defensively written because proxies vary by node type and
-any getter can throw — `serialize.ts` wraps every read in `tryRead` and simply
+Both proxy files are defensive because proxies vary by node type and any
+getter can throw — `serialize.ts` wraps every read in `tryRead` and simply
 omits unreadable properties; `shared/json.ts#toJson` deep-copies into JSON-safe
 data with a depth cap so nothing uncloneable escapes into an RPC payload. An
 absent property is a normal outcome, never an error.
@@ -186,7 +196,7 @@ absent property is a normal outcome, never an error.
 ## Engine v3 — whole-scene recording (architecture as of 2026-08-22)
 
 `RUNTIME-API.md` is required reading: the published typings are wrong in both
-directions, and every workaround in the engine is anchored to a live-verified
+directions, and every workaround in the engine anchors to a live-verified
 quirk listed there. Introspect before extending (record.start's debug probe
 dumps node/scene surfaces into traces).
 
@@ -247,17 +257,17 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   has an event bus — the event cache feeds the offer/capture when the
   getter polls empty, and `selectionIntrospection.events.{supported,fired,
   lastCount}` in the next debug trace proves whether the host ever fires
-  it. Offer emissions are deduped in `RpcRecorderGateway` — without
+  it. `RpcRecorderGateway` dedupes offer emissions — without
   that the recording screen re-renders at 2Hz. UI: `CaptureOfferRow` shares
   the above-feed slot with the discard confirm, which wins; notices now
   ride in recording mode too (the toast bridge reads idle OR recording).
 - **Replay picks a mode in `chooseMode` (plugin/playback.ts)**: macros
   touching >1 pre-existing layer or containing unretargetable scene ops
-  (remove/reorder/break/nest/fresh add-layer) run as SCENE SCRIPTS — each
+  (remove/reorder/break/nest/fresh add-layer) replay as SCENE SCRIPTS — each
   step resolves its layer id → name → priorName → skip-note; values apply
   exactly; layers created during the replay register in `layerByRecordedId`
   so later steps bound to recorded new-layer ids find them. Macros touching
-  ≤1 pre-existing layer with a selection run in TARGETS mode — apply to every
+  ≤1 pre-existing layer with a selection replay in TARGETS mode — apply to every
   selected layer with smart offsets (`propClassOf`: only length-1 transform
   paths are relative; origins = recorded first-touch value, keyframed paths
   use the lowest-frame value); duplicate steps clone each SELECTED layer
@@ -303,7 +313,7 @@ Where each piece lives and the invariants worth keeping:
   value's meaning changed). `foldKeyframes` is the net-delta algebra —
   extend it with a test per new case, it's easy to get a sign wrong.
 - `shared/editing.ts` is the single definition of "editable": the review
-  row, the macro detail and the parameter form must all go through
+  row, the macro detail, and the parameter form must all go through
   `editableValueOf`/`withEditedValue` so a value kind that's editable in one
   place is editable everywhere (and relabeled the same way).
 - Disabled steps never reach the sandbox: `enabledSteps` in
@@ -376,13 +386,13 @@ Where each piece lives and the invariants worth keeping:
 - Capture live status (2026-08-26): offer + "Add all" fully verified in
   five sessions (up to 198 steps, "Fish" → mismatched target, 0 failures,
   traces 2026-08-24T17-50…2026-08-25T05-27); "Add selected" blocked by
-  the platform — SETTLED both routes: the getter polls `array(0)` always,
+  the host — SETTLED both routes: the getter polls `array(0)` always,
   and the `selection:keyframes` event fires (311× in trace 06-03-22) with
   permanently empty payloads. LIMITATIONS.md + taxonomy #17; upstream ask.
   The moment Creator populates either surface it lights up unchanged.
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
-- v3.1 live status: at-playhead, stagger and repeat verified in traces
+- v3.1 live status: at-playhead, stagger, and repeat verified in traces
   (2026-08-21T21-45-57-555, 2026-08-22T14-25-27-048; `timeline.currentFrame`
   IS readable). Repeat ×N on a keyframe-only macro is idempotent by design —
   keyframe steps converge to the same absolute frames/values each pass;
@@ -398,7 +408,7 @@ Where each piece lives and the invariants worth keeping:
   (session scratchpad `drive/walk.mjs`, not in the repo) walks record →
   review (simplify/skip/edit/pin) → save → play options → configure sheet →
   playback against the standalone mock engine and asserts keyboard reach,
-  live-region announcements, no horizontal overflow and label widths at
+  live-region announcements, no horizontal overflow, and label widths at
   260/320px. Demo mode emits real StepPayloads precisely so this is possible
   — keep `mockRecorder.ts` on `buildStep`.
 - A persistent Monitor task watches `traces/` during dev sessions; audited
@@ -491,7 +501,7 @@ load-bearing:
 
 `src/components/deck/` — rendered once in `app.tsx`, above the mode switch, on
 **every** screen. It owns the Record/Stop transport, the step counter, the
-recording clock, the status lamp and the state word.
+recording clock, the status lamp, and the state word.
 
 - `deckState.ts` is pure and table-tested: `deriveDeckState(input, flags, now)`
   over `{mode, playbackError}` plus two timestamps. `rewind` and `done` are
@@ -520,7 +530,7 @@ recording clock, the status lamp and the state word.
   sweeps (`.deck-window::after`'s glass band at 118deg and
   `.deck-chassis::before`'s raking highlight at 100deg) run the same diagonal.
   That consistency — not any single gradient — is what makes the chassis,
-  glass, caps, lamp and LCD read as one moulded object. Adding a bottom
+  glass, caps, lamp, and LCD read as one moulded object. Adding a bottom
   highlight or a sweep on a different angle quietly undoes the whole effect,
   so match the lamp before adding a surface.
 - **The window has glass over it.** `.deck-window::after` is a specular band
@@ -558,9 +568,9 @@ recording clock, the status lamp and the state word.
   the way a deck's counter window carries time and count together. Keep them
   in one pane: two panes side by side read as two instruments, and the
   trailing gutter is only ~84px wide at 300px.
-- The faceplate's lower legend is the package version, injected as
-  `__APP_VERSION__` by `vite.config.ts` (declared in `src/vite-env.d.ts`), so
-  it can never drift from what shipped.
+- The faceplate's lower legend is the package version, which `vite.config.ts`
+  injects as `__APP_VERSION__` (declared in `src/vite-env.d.ts`), so it can
+  never drift from what shipped.
 - **The Record key's visible legend is `REC`, its accessible name is
   `Record`** (aria-label). Consequence for the headless driver: `walk.mjs`
   finds the key by aria-label, but its FIRST assertion matches `/record/i`
@@ -590,7 +600,7 @@ recording clock, the status lamp and the state word.
 - **The collapse threshold is a real breakpoint, not a round number.**
   `@container panel (max-height: 352px)` (needs `container: panel / size` on
   `.panel-root`) is set where the *list* stops working — hero ~156px, list
-  needs ~150px for its header, a row and a peek. Re-derive it whenever the
+  needs ~150px for its header, a row, and a peek. Re-derive it whenever the
   hero's height changes. It was 520px once,
   which is exactly the panel height README tells you to develop at, so the
   hero rendered collapsed at every realistic size and the reels were sliced
@@ -703,5 +713,5 @@ testing stale code. Drive it from the console via `window.harness`.
 `public/sandbox-test.html` is narrower: it reproduces the opaque-origin sandbox
 to test the no-`localStorage` / no-`randomUUID` paths.
 
-Note `.claude/launch.json` declares `https://localhost:5173`; Vite serves plain
+`.claude/launch.json` declares `https://localhost:5173`; Vite serves plain
 HTTP, so prefer `http://` as the README says.

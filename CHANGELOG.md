@@ -1,16 +1,22 @@
 # Changelog
 
-User-visible changes per shared version. One dated block per release;
-the internal grain lives in `IMPROVEMENTS.md`.
+User-visible changes per shared version. One dated block per release. The
+internal detail lives in `IMPROVEMENTS.md`.
 
 ## 0.4.0 — 2026-08-26
 
 Initial public build.
 
-- Record whole-scene edits: transforms, paints, keyframes, text, structure
-- Replay onto any selected layers with smart retargeting, or as a scene script
-- Step-by-step visible playback with per-step status
-- Review, edit, skip and simplify steps; parameters, stagger, repeat ×N
-- Capture an animated layer's keyframes or full style into a macro
-- Fixed: mask creation on replay; layer reorders now verify layer identity;
-  completion flash is green
+- Added whole-scene recording for transforms, paints, keyframes, text, and
+  structure.
+- Added replay onto any selected layers, with smart retargeting, or as a
+  scene script.
+- Added visible, step-by-step playback with per-step status.
+- Added review, edit, skip, and simplify actions for steps.
+- Added parameters, stagger, and repeat ×N as play options.
+- Added capture of an animated layer's keyframes, or its full style, into a
+  macro.
+- Fixed mask creation on replay.
+- Fixed layer-reorder replay to verify layer identity before it moves
+  anything.
+- Fixed the completion flash to show green.

@@ -940,7 +940,7 @@ export function applyStep(
         opacity: staticOf(payload.spec.opacity, 100),
       };
       if (payload.spec.mode) spec.mode = payload.spec.mode;
-      // The real host exposes createMask, NOT addMask (RUNTIME-API.md:89-92,
+      // The real host exposes createMask, NOT addMask (RUNTIME-API.md:103-106,
       // live trace 2026-08-26T08-15-40) — checking only addMask skipped every
       // mask step on a live host and cascaded into "masks[0] not found" on the
       // follow-on edits. Same addX→createX fallback as add-stroke above and
