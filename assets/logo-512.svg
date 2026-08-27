@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Macro Recorder logo - the deck's own motif at icon scale.
+    Palette is the skin's: paper #FAF6EE, ink #2A2623, chassis #1C1A18,
+    deck edge #3A3632, action red #C8382B (the record key's dot, worn
+    here by the reel hubs). No text: the reel window IS the mark.
+  -->
+  <!-- paper ground -->
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="#FAF6EE"/>
+  <!-- hairline paper edge, like .card's ring -->
+  <rect x="7" y="7" width="498" height="498" rx="110" fill="none" stroke="#2A2623" stroke-opacity="0.22" stroke-width="3"/>
+  <!-- chassis plate -->
+  <rect x="64" y="132" width="384" height="248" rx="40" fill="#1C1A18"/>
+  <!-- top-edge highlight: the skin's one light source, high and slightly left -->
+  <path d="M104 136 h304" stroke="#5A544C" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
+  <!-- window bezel -->
+  <rect x="92" y="160" width="328" height="192" rx="24" fill="none" stroke="#3A3632" stroke-width="4"/>
+  <!-- tape run between the reels (the empty-state motif, grown up) -->
+  <path d="M186 322 h140" stroke="#F5EFE3" stroke-width="12" stroke-linecap="round"/>
+  <!-- left reel -->
+  <g stroke="#F5EFE3" stroke-width="13" fill="none">
+    <circle cx="186" cy="244" r="52"/>
+  </g>
+  <g stroke="#F5EFE3" stroke-width="11" stroke-linecap="round">
+    <path d="M186 228 v-22"/>
+    <path d="M186 228 v-22" transform="rotate(120 186 244)"/>
+    <path d="M186 228 v-22" transform="rotate(240 186 244)"/>
+  </g>
+  <circle cx="186" cy="244" r="12" fill="#C8382B"/>
+  <!-- right reel -->
+  <g stroke="#F5EFE3" stroke-width="13" fill="none">
+    <circle cx="326" cy="244" r="52"/>
+  </g>
+  <g stroke="#F5EFE3" stroke-width="11" stroke-linecap="round">
+    <path d="M326 228 v-22"/>
+    <path d="M326 228 v-22" transform="rotate(120 326 244)"/>
+    <path d="M326 228 v-22" transform="rotate(240 326 244)"/>
+  </g>
+  <circle cx="326" cy="244" r="12" fill="#C8382B"/>
+</svg>
