@@ -544,7 +544,7 @@ export function AppProvider({
         if (!macro) return null;
         const json = store.exportMacro(macro);
         // File downloads are blocked in Creator's sandboxed iframe (no
-        // allow-downloads token — see LIMITATIONS.md), so sharing a macro is
+        // allow-downloads token — see docs/LIMITATIONS.md), so sharing a macro is
         // copy/paste. The async clipboard is usually denied in that
         // opaque-origin iframe too (same as TraceStrip's copy): try it, then
         // the legacy selection copy while the gesture is still warm, and only

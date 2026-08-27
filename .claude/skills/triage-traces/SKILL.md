@@ -56,7 +56,7 @@ For each confirmed finding, in order:
 - Dispatch a `macro-fixture` agent to write the regression test.
 - Review the test yourself; confirm it fails for the right reason.
 - Only then implement the fix, and re-run `pnpm test` plus `pnpm test:quickjs`.
-- Add a row to `IMPROVEMENTS.md` (issue, fix — a sentence or two each). The fix
+- Add a row to `docs/IMPROVEMENTS.md` (issue, fix — a sentence or two each). The fix
   is not done until it is logged there.
 
 Never fix without a test first — the whole point of the trace loop is that

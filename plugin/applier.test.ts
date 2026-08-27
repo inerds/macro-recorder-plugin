@@ -742,7 +742,7 @@ describe("v2: deep paths and structural ops", () => {
 
   // Live trace 2026-08-26T08-15-40-511_playback-Masked-spotlight.json (rev
   // .51): add-mask only checks `container.addMask`, but the real host has no
-  // `addMask` at all — only `createMask` (RUNTIME-API.md:103-106, live-
+  // `addMask` at all — only `createMask` (docs/RUNTIME-API.md:103-106, live-
   // verified, same pattern as add-stroke's addStroke→createStroke fallback).
   // Every bare add-mask step skips on a real host and the follow-on
   // masks.0 edits cascade into "masks[0] not found" skips.

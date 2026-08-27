@@ -476,7 +476,7 @@ function readSelectedList(list: AnyProxy[]): SelectedKf[] {
 /**
  * Latest `selection:keyframes` EVENT payload. Live sessions proved the
  * polled getter (`creator.selection.keyframes`) reads as a permanently
- * EMPTY array on the real host (LIMITATIONS.md, traces 2026-08-24/25) —
+ * EMPTY array on the real host (docs/LIMITATIONS.md, traces 2026-08-24/25) —
  * this typed event is the remaining route by which a host could deliver
  * the selection. The cache is replaced wholly per fire; `fired` counts
  * land in the selectionIntrospection probe so traces settle whether the

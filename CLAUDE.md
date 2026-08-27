@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`USER-GUIDE.md` is the end-user feature walkthrough — update it when a
+`docs/USER-GUIDE.md` is the end-user feature walkthrough — update it when a
 user-facing behaviour changes. `README.md` is the product-level document: what the plugin does, the three ways to
 run it, the playback modes, and the accepted v1 limitations. Read it first. This
 file covers what the README leaves out — the invariants that make the code the
@@ -11,11 +11,11 @@ shape it is, and the commands the README doesn't list.
 ## Documentation style
 
 This repository is open source and doubles as a reference for other Creator
-plugin developers. Write `README.md`, `RUNTIME-API.md`, and `LIMITATIONS.md`
+plugin developers. Write `README.md`, `docs/RUNTIME-API.md`, and `docs/LIMITATIONS.md`
 so an outside plugin developer can use them without this project's context.
 The README stays free of UI and skin material — the skin's rules live here.
 
-`STYLE-GUIDE.md` is the standard for every Markdown document in this project:
+`docs/STYLE-GUIDE.md` is the standard for every Markdown document in this project:
 ASD-STE100 sentence construction, Google developer style mechanics, and the
 terminology table. Apply it to every documentation edit you make. Facts, paths,
 numbers, and trace ids are content, not style — a style edit never changes
@@ -81,11 +81,11 @@ bugs cost this project a full day.
 
 ## After every fix
 
-Confirmed platform limits go in `LIMITATIONS.md` — what doesn't work, the
+Confirmed platform limits go in `docs/LIMITATIONS.md` — what doesn't work, the
 evidence, what the user sees, any path to lift it. If one is later lifted,
-move it to `IMPROVEMENTS.md`.
+move it to `docs/IMPROVEMENTS.md`.
 
-Add a row to `IMPROVEMENTS.md` — what was wrong, what changed, two columns, a
+Add a row to `docs/IMPROVEMENTS.md` — what was wrong, what changed, two columns, a
 sentence or two each. It is a running log the user reads to track what has been
 addressed, so a fix is not done until you list it there. Do not put reasoning
 or design notes in it; those belong here.
@@ -200,7 +200,7 @@ absent property is a normal outcome, never an error.
 
 ## Engine v3 — whole-scene recording (architecture as of 2026-08-22)
 
-`RUNTIME-API.md` is required reading: the published typings are wrong in both
+`docs/RUNTIME-API.md` is required reading: the published typings are wrong in both
 directions, and every workaround in the engine anchors to a live-verified
 quirk listed there. Introspect before extending (record.start's debug probe
 dumps node/scene surfaces into traces).
@@ -256,7 +256,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   staleness accepted). The walk mirrors `diffNodeInner`'s addressing exactly
   and strips host keyframe ids (recycled). `selection.keyframes` is
   SETTLED: live but permanently EMPTY on the real host (five sessions of
-  probe evidence — LIMITATIONS.md, taxonomy #17); `selectedCount` is
+  probe evidence — docs/LIMITATIONS.md, taxonomy #17); `selectedCount` is
   present only when the getter reads as an array OR the feature-detected
   `selection:keyframes` event listener (rev .46, `initSelectionEvents`)
   has an event bus — the event cache feeds the offer/capture when the
@@ -337,11 +337,11 @@ Where each piece lives and the invariants worth keeping:
 ## Open threads (as of last update)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
-  conclusively (LIMITATIONS.md). Rev .51's record.start token hunt ran in two
+  conclusively (docs/LIMITATIONS.md). Rev .51's record.start token hunt ran in two
   independent sessions (traces 2026-08-26T07-39-25/-52, 07-40-35): proxy
   chains carry only `{r,g,b}`, `node.data`/`shape.data` is the plugin's own
   empty storage, and `node.toJSON()`/`scene.toJSON()` are `{id,type}` STUBS
-  on this host (RUNTIME-API.md caveat — this also means the per-fill-opacity
+  on this host (docs/RUNTIME-API.md caveat — this also means the per-fill-opacity
   toJSON recovery finds nothing live). The hunt stays in the debug probe so a
   host that adds any surface shows up unchanged; the full ask (read a binding
   AND apply-by-reference) is upstream.
@@ -350,7 +350,7 @@ Where each piece lives and the invariants worth keeping:
   #13/#20), so a host-swallowed absolute write is indistinguishable from a
   coincidental value match in probes. No trace shows it firing; watch for it.
 
-- Nesting-from-selection: CONFIRMED platform limitation (see LIMITATIONS.md
+- Nesting-from-selection: CONFIRMED platform limitation (see docs/LIMITATIONS.md
   for the breadcrumb evidence and the upstream ask). The guess-chain stays in
   place so a future host that adds any of the routes starts working without
   code changes.
@@ -379,7 +379,7 @@ Where each piece lives and the invariants worth keeping:
   reshuffled silently. Rev .52 gates it on recorded layer identities and
   adds the scene-summary probe that closes the audit gap; the reorder itself
   still needs one clean live confirmation. (`shiftTo` throws for both guessed
-  signatures — see RUNTIME-API.md.)
+  signatures — see docs/RUNTIME-API.md.)
 - Live-verified 2026-08-26 (rev .47–.49 trace sweep): whole-fill
   `replace-paint` replay INCLUDING the topology remap (recorded
   group-nested fill → flat target's root fill really replaced, trace
@@ -393,7 +393,7 @@ Where each piece lives and the invariants worth keeping:
   traces 2026-08-24T17-50…2026-08-25T05-27); "Add selected" blocked by
   the host — SETTLED both routes: the getter polls `array(0)` always,
   and the `selection:keyframes` event fires (311× in trace 06-03-22) with
-  permanently empty payloads. LIMITATIONS.md + taxonomy #17; upstream ask.
+  permanently empty payloads. docs/LIMITATIONS.md + taxonomy #17; upstream ask.
   The moment Creator populates either surface it lights up unchanged.
 - Repeat-applying an offsets macro to the same layer compounds by design —
   now formalized as the Repeat ×N play option.
@@ -406,7 +406,7 @@ Where each piece lives and the invariants worth keeping:
   collapsed 15 → 5 steps, replayed clean). Edit/disable and params are
   verified in the standalone UI (headless walk-through, see below) but not
   yet seen in a Creator trace.
-- Rectangle corner roundness: filed in LIMITATIONS.md (dead `roundness`
+- Rectangle corner roundness: filed in docs/LIMITATIONS.md (dead `roundness`
   proxy — always 0, edits produce empty ticks). Registry entry stays so a
   host fix lights up by itself.
 - UI verification without the Chrome extension: a puppeteer-core driver
@@ -459,7 +459,7 @@ load-bearing:
   `.host-frame` gutter. The relay is the official ThemeProvider sync
   pattern (ui-library docs): `plugin/theme.ts` reads `creator.ui.theme` and
   subscribes to `change:theme` (both feature-detected — absent from typings
-  AND from our live introspection, RUNTIME-API.md item 10), forwarding
+  AND from our live introspection, docs/RUNTIME-API.md item 10), forwarding
   `{ type: "change:theme", tokens, themeName }` on boot, on `hello`, and on
   every change. Three consumers, resolution chain kept identical in all:
   the index.html head script (pre-React paint of `--host-frame-bg` on

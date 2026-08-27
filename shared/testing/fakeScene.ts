@@ -445,7 +445,7 @@ export function makeNode(
       return trim;
     },
     /**
-     * Real host has no `addMask` — only `createMask` (RUNTIME-API.md:103-106,
+     * Real host has no `addMask` — only `createMask` (docs/RUNTIME-API.md:103-106,
      * live-verified). Modelling `addMask` here would hide the applier's
      * add-mask case (plugin/applier.ts) only checking for `addMask`.
      */

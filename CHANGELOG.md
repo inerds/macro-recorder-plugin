@@ -1,7 +1,7 @@
 # Changelog
 
 User-visible changes per shared version. One dated block per release. The
-internal detail lives in `IMPROVEMENTS.md`.
+internal detail lives in `docs/IMPROVEMENTS.md`.
 
 ## 0.4.0 — 2026-08-26
 

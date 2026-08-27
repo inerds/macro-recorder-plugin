@@ -764,7 +764,7 @@ describe("add-layer replay picks the factory matching the recorded node type", (
     });
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
-    // real host exposes scene.createTextLayer() (RUNTIME-API.md:71-72) — that's
+    // real host exposes scene.createTextLayer() (docs/RUNTIME-API.md:71-72) — that's
     // the factory a recorded TEXT_LAYER spec should be rebuilt with
     expect(textLayerCalls).toBe(1);
     expect(shapeLayerCalls).toBe(0);

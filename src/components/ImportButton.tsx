@@ -33,7 +33,7 @@ function importErrorText(error: unknown): string {
 /**
  * Import lives behind a paste dialog rather than a file picker: Creator's
  * sandboxed iframe blocks downloads, so macros travel as copied JSON
- * (see LIMITATIONS.md) and the file half of the round trip went with it.
+ * (see docs/LIMITATIONS.md) and the file half of the round trip went with it.
  */
 export function ImportButton({ onImport }: ImportButtonProps) {
   const [open, setOpen] = useState(false);

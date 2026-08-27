@@ -6,7 +6,7 @@
  * `{ type: "change:theme", tokens, themeName }`.
  *
  * BOTH surfaces are absent from the published typings, and our live event
- * introspection (RUNTIME-API.md item 10) saw no change:* events at all, so
+ * introspection (docs/RUNTIME-API.md item 10) saw no change:* events at all, so
  * every touch is feature-detected: a host without them never sends the
  * message and the UI keeps its dark fallback. Absence is a normal outcome.
  */
@@ -63,6 +63,6 @@ export function watchTheme(): void {
       },
     );
   } catch {
-    // host without change:theme — see RUNTIME-API.md item 10
+    // host without change:theme — see docs/RUNTIME-API.md item 10
   }
 }

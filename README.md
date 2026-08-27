@@ -13,8 +13,8 @@ plugin needs:
 - The QuickJS sandbox constraints that the typings do not mention, above all
   the no-job-pump callback contract (`pnpm test:quickjs` enforces it).
 - The host API's real runtime surface, found by introspection
-  (`RUNTIME-API.md`), and confirmed host limits with evidence
-  (`LIMITATIONS.md`).
+  (`docs/RUNTIME-API.md`), and confirmed host limits with evidence
+  (`docs/LIMITATIONS.md`).
 - A fake host scene for tests and a browser harness that reproduce the real
   proxies' traps (`shared/testing/fakeScene.ts`, `public/host-harness.html`).
 - Trace-driven debugging: every dev session writes an auditable bundle of
@@ -29,13 +29,13 @@ strip.
 
 Document map:
 
-- `USER-GUIDE.md` — the end-user walkthrough of every feature.
-- `RUNTIME-API.md` — the host API's real runtime surface. Read it before you
+- `docs/USER-GUIDE.md` — the end-user walkthrough of every feature.
+- `docs/RUNTIME-API.md` — the host API's real runtime surface. Read it before you
   extend the engine; the published typings are wrong in both directions.
-- `LIMITATIONS.md` — confirmed host limits, with evidence.
-- `IMPROVEMENTS.md` — the running log of fixes.
+- `docs/LIMITATIONS.md` — confirmed host limits, with evidence.
+- `docs/IMPROVEMENTS.md` — the running log of fixes.
 - `CLAUDE.md` — the invariants behind the code's shape.
-- `STYLE-GUIDE.md` — the documentation style standard.
+- `docs/STYLE-GUIDE.md` — the documentation style standard.
 
 ## How the engine works
 
@@ -174,7 +174,7 @@ sandbox reproduces bugs that are already fixed.
 
 - The layout holds a `min-width: 260px` and scrolls horizontally below that.
 - Sharing is **Copy JSON** and **Import**, not file export — Creator's
-  sandboxed iframe can block downloads. `LIMITATIONS.md` tracks the host
+  sandboxed iframe can block downloads. `docs/LIMITATIONS.md` tracks the host
   limits with their evidence.
 
 ## License
