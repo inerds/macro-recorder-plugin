@@ -10,6 +10,11 @@ shape it is, and the commands the README doesn't list.
 
 ## Documentation style
 
+This repository is open source and doubles as a reference for other Creator
+plugin developers. Write `README.md`, `RUNTIME-API.md`, and `LIMITATIONS.md`
+so an outside plugin developer can use them without this project's context.
+The README stays free of UI and skin material — the skin's rules live here.
+
 `STYLE-GUIDE.md` is the standard for every Markdown document in this project:
 ASD-STE100 sentence construction, Google developer style mechanics, and the
 terminology table. Apply it to every documentation edit you make. Facts, paths,

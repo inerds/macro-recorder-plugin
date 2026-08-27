@@ -14,10 +14,11 @@ internally, see `README.md`. For what the platform cannot do, see
 
 ## 1. Install and open
 
-1. In Creator, open **Plugins → Development → Add plugin**.
-2. Point it at the built `dist/` folder. During development, point it at
-   `http://localhost:5173` instead — see `README.md`.
-3. Open **Macro Recorder** from the plugins menu. The panel lists your saved
+1. Open [creator.lottiefiles.com](https://creator.lottiefiles.com).
+2. Open the Plugins panel, and click the **+** icon at the top right.
+3. On the **Develop** tab, point it at the built plugin folder. During
+   development, enter `http://localhost:5173` instead — see `README.md`.
+4. Open **Macro Recorder** from the plugins menu. The panel lists your saved
    macros, and it starts empty.
 
 The **deck** tops every screen: the panel's transport and its status light. It

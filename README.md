@@ -4,6 +4,22 @@ Macro Recorder records the edits you make in Creator — transform changes,
 fills, keyframes, structure, and more — as a named, replayable **macro**. It
 replays those steps onto whatever you select.
 
+This repository is also an open-source **reference for Creator plugin
+developers**. Beyond the product, it documents patterns that any Creator
+plugin needs:
+
+- A panel-to-sandbox RPC protocol with a mock fallback, so every panel state
+  is reachable without Creator (`src/gateways/`, `shared/protocol.ts`).
+- The QuickJS sandbox constraints that the typings do not mention, above all
+  the no-job-pump callback contract (`pnpm test:quickjs` enforces it).
+- The host API's real runtime surface, found by introspection
+  (`RUNTIME-API.md`), and confirmed host limits with evidence
+  (`LIMITATIONS.md`).
+- A fake host scene for tests and a browser harness that reproduce the real
+  proxies' traps (`shared/testing/fakeScene.ts`, `public/host-harness.html`).
+- Trace-driven debugging: every dev session writes an auditable bundle of
+  RPC traffic, snapshots, and probes (see "Diagnostics and triage").
+
 Inside Creator, the real engine runs. The panel polls the plugin sandbox
 every 500ms over a small RPC protocol. The sandbox snapshots the scene, diffs
 it against the previous snapshot, and returns human-labeled steps. Macros
@@ -20,16 +36,6 @@ Document map:
 - `IMPROVEMENTS.md` — the running log of fixes.
 - `CLAUDE.md` — the invariants behind the code's shape.
 - `STYLE-GUIDE.md` — the documentation style standard.
-
-## The panel
-
-The panel wears one committed skin: cream surfaces, ink outlines, red as the
-only action color, and a reel-to-reel **deck** on top of every screen. The
-reels spin while you record and replay, but they are decoration — the lamp and
-the state word always carry the same information, which is what
-`prefers-reduced-motion` falls back to. The saved-macro list below reads as a
-console readout. The panel does not follow Creator's light or dark theme, and
-it loads no network assets. `CLAUDE.md` documents the skin's rules.
 
 ## How the engine works
 
@@ -83,14 +89,13 @@ and shows captured traces.
 
 ### Inside Creator
 
-Run `pnpm dev`, then add the plugin in
-[Lottie Creator](https://lottiefiles.com/creator):
+Run `pnpm dev`, then add the plugin in Creator:
 
-1. Open the Plugins panel.
-2. Click **+**.
-3. Open the **Develop** tab.
-4. Enter `http://localhost:5173`.
-5. Click Continue.
+1. Open [creator.lottiefiles.com](https://creator.lottiefiles.com).
+2. Open the Plugins panel.
+3. Click the **+** icon at the top right.
+4. Open the **Develop** tab.
+5. Enter `http://localhost:5173` and click Continue.
 
 **After any change under `plugin/` or `shared/`, remove and re-add the
 plugin.** Creator evaluates `plugin.js` once and never re-fetches it, while
