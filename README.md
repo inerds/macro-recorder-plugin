@@ -176,3 +176,7 @@ sandbox reproduces bugs that are already fixed.
 - Sharing is **Copy JSON** and **Import**, not file export — Creator's
   sandboxed iframe can block downloads. `LIMITATIONS.md` tracks the host
   limits with their evidence.
+
+## License
+
+MIT — see `LICENSE`.
