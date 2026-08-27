@@ -2,3 +2,4 @@ node_modules/
 dist/
 traces/
 .claude/settings.local.json
+.DS_Store
