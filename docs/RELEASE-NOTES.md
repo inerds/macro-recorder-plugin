@@ -1,43 +1,39 @@
-# Macro Recorder v0.4.0
+# Macro Recorder v0.5.0
 
 **Turn your repetitive edits into one-click macros — record, then apply to any layer.**
 
-First build shared outside the project. Unzip it, add the folder as a plugin
-in Lottie Creator, and you're recording.
+Second shared build. Unzip it, add the folder as a plugin in Lottie Creator,
+and you're recording. Existing macros carry over unchanged.
 
 ## Highlights
 
-- **Record anything you do.** The recorder captures transforms, fills and
-  gradients, strokes, trims, keyframes, text edits, renames, and structural
-  changes (add, duplicate, remove, nest, reorder). Recording watches the whole
-  scene, so you don't need to set up anything first.
-- **Replay adapts to the target.** Apply a macro to any selected layers.
-  Replay computes positions and offsets relative to each target. Duplicate
-  steps clone the layer you selected. Colors adapt across paint kinds: a
-  gradient recolor onto a solid fill converts the fill, and a solid color
-  onto a gradient tints every stop. Macros that touch many layers, or
-  restructure the scene, replay as a scene script instead and match layers
-  by name.
-- **Watch it happen.** Playback shows each step as it applies, Photoshop-actions
-  style: the card expands, the active step lights up, a finished step gets a
-  check mark, and a failed step keeps a red marker even after you continue.
-- **Make it yours before you replay it.** Review, rename, skip, or edit any
-  step. Simplify collapses noisy recordings. Pin values as parameters to fill
-  in at play time. Play a macro at the playhead, staggered across a
-  selection, or repeated ×N.
-- **Capture existing animation.** While recording, select an animated layer
-  and add its current keyframes, or its full style, to the macro in one tap.
-- **Honest by design.** Nothing applies silently. Any step that can't apply,
-  or had to adapt, says exactly what happened and why.
+- **A new deck.** The reels are redrawn after a studio reel-to-reel: spun
+  metal, three spokes, tape laced around guide rollers, and a nameplate that
+  shows the version. Play and record turn the reels with the tape; rewind
+  turns them back.
+- **Spin the reels.** When the deck is at rest, drag a reel and let go. Both
+  reels coast, the tape highlight runs with them, and the counter runs like a
+  tape counter until they settle. While a recording or a playback runs, the
+  reels belong to the deck.
+- **Clearer steps.** Each step reads as its property and its new value, for
+  example `position.x → 160`. The previous value is in the tooltip, so a
+  narrow row never cuts the property name.
+- **Tidier panel.** One chevron per macro row, the row number stays while you
+  rename, Import is an icon on the Saved macros header, and the Simplify
+  count is a plain readout. In a narrow panel the macro name gets the row and
+  play options move to the ⋮ menu.
+- **One list, one look.** The review step list sits in the same well as the
+  live feed, and the sentence above it names what the macro applies to,
+  including the recorded layer.
 
 ## Fixed in this build
 
-- Replay now creates masks that a macro recorded.
-- Replaying a layer reorder into a different scene no longer reshuffles that
-  scene's own layers. The macro now remembers which layers it reordered, and
-  checks them before it moves anything.
-- Playback now flashes green when it completes. Red always means action or
-  failure.
+- The deck's edges, corners and light now hold at the 300px panel size:
+  one hairline per edge, corners that nest, and a soft centre light instead
+  of a diagonal band between the reels.
+- Dragging across the panel no longer paints a text selection. Fields keep
+  it.
+- The disabled Import key is a flat cream key, not a faded red one.
 
 ## Known limitations (host plugin API)
 
