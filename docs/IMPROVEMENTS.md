@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 ---
 
+## 2026-09-03 — Hero chassis edges at panel size
+
+| Issue | Fix |
+|---|---|
+| **The hero's top and left edges looked cramped in Creator.** The chassis' lit top band, its chamfer highlight (drawn twice), the window bezel and a 10px-deep inner shadow all stacked inside a 5px gutter, and the window's 8px radius left an uneven sliver of chassis in each corner of the panel's 10px corner. | The chassis gradient is nearly flat, the top/left highlight is one hairline, the chamfer draws only the falling-away edges, the window recess is shallow, the glass band is fainter, and the window radius is 6px so it nests inside the panel corner. |
+
+---
+
 ## 2026-09-03 — UI polish pass (visual audit, eleven findings)
 
 | Issue | Fix |

@@ -578,9 +578,18 @@ recording clock, the status lamp, and the state word.
   glass, caps, lamp, and LCD read as one moulded object. Adding a bottom
   highlight or a sweep on a different angle quietly undoes the whole effect,
   so match the lamp before adding a surface.
+- **The edges are one hairline each at panel size.** A 5px gutter is all
+  that separates the chassis edge from the window bezel, so every extra
+  line there stacks into a ridge: the chassis draws ONE lit top hairline
+  (`::after` chamfers only the right and bottom), the chassis gradient is
+  nearly flat (a lighter top band read as a second frame), and the stage
+  recess is shallow (`inset 0 2px 5px`). The window radius is 6px, not 8:
+  `.panel-root` carves a 10px corner around the square chassis, and a
+  window 5px in from that edge only nests at ~5-6px — 8 left an uneven
+  sliver in every corner (Creator screenshot, 2026-09-03).
 - **The window has glass over it.** `.deck-window::after` is a specular band
   plus a corner vignette, `pointer-events: none`, at `z-index: 2`. Its alpha
-  is capped at .11 on purpose: the reels' legibility cost real work (see the
+  is capped at .065 on purpose: the reels' legibility cost real work (see the
   collapse-threshold note) and a prettier sheen is not worth dimming them.
   Verify reel width and deg/250ms after touching it.
 - **Never give `#root` a z-index.** `position: relative` alone lifts it above

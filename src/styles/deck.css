@@ -34,19 +34,20 @@
   border-radius: 0;
   /* Moulded, not flat: light catches the top edge and the bottom falls away,
      which is what stops a dark rectangle reading as a hole in the panel. */
+  /* Nearly flat: a 5px gutter is all that separates this edge from the
+     window's bezel at panel size, and a bright top band there read as a
+     second, cramped frame (Creator screenshot, 2026-09-03). The bevel is
+     one hairline now, and the plate's depth comes from the bottom edge. */
   background: linear-gradient(
     180deg,
-    #262320 0%,
-    var(--deck) 38%,
-    #151312 100%
+    #201D1B 0%,
+    var(--deck) 30%,
+    #161412 100%
   );
   box-shadow:
-    /* A four-sided chamfer, not two edges: top catches the light, bottom
-       falls into shadow, and the sides differ because the lamp is slightly
-       left. That asymmetry is what gives the faceplate thickness. */
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 1px 0 0 rgba(255, 255, 255, 0.06),
-    inset -1px 0 0 rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 1px 0 0 rgba(255, 255, 255, 0.03),
+    inset -1px 0 0 rgba(0, 0, 0, 0.45),
     inset 0 -1px 0 rgba(0, 0, 0, 0.75),
     inset 0 0 0 1px var(--deck-edge),
     /* Plate thickness: a 2-3px lower edge over the cream, then contact. */
@@ -55,20 +56,17 @@
     0 5px 8px -2px rgba(0, 0, 0, 0.45);
 }
 
-/* Chamfer: one light from the top-left catches the upper edge and the left
-   wall, the right wall and lower edge fall away. Shadows only, so it never
-   covers the controls. */
+/* Chamfer: only the falling-away edges — the right wall and the lower
+   edge. The lit top/left edges used to be drawn here AND on the chassis
+   itself, which doubled them into a visible ridge next to the window. */
 .deck-chassis::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 4px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 1px 0 0 rgba(255, 255, 255, 0.05),
-    inset -1px 0 0 rgba(0, 0, 0, 0.45),
+    inset -1px 0 0 rgba(0, 0, 0, 0.4),
     inset 0 -2px 0 rgba(0, 0, 0, 0.6);
 }
 
@@ -90,7 +88,7 @@
     linear-gradient(
       100deg,
       transparent 0 20%,
-      rgba(255, 255, 255, 0.05) 45%,
+      rgba(255, 255, 255, 0.03) 45%,
       transparent 70%
     );
 }
@@ -137,12 +135,17 @@
  * hairline under that, so the eye reads a moulded bezel rather than a border.
  * It costs no layout height — both are box-shadows.
  */
+/*
+ * 6px, not 8: the chassis is square and `.panel-root` carves a 10px corner
+ * around it, so a window 5px in from that edge nests only at ~5-6px — an
+ * 8px radius left a thick, uneven sliver of chassis in each corner.
+ */
 .deck-window {
   position: relative;
-  border-radius: 8px;
+  border-radius: 6px;
   box-shadow:
     0 0 0 1px #0C0B0A,
-    0 1px 0 rgba(255, 255, 255, 0.09);
+    0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /*
@@ -159,19 +162,19 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background:
     linear-gradient(
       118deg,
       transparent 0 38%,
-      rgba(255, 255, 255, 0.085) 44%,
-      rgba(255, 255, 255, 0.11) 50%,
+      rgba(255, 255, 255, 0.05) 44%,
+      rgba(255, 255, 255, 0.065) 50%,
       transparent 57%
     ),
     radial-gradient(
       120% 90% at 50% 45%,
-      transparent 55%,
-      rgba(0, 0, 0, 0.45) 100%
+      transparent 60%,
+      rgba(0, 0, 0, 0.35) 100%
     );
 }
 
@@ -191,7 +194,7 @@
      simply letterbox instead of filling the glass. */
   height: 117px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 6px;
   /* Near-black, lifted a touch behind the reels and falling off toward the
      corners, so the spun-metal flanges have a dark ground to stand proud of
      without the plate reading as a flat fill. */
@@ -202,9 +205,11 @@
       #121110 55%,
       #0A0908 100%
     );
+  /* A shallow recess. The old 10px-deep top shadow met the chassis' lit
+     edge 6px away and the two read as one thick, smeared rim. */
   box-shadow:
-    inset 0 3px 10px rgba(0, 0, 0, 0.85),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 2px 5px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 4px rgba(0, 0, 0, 0.4),
     inset 0 0 0 1px rgba(0, 0, 0, 0.75);
 }
 
