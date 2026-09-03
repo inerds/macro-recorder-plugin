@@ -12,8 +12,12 @@ export interface StepListHeaderProps {
       clutter; the review screen keeps visible `hints` (that is where the
       user decides). */
   quietHint?: string;
-  /** Show "on <layer>" beside the count (the pop-out card hides it — the
-      name still reaches the tooltip and screen readers via the heading). */
+  /**
+   * Kept for compatibility — the layer name no longer renders beside the
+   * count on any surface. It truncated before anything else on a narrow
+   * panel; the review screen says it in its hint sentence instead, and the
+   * tooltip and screen readers still get it from the heading below.
+   */
   showLayer?: boolean;
   className?: string;
 }
@@ -28,7 +32,6 @@ export function StepListHeader({
   onSimplify,
   hints = [],
   quietHint,
-  showLayer = true,
   className = "",
 }: StepListHeaderProps) {
   const layer = sharedLayerName(steps);
@@ -42,8 +45,7 @@ export function StepListHeader({
           title={quietHint ? `${heading} — ${quietHint}` : heading}
         >
           {count}
-          {layer && showLayer && <span className="normal-case"> on {layer}</span>}
-          {layer && !showLayer && <span className="sr-only"> on {layer}</span>}
+          {layer && <span className="sr-only"> on {layer}</span>}
           {quietHint && <span className="sr-only">. {quietHint}</span>}
         </p>
         <SimplifyButton steps={steps} onSimplify={onSimplify} />

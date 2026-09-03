@@ -247,6 +247,28 @@ body::before {
   text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
+/*
+ * A narrow panel spends the squeeze on the closed rows' furniture, never on
+ * the macro's name: the leader, the two-digit count and the play-options key
+ * all go, leaving the name, the number and the two keys that carry the row's
+ * decisions. The count's words survive in the row's sr-only text, and the
+ * play options move into the overflow menu (MacroRow gates the item on
+ * useNarrowPanel — the menu is portalled, out of this container's reach).
+ * An OPEN row keeps everything: its card has the width to say it.
+ */
+/* NOT the deck's 286px breakpoint: the panel inside the 8px gutter is 284px
+   wide at Creator's 300px window, so that one is always on there. Rows give
+   up their furniture only below a 262px panel (a ~278px window) — the width
+   at which a 17-character name stops fitting beside the full cluster. Keep
+   this number equal to NARROW_PANEL_PX in src/state/useNarrowPanel.ts. */
+@container panel (max-width: 262px) {
+  .rack-row:not(.rack-row-open) .rack-lead,
+  .rack-row:not(.rack-row-open) .rack-count,
+  .rack-row:not(.rack-row-open) [data-testid="play-options-trigger"] {
+    display: none;
+  }
+}
+
 .rack-name {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -431,6 +453,19 @@ body::before {
   box-shadow:
     inset 0 2px 3px rgba(0, 0, 0, 0.28),
     0 0 0 var(--ink);
+}
+
+/* A dead red key. A faded red cap still reads as "the action is here"; a
+   dead key is a cream blank with no drop to travel into, so the surface
+   says "not yet" before the pointer does. Doubled selector to out-rank the
+   library's `disabled:opacity-50` and `.key.key:disabled` above. */
+.key.key-red:disabled {
+  background: linear-gradient(180deg, #f1ece3, #e4ddd0);
+  color: var(--muted-foreground);
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px rgba(42, 38, 35, 0.35);
+  transform: none;
+  translate: none;
 }
 
 .key-outline.key-outline {

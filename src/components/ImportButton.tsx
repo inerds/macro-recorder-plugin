@@ -71,11 +71,15 @@ export function ImportButton({ onImport }: ImportButtonProps) {
         size="sm"
         variant="ghost"
         className="press key-quiet"
+        // Icon-only: the shelf it sits on already says what this list is,
+        // and the word cost the row width the macro counts need. The name
+        // survives for the pointer (title) and for assistive tech.
+        aria-label="Import a macro"
+        title="Import a macro"
         onClick={() => setOpen(true)}
         data-testid="import-button"
       >
         <ClipboardPaste className="size-3!" strokeWidth={2.5} aria-hidden />
-        Import
       </Button>
       <DialogRoot
         open={open}

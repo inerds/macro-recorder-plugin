@@ -83,8 +83,10 @@ export function RecordingView({
           <span className="instrument instrument-red truncate">Live steps</span>
           {/* Not a live region: at one tick every 500ms it read the count
               aloud over everything else. The total is announced once, on stop. */}
-          <span className="mono shrink-0 rounded-[7px] border border-border bg-muted px-1.5 py-0.5 text-10 leading-none">
-            {steps.length === 1 ? "1 step" : `${steps.length} steps`}
+          <span className="mono shrink-0 text-10 text-muted-foreground tabular-nums">
+            {`${String(steps.length).padStart(2, "0")} ${
+              steps.length === 1 ? "step" : "steps"
+            }`}
           </span>
         </div>
         {/* A well, not a card: the step rows are `bg-card` themselves, so a

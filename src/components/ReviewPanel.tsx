@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import type { EditableValue } from "../../shared/editing";
 import type { MacroParam } from "../../shared/macro";
+import { sharedLayerName } from "../../shared/labels";
 import { describePlaybackMode, playbackModeHint } from "../../shared/playbackMode";
 import type { MacroStep } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
@@ -44,6 +45,16 @@ export function ReviewPanel({
   // Discarding a recording can't be undone, so a full list asks first.
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
+  // The recorded layer used to ride the list header as an inline "on <layer>"
+  // that truncated first and hardest. It belongs in the sentence that already
+  // explains the replay — there it is prose, and prose wraps.
+  const mode = describePlaybackMode({ steps });
+  const layer = sharedLayerName(steps);
+  const modeHint =
+    mode.mode === "targets" && layer
+      ? `Applies to selected layers, or to ${layer} if none is selected`
+      : playbackModeHint(mode);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="review-panel">
       <h2 className="sr-only">Review recording</h2>
@@ -83,10 +94,12 @@ export function ReviewPanel({
               <StepListHeader
                 steps={steps}
                 onSimplify={onSimplify}
-                hints={[playbackModeHint(describePlaybackMode({ steps }))]}
+                hints={[modeHint]}
                 className="enter-2"
               />
-              <div className="enter-3">
+              {/* The same well the live feed seats its steps in — the review
+                  is the same list, one screen later. */}
+              <div className="enter-3 rack rack-drawer p-1">
                 <StepList
                   steps={steps}
                   onDeleteStep={onDeleteStep}

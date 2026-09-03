@@ -9,6 +9,33 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 ---
 
+## 2026-09-03 — UI polish pass (visual audit, eleven findings)
+
+| Issue | Fix |
+|---|---|
+| **The Simplify count was red.** `5 → 3` sat beside the key in the failure colour, so it read as a warning. | The count is muted ink at weight 500; the key keeps its wand and word. |
+| **Counts were styled two ways.** The recording header's `2 steps` was the panel's only bordered pill; the list header and every row use bare mono readouts. | The recording count is a bare two-digit readout, `02 steps`, in the same ink. |
+| **The disabled Import key was pink.** The red key at half opacity looked faded rather than dead, and got pressed. | A cream dead key: flat fill, muted legend, hairline edge, no travel. |
+| **Import outranked the section title.** A bold uppercase word beside `SAVED MACROS`. | Icon-only, with the name in the tooltip and accessible label. |
+| **Two red stops while paused on an error.** The lid's stop square and the notice's STOP key were both red. | The lid square goes quiet grey while the failure notice is open. |
+| **Step rows truncated the property, not the value.** `Transform · position.x 1… → 160` cut the one word that says what changed. | Rows show property and result (`Transform · position.x → 160`); the before value is kept for the tooltip and screen readers. The result is capped at half the line. |
+| **The review step list sat directly on the paper** while the recording feed sat in a rack well. | The review list seats in the same well. |
+| **The review header truncated the layer name** (`on Rectan…`). | The header is `Steps (N)`; the layer is spoken in the hint: *Applies to selected layers, or to Rectangle 1 if none is selected.* |
+| **The open card's lid showed two chevrons pointing opposite ways.** | Only the leading chevron remains, rotated when open. |
+| **Renaming removed the card's number.** | The `01` stays in front of the rename field. |
+| **In a narrow panel the macro name truncated first** while the leader, count and three action icons kept their space. | Below a 262px panel, closed rows drop the leader, the count and the play-options key, and the ⋮ menu offers **Play options…**. Open cards and wider panels are unchanged. |
+
+---
+
+## 2026-09-03 — Hero visual: studio-deck reels
+
+| Issue | Fix |
+|---|---|
+| **The tape moved the wrong way, and from both ends.** The redrawn stage had two separate tape runs leaving each reel, and the reels turned clockwise while the highlight ran left to right along the bottom — a reel whose bottom edge moves right is turning counter-clockwise. | The tape is one threaded path: off the left reel's outer side, around the bottom-left roller, along the bottom behind the nameplate, around the bottom-right roller, up onto the right reel. Play and record now turn the reels counter-clockwise with the tape; rewind turns them clockwise. The short run over the nameplate stays, and travels the opposite way to the outer tape so the two read as one loop. The rollers stay in the collapsed deck so the tape never wraps around nothing. |
+| **The reel stage read as a flat diagram.** Each reel was a plain disc with three round holes, a tape head sat between them, and the model legend was silkscreen on the plate, so the hero looked like an icon rather than the recorder the panel is styled as. | The stage is redrawn after a studio deck's faceplate: spun-silver three-spoke reels with filleted cut-outs over a wound pack, a bolted hub and axle cap, a fixed top-left sheen that does not turn with the reel, tape running from each pack to a guide roller in the bottom corner and to a riveted nameplate that carries the name and the version. The rotation, shimmer and reduced-motion behaviour are unchanged, and the stage keeps its 117px height. |
+
+---
+
 ## 2026-08-26 — Seed-macro trace sweep: three fixes (rev .52)
 
 | Issue | Fix |

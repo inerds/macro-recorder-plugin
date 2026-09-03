@@ -1,5 +1,5 @@
 import { Button, Input } from "@lottiefiles/creator-plugins-ui";
-import { Check, ChevronRight, ChevronUp, Play, Square } from "lucide-react";
+import { Check, ChevronRight, Play, Square } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import type { EditableValue } from "../../shared/editing";
@@ -8,6 +8,7 @@ import { keyframeSpan } from "../../shared/steps";
 import type { PlayOptions } from "../gateways/types";
 import type { PlayingState } from "../state/appReducer";
 import { stepStatusFor, type PlayStepStatus } from "../state/stepStatus";
+import { useNarrowPanel } from "../state/useNarrowPanel";
 import type { Macro } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
 import { OverflowMenu } from "./OverflowMenu";
@@ -81,6 +82,10 @@ export function MacroRow({
   const [options, setOptions] = useState<PlayOptions>(() => ({
     ...(macro.playOptions ?? {}),
   }));
+  // A narrow panel hides the closed row's play-options key; the dialog then
+  // opens from the overflow menu, which needs the row to hold the state.
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const narrow = useNarrowPanel();
   const panelId = useId();
   const disclosureRef = useRef<HTMLButtonElement>(null);
 
@@ -90,6 +95,9 @@ export function MacroRow({
   const mode = describePlaybackMode(macro);
 
   const isPlayingThis = playing !== null;
+  // Paused on a failure: the decision has moved into the warn-box below, so
+  // the lid's stop square goes quiet rather than shouting a second red.
+  const errorPaused = playing?.error != null;
 
   // Playback indices count ENABLED steps and keep climbing across repeats;
   // the list renders every step, so map back to its own index.
@@ -127,6 +135,11 @@ export function MacroRow({
             expanded ? "border-b border-dotted border-border" : ""
           }`}
         >
+          {/* The row keeps its place in the rack while it is renamed — the
+              number is the row's address, not a decoration of its name. */}
+          <span className="rack-num shrink-0" aria-hidden>
+            {String(index + 1).padStart(2, "0")}
+          </span>
           <Input
             value={draftName}
             autoFocus
@@ -200,7 +213,7 @@ export function MacroRow({
                   along for assistive tech (and keep the row's text honest). */}
               <span className="rack-lead" aria-hidden />
               <span
-                className="mono shrink-0 text-10 text-muted-foreground tabular-nums"
+                className="rack-count mono shrink-0 text-10 text-muted-foreground tabular-nums"
                 aria-hidden
               >
                 {String(macro.steps.length).padStart(2, "0")}
@@ -218,15 +231,6 @@ export function MacroRow({
                 </span>
               )}
             </span>
-            {/* The open lid trades its action cluster for one collapse cue,
-                inside the same disclosure — no second tab stop. */}
-            {expanded && (
-              <ChevronUp
-                className="ms-1 me-1 size-3 shrink-0 text-muted-foreground/70"
-                strokeWidth={2.5}
-                aria-hidden
-              />
-            )}
           </button>
           {/* Stays mounted across the run, swapping glyph and action: an
               unmounting Play button would drop the focus that pressed it —
@@ -245,7 +249,9 @@ export function MacroRow({
           >
             {isPlayingThis ? (
               <Square
-                className="size-3 fill-current text-[color:var(--ink-red-text)]"
+                className={`size-3 fill-current ${
+                  errorPaused ? "" : "text-[color:var(--ink-red-text)]"
+                }`}
                 strokeWidth={2.5}
               />
             ) : (
@@ -265,9 +271,16 @@ export function MacroRow({
                   setOptions(next);
                   onPlay(next);
                 }}
+                open={optionsOpen}
+                onOpenChange={setOptionsOpen}
               />
               <OverflowMenu
                 macroName={macro.name}
+                // The key beside this menu is hidden at <=286px; the ability
+                // it stands for is not, so the menu picks it up there.
+                {...(narrow && !playDisabled
+                  ? { onPlayOptions: () => setOptionsOpen(true) }
+                  : {})}
                 onRename={() => {
                   setDraftName(macro.name);
                   onRenameStart();

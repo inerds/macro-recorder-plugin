@@ -11,6 +11,12 @@ import { ICON_KEY_CLASS } from "./iconKey";
 
 export interface OverflowMenuProps {
   macroName: string;
+  /**
+   * Set only while the row's play-options key is hidden (a narrow panel).
+   * The menu is portalled, so the container query that hides the key cannot
+   * hide this item — the row decides whether it exists at all.
+   */
+  onPlayOptions?: () => void;
   onRename: () => void;
   onDuplicate: () => void;
   onCopyJson: () => void;
@@ -19,6 +25,7 @@ export interface OverflowMenuProps {
 
 export function OverflowMenu({
   macroName,
+  onPlayOptions,
   onRename,
   onDuplicate,
   onCopyJson,
@@ -55,6 +62,11 @@ export function OverflowMenu({
         className="max-w-56"
         finalFocus={() => (chosen.current === "self" ? false : triggerRef.current)}
       >
+        {onPlayOptions && (
+          // "self": the dialog autofocuses its own first field, and the
+          // default focus restore would yank focus straight back out of it.
+          <DropdownItem onSelect={pick("self", onPlayOptions)}>Play options…</DropdownItem>
+        )}
         <DropdownItem onSelect={pick("self", onRename)}>Rename</DropdownItem>
         <DropdownItem onSelect={pick("trigger", onDuplicate)}>Duplicate</DropdownItem>
         <DropdownItem onSelect={pick("trigger", onCopyJson)}>Copy JSON</DropdownItem>

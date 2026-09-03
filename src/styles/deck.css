@@ -192,7 +192,16 @@
   height: 117px;
   overflow: hidden;
   border-radius: 8px;
-  background: #131110;
+  /* Near-black, lifted a touch behind the reels and falling off toward the
+     corners, so the spun-metal flanges have a dark ground to stand proud of
+     without the plate reading as a flat fill. */
+  background:
+    radial-gradient(
+      110% 95% at 50% 42%,
+      #1B1918 0%,
+      #121110 55%,
+      #0A0908 100%
+    );
   box-shadow:
     inset 0 3px 10px rgba(0, 0, 0, 0.85),
     inset 0 -2px 6px rgba(0, 0, 0, 0.5),
@@ -223,15 +232,6 @@
   text-shadow: 0 0 6px rgba(217, 164, 65, 0.55);
 }
 
-/* The model silkscreen lives under the clock plate; it steps aside for it. */
-.deck-model {
-  transition: opacity 220ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.deck-stage[data-deck="recording"] .deck-model {
-  opacity: 0;
-}
-
 /* Rotation happens in the reel group's OWN box, not the SVG's user space. */
 .reel {
   transform-box: fill-box;
@@ -239,7 +239,7 @@
 }
 
 .tape {
-  opacity: 0.5;
+  opacity: 0.6;
   transition: opacity 250ms cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -250,13 +250,13 @@
  */
 .tape-shimmer {
   opacity: 0;
-  stroke-dasharray: 7 15;
+  stroke-dasharray: 6 12;
   transition: opacity 250ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 @keyframes tape-run {
   to {
-    stroke-dashoffset: -22;
+    stroke-dashoffset: -18;
   }
 }
 
@@ -315,19 +315,28 @@
   }
 }
 
-/* Recording: the reels turn at different rates because tape is moving from
-   one to the other. Playback: locked together, faster. */
+/*
+ * Forward is COUNTER-clockwise. The tape runs under the reels (ReelDeck.tsx:
+ * off the supply reel's left side, along the bottom, up the take-up reel's
+ * right side), so forward travel drags each reel's bottom edge to the right
+ * — which is a counter-clockwise turn on screen, the same as a real deck.
+ * The shimmer travels the same path left-to-right; if the two ever disagree
+ * the tape looks like it is being fed from both ends at once.
+ *
+ * Recording: the reels turn at different rates because tape is moving from
+ * one to the other. Playback: locked together, faster.
+ */
 .deck-stage[data-deck="recording"] .reel-left {
-  animation: reel-cw 2.6s linear infinite;
+  animation: reel-ccw 2.6s linear infinite;
 }
 
 .deck-stage[data-deck="recording"] .reel-right {
-  animation: reel-cw 2.2s linear infinite;
+  animation: reel-ccw 2.2s linear infinite;
 }
 
 .deck-stage[data-deck="playing"] .reel-left,
 .deck-stage[data-deck="playing"] .reel-right {
-  animation: reel-cw 1.6s linear infinite;
+  animation: reel-ccw 1.6s linear infinite;
 }
 
 /* Two full turns, linear and fast: one slow backwards turn on a three-fold
@@ -335,13 +344,13 @@
    350ms x 2 == REWIND_MS in deckState.ts. */
 .deck-stage[data-deck="rewind"] .reel-left,
 .deck-stage[data-deck="rewind"] .reel-right {
-  animation: reel-ccw 350ms linear 2;
+  animation: reel-cw 350ms linear 2;
 }
 
 /* 900ms == DONE_MS in deckState.ts. */
 .deck-stage[data-deck="done"] .reel-left,
 .deck-stage[data-deck="done"] .reel-right {
-  animation: reel-cw 900ms cubic-bezier(0.1, 0.6, 0.2, 1) 1;
+  animation: reel-ccw 900ms cubic-bezier(0.1, 0.6, 0.2, 1) 1;
 }
 
 /* ------------------------------------------------------- transport row --- */

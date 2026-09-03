@@ -19,6 +19,8 @@ import {
 import { useRef, useState } from "react";
 
 import { editableValueOf, type EditableValue } from "../../shared/editing";
+import { joinLabelParts, labelPartsOf } from "../../shared/labels";
+import type { StepPayload } from "../../shared/steps";
 import type { PlayStepStatus } from "../state/stepStatus";
 import type { MacroStep, StepKind } from "../types";
 import { StepValueEditor } from "./StepValueEditor";
@@ -100,12 +102,33 @@ export function StepRow({
   const shownLabel =
     hidePrefix && step.label.startsWith(hidePrefix) ? step.label.slice(hidePrefix.length) : step.label;
   // Truncation must not eat the step's RESULT: "Stroke · color #000000 →
-  // #002B…" hides the one token that matters. Split at the last arrow — the
-  // head (property · before) gives way, the "→ after" tail stays whole, and
-  // the title still carries the full label.
+  // #002B…" hides the one token that matters — and neither may it eat the
+  // PROPERTY ("position.x 1… → 160" names nothing). Three pieces, so the
+  // before value is the one that gives way. An imported macro may carry a
+  // label its payload no longer emits, so the split is used only when it
+  // rebuilds that exact label; otherwise fall back to the arrow seam.
+  // A step's payload is `unknown` on the wire (v1 macros survive import), so
+  // narrow it the way the rest of the UI does before reading an op off it.
+  const payload =
+    step.payload !== null && typeof step.payload === "object" && "op" in step.payload
+      ? (step.payload as StepPayload)
+      : null;
+  const parts = payload ? labelPartsOf(payload) : null;
+  const splitFits = parts !== null && joinLabelParts(parts) === step.label;
   const arrowAt = shownLabel.lastIndexOf(" → ");
-  const labelHead = arrowAt === -1 ? shownLabel : shownLabel.slice(0, arrowAt);
-  const labelTail = arrowAt === -1 ? null : shownLabel.slice(arrowAt);
+  const labelPath = splitFits
+    ? hidePrefix && parts.path.startsWith(hidePrefix)
+      ? parts.path.slice(hidePrefix.length)
+      : parts.path
+    : arrowAt === -1
+      ? shownLabel
+      : shownLabel.slice(0, arrowAt);
+  const labelBefore = splitFits ? parts.before : undefined;
+  const labelAfter = splitFits
+    ? parts.after
+    : arrowAt === -1
+      ? undefined
+      : shownLabel.slice(arrowAt + 3);
   const Icon = KIND_ICONS[step.kind];
   const [draft, setDraft] = useState<EditableValue | null>(null);
   const pencilRef = useRef<HTMLButtonElement>(null);
@@ -216,13 +239,18 @@ export function StepRow({
           } ${laneAtRest ? "pe-14" : ""}`}
           title={step.label}
         >
-          {/* The tail (the result — the half worth keeping) is capped at
-              60% and floored at ~9ch, so the head always keeps >=40% of the
-              line and never crushes to "Tr…". No min-width on the head — a
-              min INFLATES short heads and opens a gap before the arrow. */}
-          <span className="min-w-0 truncate whitespace-pre">{labelHead}</span>
-          {labelTail && (
-            <span className="min-w-[9ch] max-w-[60%] truncate whitespace-pre">{labelTail}</span>
+          {/* The row shows the PROPERTY and the RESULT. The value it
+              replaced is sr-only: a 250px row cannot hold three pieces, and
+              a before value squeezed to "(…" is noise where the property
+              should be (it stays in the tooltip and the value editor). The
+              result is capped at 50% and floored at ~6ch: a short result
+              ("→ -6") takes only its width, a long one leaves the property
+              half the line. The spaces travel INSIDE the
+              spans: the row's text has to read as one sentence. */}
+          <span className="min-w-0 truncate whitespace-pre">{labelPath}</span>
+          {labelBefore !== undefined && <span className="sr-only">{` ${labelBefore}`}</span>}
+          {labelAfter !== undefined && (
+            <span className="min-w-[6ch] max-w-[50%] truncate whitespace-pre">{` → ${labelAfter}`}</span>
           )}
           {disabled && <span className="sr-only"> (skipped)</span>}
           {param && <span className="sr-only"> (parameter)</span>}

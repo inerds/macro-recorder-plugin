@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Json } from "./json";
 import type { MacroStep } from "./macro";
-import { labelOf, sharedLayerName } from "./labels";
+import { joinLabelParts, labelOf, labelPartsOf, sharedLayerName } from "./labels";
 import type { AnimatableSnapshot, KfSnap, PaintSnapshot, Path } from "./snapshot";
 import { buildStep, kindOf, type StepPayload } from "./steps";
 
@@ -382,5 +382,86 @@ describe("sharedLayerName", () => {
   it("matches the prefix labelOf actually emits", () => {
     const step = bound("l1", "Rect");
     expect(step.label.startsWith(`${sharedLayerName([step])} ${DOT} `)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* labelPartsOf — the three pieces a row lays out separately            */
+/* ------------------------------------------------------------------ */
+
+describe("labelPartsOf", () => {
+  it("splits property, before and after on a transform component edit", () => {
+    expect(labelPartsOf(setStatic(["position"], { x: 100, y: 50 }, { x: 160, y: 50 }))).toEqual({
+      path: `Transform ${DOT} position.x`,
+      before: "100",
+      after: "160",
+    });
+  });
+
+  it("splits a stroke width edit", () => {
+    expect(labelPartsOf(setStatic(["strokes", 0, "width"], 2, 4))).toEqual({
+      path: `Stroke ${DOT} width`,
+      before: "2",
+      after: "4",
+    });
+  });
+
+  it("gives a paint recolour an after with no before", () => {
+    expect(labelPartsOf(setStatic(["fills", 0, "color"], BLACK, RED))).toEqual({
+      path: "Fill",
+      after: "#FF0000",
+    });
+  });
+
+  it("keeps an arrowless label whole", () => {
+    const captured = setStatic(["opacity"], 0.5, 0.5);
+    expect(labelPartsOf(captured)).toEqual({ path: `Transform ${DOT} opacity = 0.5` });
+    expect(
+      labelPartsOf({ op: "set-plain", path: ["visible"], before: true, after: false }),
+    ).toEqual({ path: `Layer ${DOT} visible off` });
+  });
+
+  it("splits a plain-flag change", () => {
+    expect(
+      labelPartsOf({ op: "set-plain", path: ["blendMode"], before: "NORMAL", after: "MULTIPLY" }),
+    ).toEqual({ path: `Layer ${DOT} blend mode`, before: "NORMAL", after: "MULTIPLY" });
+  });
+
+  it("keeps the layer prefix on the property, never on the value", () => {
+    const parts = labelPartsOf({
+      op: "set-static",
+      path: ["rotation"],
+      before: 0,
+      after: 45,
+      layer: { id: "l1", name: "Rect" },
+    });
+    expect(parts).toEqual({
+      path: `Rect ${DOT} Transform ${DOT} rotation`,
+      before: "0",
+      after: "45",
+    });
+  });
+
+  it("rebuilds exactly what labelOf emits", () => {
+    const payloads: StepPayload[] = [
+      setStatic(["position"], { x: 100, y: 50 }, { x: 160, y: 50 }),
+      setStatic(["position"], { x: 100, y: 50 }, { x: 160, y: 80 }),
+      setStatic(["rotation"], 0, 45),
+      setStatic(["opacity"], 0.5, 0.5),
+      setStatic(["fills", 0, "color"], BLACK, RED),
+      setStatic(["fills", 1, "color"], BLACK, GREEN),
+      setStatic(["strokes", 0, "width"], 2, 4),
+      setStatic(["strokes", 0, "fill", "color"], BLACK, RED),
+      setStatic(["shapes", 1, "size"], { x: 10, y: 10 }, { x: 20, y: 10 }),
+      { op: "set-plain", path: ["blendMode"], before: "NORMAL", after: "MULTIPLY" },
+      { op: "set-plain", path: ["visible"], before: true, after: false },
+      { op: "keyframes", path: ["position"], added: [kf(12)], removed: [], changed: [] },
+      { op: "add-fill", spec: solid(RED) },
+      { op: "remove-paint", path: ["fills", 1] },
+      { op: "add-shape", parentPath: [], spec: shapeSpec("RECTANGLE") },
+    ];
+    for (const payload of payloads) {
+      expect(joinLabelParts(labelPartsOf(payload))).toBe(labelOf(payload));
+    }
   });
 });

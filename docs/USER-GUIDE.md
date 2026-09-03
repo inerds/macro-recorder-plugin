@@ -22,7 +22,7 @@ internally, see `README.md`. For what the platform cannot do, see
    macros, and it starts empty.
 
 The **deck** tops every screen: the panel's transport and its status light. It
-carries no title, and the strip above the reels is the readout:
+carries no title, and the transport row under the reels is the readout:
 
 | On the deck | What it means |
 |---|---|
@@ -34,9 +34,12 @@ carries no title, and the strip above the reels is the readout:
 | **The reels** | Spin while you record, rewind when you trigger a macro, run forward while it plays, and coast to a stop when it ends. |
 
 The counter is the four-digit readout at the right of the transport row, and
-the clock is the small readout between the reels. Record is dead while a
+the clock shares that window while you record. The nameplate under the reels
+carries the plugin version. Record is dead while a
 recording, a review, or a playback is in progress. A highlight travels along
-the tape between the reels, so you can see which way it is going. The reels
+the tape, which leaves the left reel, runs around the bottom guide rollers and
+winds onto the right reel, and back the other way along the short run over
+the nameplate, so you can see which way it is going. The reels
 are pure confirmation: the lamp and the state word always say the same thing,
 and if your system asks for reduced motion the reels stay still.
 
@@ -241,7 +244,9 @@ list goes to the log for developers.
 
 ## 7. Play options
 
-Click the **sliders next to ▶** to open the play options. The dialog has
+Click the **sliders next to ▶** to open the play options. In a very narrow
+panel the sliders leave the closed row, and the ⋮ menu offers **Play
+options…** instead. The dialog has
 **Cancel**. What you choose sticks to the row: the plain ▶ uses it too, and
 the row shows it (`×8 · +4f · @playhead`).
 
@@ -308,7 +313,7 @@ readers hear the full "4 steps".
 | Rename | ⋮ menu → Rename, then Enter to commit |
 | Duplicate | ⋮ menu → Duplicate, which creates *name copy* |
 | Copy JSON | ⋮ menu → Copy JSON, which puts the macro's JSON on your clipboard |
-| Import | **Import** button on the **Saved macros** header, which opens a dialog |
+| Import | The import icon on the **Saved macros** header, which opens a dialog |
 | Delete | ⋮ menu → Delete, then confirm inline |
 | Expand | Click the row to see and edit its steps |
 

@@ -182,6 +182,79 @@ export function labelOf(payload: StepPayload): string {
   return `${prefix}${bareLabelOf(payload)}`;
 }
 
+/** `labelOf` cut at its "before → after" seam. */
+export interface LabelParts {
+  /** The property the step names — the half that must stay readable. */
+  path: string;
+  /** The value the step left, when the label shows one. */
+  before?: string;
+  /** The value the step arrived at — the half worth protecting. */
+  after?: string;
+}
+
+const ARROW_SEAM = " → ";
+
+/** Recomposes parts into the exact string `labelOf` emits. */
+export function joinLabelParts(parts: LabelParts): string {
+  if (parts.after === undefined) return parts.path;
+  const before = parts.before === undefined ? "" : ` ${parts.before}`;
+  return `${parts.path}${before}${ARROW_SEAM}${parts.after}`;
+}
+
+/**
+ * `labelOf`, cut into the three pieces a row lays out separately: the
+ * property, the value it left, and the value it arrived at. Truncation must
+ * eat the BEFORE value first — a row that reads "position.x 1… → 160" hid
+ * the property; "position.x … → 160" did not.
+ *
+ * `joinLabelParts(labelPartsOf(p)) === labelOf(p)` for every payload: the
+ * seam is found in the emitted string, and the before value is split off
+ * only when it is literally the text in front of the arrow.
+ */
+export function labelPartsOf(payload: StepPayload): LabelParts {
+  const full = labelOf(payload);
+  const arrowAt = full.lastIndexOf(ARROW_SEAM);
+  if (arrowAt === -1) return { path: full };
+  const head = full.slice(0, arrowAt);
+  const after = full.slice(arrowAt + ARROW_SEAM.length);
+  const before = beforeTextOf(payload);
+  if (before !== null && before !== "" && head.endsWith(` ${before}`)) {
+    return { path: head.slice(0, head.length - before.length - 1), before, after };
+  }
+  return { path: head, after };
+}
+
+/**
+ * The exact text `bareLabelOf` puts in front of the arrow, or null when the
+ * label carries no before value (a captured state, a boolean flag, a paint
+ * whose old colour is not worth the width). Mirrors the branches below —
+ * `labelPartsOf` verifies the answer against the emitted string, so a drift
+ * costs the split, never the words.
+ */
+function beforeTextOf(payload: StepPayload): string | null {
+  if (payload.op === "set-static") {
+    if (payload.path[payload.path.length - 1] === "pathData") return null;
+    if (jsonEqual(payload.before, payload.after)) return null;
+    const root = payload.path[0];
+    if (root === "fills") {
+      const rest = payload.path.slice(2);
+      if (rest.length === 0 || rest[0] === "color" || rest[rest.length - 1] === "stops") {
+        return null;
+      }
+      return fmt(payload.before);
+    }
+    if (root === "strokes") return fmt(payload.before);
+    const component = changedComponent(payload.before, payload.after);
+    return fmt(component ? component.before : payload.before);
+  }
+  if (payload.op === "set-plain") {
+    if (typeof payload.after === "boolean") return null;
+    if (jsonEqual(payload.before, payload.after)) return null;
+    return fmt(payload.before);
+  }
+  return null;
+}
+
 function bareLabelOf(payload: StepPayload): string {
   switch (payload.op) {
     case "set-static": {

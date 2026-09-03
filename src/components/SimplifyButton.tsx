@@ -43,12 +43,11 @@ export function SimplifyButton({ steps, onSimplify }: SimplifyButtonProps) {
         <Wand2 className="size-3!" strokeWidth={2.5} aria-hidden />
         Simplify
         {canSimplify && (
-          // The verb is quiet, the saving is the information — so it is the
-          // one lit thing here. --ink-red-text, not the rack's lit --primary:
-          // that red is 4.05:1 on the drawer's --muted, under the bar small
-          // red text has to clear (and a glow does not buy contrast).
+          // The verb is quiet and so is the saving: red on this panel means
+          // action or failure, and a count of merged steps is neither. Muted
+          // ink at 500 keeps it a readout beside the verb, not a signal.
           <span
-            className="mono shrink-0 text-11 font-bold tabular-nums text-[color:var(--ink-red-text)]"
+            className="mono shrink-0 text-11 font-medium tabular-nums text-muted-foreground"
             aria-hidden
           >
             {steps.length} → {simplified}

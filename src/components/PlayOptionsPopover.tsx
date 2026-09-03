@@ -24,6 +24,13 @@ export interface PlayOptionsPopoverProps {
   value: PlayOptions;
   onChange: (options: PlayOptions) => void;
   onPlay: (options: PlayOptions) => void;
+  /**
+   * Optional outside control. A narrow panel hides the trigger and offers
+   * the dialog from the overflow menu instead, so the row needs a way in
+   * that isn't the key. Omit both and the dialog owns its own state.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const DEFAULTS = { atPlayhead: false, staggerFrames: 0, repeat: 1 };
@@ -53,8 +60,15 @@ export function PlayOptionsPopover({
   value,
   onChange,
   onPlay,
+  open: openProp,
+  onOpenChange,
 }: PlayOptionsPopoverProps) {
-  const [open, setOpen] = useState(false);
+  const [selfOpen, setSelfOpen] = useState(false);
+  const open = openProp ?? selfOpen;
+  const setOpen = (next: boolean) => {
+    setSelfOpen(next);
+    onOpenChange?.(next);
+  };
   // What the dialog opened with — anything but Play puts it back. The fields
   // write straight through to the row (the bare Play button shares them), so
   // dismissing without this would silently keep the abandoned edits.
