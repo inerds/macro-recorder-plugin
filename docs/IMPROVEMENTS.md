@@ -9,12 +9,14 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 ---
 
-## 2026-09-03 — Spin the reels; no text selection
+## 2026-09-03 — Spin the reels; no text selection; flatter chassis
 
 | Issue | Fix |
 |---|---|
 | **The hero was look-only.** | At rest (Ready or Paused) you can drag a reel and fling it: both reels turn together, coast with friction, the tape highlight runs with them and the counter becomes a tape counter until they stop. Inert while recording or playing. |
 | **A drag across the panel painted a text selection.** | Text selection is off for the whole panel; inputs and text areas keep it. |
+| **The chassis' raking highlight read as a smear at 300px.** | The chassis keeps only its brushed grain and a near-flat gradient. |
+| **The window's glass band looked like a ray of light between the reels at 300px.** Its stops were percentages of the window, so it faded nicely on a wide window and collapsed into a narrow diagonal stripe on a 274px one. | The band is gone. The window keeps a faint sheen at its top-left corner, and the light is a broad, soft pool in the centre of the stage behind the reels, sized in percentages of the stage so it is the same pool at 274px and at 600px. |
 
 ---
 

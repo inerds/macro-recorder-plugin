@@ -40,9 +40,9 @@
      one hairline now, and the plate's depth comes from the bottom edge. */
   background: linear-gradient(
     180deg,
-    #201D1B 0%,
-    var(--deck) 30%,
-    #161412 100%
+    #1E1B19 0%,
+    var(--deck) 45%,
+    #171513 100%
   );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
@@ -77,20 +77,16 @@
   inset: 0;
   pointer-events: none;
   opacity: 0.5;
-  /* Brushed grain, plus one broad raking highlight on the same diagonal as
-     the window's specular sweep — same lamp, same angle, one object. */
-  background:
-    repeating-linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.022) 0 1px,
-      transparent 1px 3px
-    ),
-    linear-gradient(
-      100deg,
-      transparent 0 20%,
-      rgba(255, 255, 255, 0.03) 45%,
-      transparent 70%
-    );
+  /* Brushed grain only. The broad raking highlight that used to ride here
+     was tuned for a wide chassis; at a 300px panel the chassis is a 5px
+     gutter and a 24px transport band, and a diagonal band across that read
+     as a smear rather than a sweep (user ask, 2026-09-03). The window's own
+     glass keeps the one specular for the object. */
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.022) 0 1px,
+    transparent 1px 3px
+  );
 }
 
 /* ---------------------------------------------------------------- lamps --- */
@@ -163,18 +159,22 @@
   z-index: 2;
   pointer-events: none;
   border-radius: 6px;
+  /* A soft sheen from the lamp's corner, not a band. The old 118deg stripe
+     had percentage stops, so on a 274px window it collapsed into a ~40px
+     "ray" that sat exactly in the gap between the reels; on a wide window
+     the same stops faded nicely. A corner radial fades the same way at
+     every width (user report, 2026-09-04). */
   background:
-    linear-gradient(
-      118deg,
-      transparent 0 38%,
-      rgba(255, 255, 255, 0.05) 44%,
-      rgba(255, 255, 255, 0.065) 50%,
-      transparent 57%
+    radial-gradient(
+      70% 90% at 12% 0%,
+      rgba(255, 255, 255, 0.045) 0%,
+      rgba(255, 255, 255, 0.015) 40%,
+      transparent 70%
     ),
     radial-gradient(
       120% 90% at 50% 45%,
-      transparent 60%,
-      rgba(0, 0, 0, 0.35) 100%
+      transparent 62%,
+      rgba(0, 0, 0, 0.3) 100%
     );
 }
 
@@ -198,12 +198,19 @@
   /* Near-black, lifted a touch behind the reels and falling off toward the
      corners, so the spun-metal flanges have a dark ground to stand proud of
      without the plate reading as a flat fill. */
+  /* A soft light pooled in the centre, behind the reels, fading smoothly to
+     the edges (user ask, 2026-09-04: "a soft faded light in the centre so
+     the hero visuals appear nicely"). It is a BROAD ellipse in percentages
+     of the stage, so it is the same pool at 274px and at 600px — the thing
+     that must never come back is a narrow band, which is what a linear
+     sweep with percentage stops turns into on a small window. */
   background:
     radial-gradient(
-      110% 95% at 50% 42%,
-      #1B1918 0%,
-      #121110 55%,
-      #0A0908 100%
+      72% 105% at 50% 46%,
+      #38332F 0%,
+      #262220 28%,
+      #171513 60%,
+      #0D0C0B 100%
     );
   /* A shallow recess. The old 10px-deep top shadow met the chassis' lit
      edge 6px away and the two read as one thick, smeared rim. */
@@ -276,13 +283,6 @@
   animation: tape-run 500ms linear infinite reverse;
 }
 
-/* Ambient layer: the plate itself warms up while tape is being written. */
-.deck-stage::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
 /*
  * Spin the reels by hand (`useReelSpin`). An easter egg, so it borrows the
  * deck's existing channels rather than adding any: the drag is offered only
@@ -308,6 +308,13 @@
   opacity: 1;
 }
 
+/* Ambient layer: the plate itself warms up while tape is being written. */
+.deck-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
   opacity: 0;
   transition: opacity 300ms cubic-bezier(0.2, 0, 0, 1);
   background: radial-gradient(

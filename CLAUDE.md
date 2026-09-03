@@ -571,13 +571,20 @@ recording clock, the status lamp, and the state word.
   nothing reads as a kink); only the nameplate (name + `__APP_VERSION__`)
   and the bottom screws are `.deck-furniture` that a short panel drops.
 - **One light source: high, slightly left.** Every highlight in the deck sits
-  on a top edge, every occlusion on a bottom edge, and the two specular
-  sweeps (`.deck-window::after`'s glass band at 118deg and
-  `.deck-chassis::before`'s raking highlight at 100deg) run the same diagonal.
-  That consistency — not any single gradient — is what makes the chassis,
-  glass, caps, lamp, and LCD read as one moulded object. Adding a bottom
-  highlight or a sweep on a different angle quietly undoes the whole effect,
-  so match the lamp before adding a surface.
+  on a top edge, every occlusion on a bottom edge, and the one specular —
+  `.deck-window::after`'s sheen, a soft radial from the window's top-left
+  corner — comes from the same lamp. That consistency, not any single
+  gradient, is what makes the chassis, glass, caps, lamp, and LCD read as
+  one moulded object. Adding a bottom highlight or a sweep from another
+  side quietly undoes the whole effect, so match the lamp before adding a
+  surface. NO diagonal bands: the old 118deg glass stripe and the chassis'
+  100deg raking highlight had percentage stops, which fade nicely on a wide
+  window and collapse into a 40px "ray of light" between the reels on a
+  274px one (user reports, 2026-09-03/04). A corner radial fades the same
+  at every width. The light itself is `.deck-stage`'s background: a BROAD
+  centred ellipse (`72% 105% at 50% 46%`, #38332F → #0D0C0B) pooling
+  behind the reels — the user's ask was "a soft faded light in the centre",
+  and a flat plate read as dead. Keep it an ellipse in stage percentages.
 - **The reels can be spun by hand (user ask, 2026-09-03: "like a DJ").**
   `useReelSpin` (deck/) owns the gesture; `spinPhysics.ts` is the pure,
   table-tested part. Decisions: BOTH reels turn together (a drag anywhere on
