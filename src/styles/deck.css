@@ -283,6 +283,31 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
+/*
+ * Spin the reels by hand (`useReelSpin`). An easter egg, so it borrows the
+ * deck's existing channels rather than adding any: the drag is offered only
+ * while nothing else turns the reels (`data-spinnable`), and while it runs
+ * (`data-spinning`) the tape lights up exactly as it does under playback —
+ * through the same opacity transitions, so grabbing and letting go fade.
+ * `touch-action: none` is what stops a touch drag from scrolling the panel.
+ */
+.deck-stage[data-spinnable="true"] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.deck-stage[data-spinnable="true"]:active {
+  cursor: grabbing;
+}
+
+.deck-stage[data-spinning="true"] .tape-shimmer {
+  opacity: 0.9;
+}
+
+.deck-stage[data-spinning="true"] .tape {
+  opacity: 1;
+}
+
   opacity: 0;
   transition: opacity 300ms cubic-bezier(0.2, 0, 0, 1);
   background: radial-gradient(

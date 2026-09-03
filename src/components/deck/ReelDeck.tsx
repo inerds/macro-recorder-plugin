@@ -1,3 +1,5 @@
+import type { RefObject } from "react";
+
 import type { DeckState } from "./deckState";
 
 /*
@@ -302,14 +304,35 @@ function Nameplate() {
   );
 }
 
+export interface ReelDeckProps {
+  state: DeckState;
+  /** The stage element, for the spin gesture's pointer handlers. */
+  stageRef?: RefObject<HTMLDivElement | null>;
+  /**
+   * The reels can be spun by hand right now. Only ever true while the CSS is
+   * not animating them, so the two never fight over `rotate`.
+   */
+  interactive?: boolean;
+}
+
 /**
  * The reel-to-reel stage. Pure decoration — every state it shows is also
  * spelled out by the lamp and the label in `DeckTransport`, which is what
  * keeps it honest under `prefers-reduced-motion` and behind `aria-hidden`.
+ *
+ * `aria-hidden` stays even when the stage is spinnable: dragging the reels is
+ * an easter egg that carries no information, so a keyboard or screen-reader
+ * user loses exactly nothing by not being offered it.
  */
-export function ReelDeck({ state }: { state: DeckState }) {
+export function ReelDeck({ state, stageRef, interactive = false }: ReelDeckProps) {
   return (
-    <div className="deck-stage" data-deck={state} aria-hidden="true">
+    <div
+      className="deck-stage"
+      data-deck={state}
+      data-spinnable={interactive ? "true" : undefined}
+      ref={stageRef}
+      aria-hidden="true"
+    >
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"

@@ -8,6 +8,12 @@ export interface DeckTransportProps {
   state: DeckState;
   /** Steps on the counter right now (captured, or played so far). */
   stepCount: number;
+  /**
+   * Four digits to show INSTEAD of the step count, set only while the reels
+   * are being spun by hand. Decoration: the real count stays in the
+   * accessible text, so the readout never lies to a screen reader.
+   */
+  counterOverride?: string | null;
   /** Set only while recording — the clock runs from here. */
   startedAt: number | null;
   /** The reel stage, recessed into the chassis above the transport row. */
@@ -33,6 +39,7 @@ function counterText(count: number): string {
 export function DeckTransport({
   state,
   stepCount,
+  counterOverride = null,
   startedAt,
   stage,
   recordDisabled,
@@ -107,7 +114,17 @@ export function DeckTransport({
             </span>
           )}
           <span className="lcd-count" aria-label="Steps captured">
-            {counterText(stepCount)}
+            {counterOverride === null ? (
+              counterText(stepCount)
+            ) : (
+              /* Spinning the reels runs the counter like tape footage. The
+                 digits are a toy, so they are hidden from the accessibility
+                 tree and the real count is spoken in their place. */
+              <>
+                <span aria-hidden="true">{counterOverride}</span>
+                <span className="sr-only">{counterText(stepCount)}</span>
+              </>
+            )}
           </span>
         </span>
       </div>

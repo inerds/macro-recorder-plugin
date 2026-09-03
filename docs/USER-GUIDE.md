@@ -31,7 +31,7 @@ carries no title, and the transport row under the reels is the readout:
 | **State word** | READY · RECORDING · REWIND · PLAYING · PAUSED · DONE. |
 | **Counter** | The steps captured while you record or review, and the step being applied during playback. |
 | **Clock** | Appears while you record, and shows minutes and seconds (m:ss). |
-| **The reels** | Spin while you record, rewind when you trigger a macro, run forward while it plays, and coast to a stop when it ends. |
+| **The reels** | Spin while you record, rewind when you trigger a macro, run forward while it plays, and coast to a stop when it ends. When the deck is at rest you can spin them yourself: drag a reel and let go, and they coast like a platter while the counter runs with them. |
 
 The counter is the four-digit readout at the right of the transport row, and
 the clock shares that window while you record. The nameplate under the reels

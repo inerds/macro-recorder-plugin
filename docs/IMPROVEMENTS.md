@@ -9,6 +9,14 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 ---
 
+## 2026-09-03 — Spin the reels
+
+| Issue | Fix |
+|---|---|
+| **The hero was look-only.** | At rest (Ready or Paused) you can drag a reel and fling it: both reels turn together, coast with friction, the tape highlight runs with them and the counter becomes a tape counter until they stop. Inert while recording or playing. |
+
+---
+
 ## 2026-09-03 — Hero chassis edges at panel size
 
 | Issue | Fix |

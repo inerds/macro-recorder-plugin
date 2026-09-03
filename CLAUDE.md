@@ -578,6 +578,24 @@ recording clock, the status lamp, and the state word.
   glass, caps, lamp, and LCD read as one moulded object. Adding a bottom
   highlight or a sweep on a different angle quietly undoes the whole effect,
   so match the lamp before adding a surface.
+- **The reels can be spun by hand (user ask, 2026-09-03: "like a DJ").**
+  `useReelSpin` (deck/) owns the gesture; `spinPhysics.ts` is the pure,
+  table-tested part. Decisions: BOTH reels turn together (a drag anywhere on
+  the stage maps to the pointer's angle around the nearest reel centre, so
+  dragging the left reel's bottom edge rightward turns both forward =
+  negative `rotate`); release COASTS with `v *= exp(-dt/650ms)` and stops
+  under 0.02 deg/ms (no coast under reduced motion); allowed ONLY while
+  `deckState` is `idle` or `paused` — every other state animates `rotate`
+  from CSS and two owners of one property is a fight. The hook writes
+  inline `rotate` on both `.reel`s and `stroke-dashoffset` on both
+  `.tape-shimmer`s per frame (no React state per frame), toggles
+  `data-spinning` on the stage (CSS lights the shimmer), and on any
+  enabled→false transition strips the inline styles so the CSS animation
+  resumes from 0. The shimmer offset is `angle * 18/40` — SAME sign as the
+  angle, because forward is a negative rotate AND a decreasing offset. The
+  LCD shows a 4-digit tape counter (`tapeCounter`, counts UP for forward)
+  while spinning; the real count stays in an sr-only span and the stage
+  stays `aria-hidden` — it is an easter egg, not a control.
 - **The edges are one hairline each at panel size.** A 5px gutter is all
   that separates the chassis edge from the window bezel, so every extra
   line there stacks into a ridge: the chassis draws ONE lit top hairline
