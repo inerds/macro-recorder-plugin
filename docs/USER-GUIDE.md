@@ -82,7 +82,11 @@ so.
 
 ## 3. Review and save
 
-The review sheet shows the macro's name and every recorded step.
+The review sheet shows the macro's name and every recorded step, in the same
+recessed list the live feed uses. Each step reads as its property and its new
+value, for example `position.x → 160`. Hover or focus a step to see the value
+it replaced. A sentence above the list names what the macro applies to,
+including the recorded layer for a single-layer macro.
 
 | Control | What it does |
 |---|---|
@@ -306,7 +310,13 @@ merged run (the survivor), and drops pins on the steps it merged away.
 
 Each row in the list reads left to right: its position in the list, the
 macro's name, then how many steps it holds as a two-digit count (`04`). Screen
-readers hear the full "4 steps".
+readers hear the full "4 steps". A chevron in front of the number shows
+whether the row is open, and it rotates when the row opens. Renaming a macro
+keeps its number in place.
+
+Below a 262px panel — about a 278px window — a closed row drops the leader and
+the count to leave room for the name. The ⋮ menu adds **Play options…** there,
+since the key no longer fits the row.
 
 | Action | Where |
 |---|---|
