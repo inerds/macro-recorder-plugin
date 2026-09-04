@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/inerds/macro-recorder-plugin/security/advisories/new
+    about: Report a vulnerability privately. See SECURITY.md.
+  - name: Question about writing a Creator plugin
+    url: https://github.com/inerds/macro-recorder-plugin/blob/main/docs/runtime-api.md
+    about: The runtime API notes and the limitations file answer most host questions.
