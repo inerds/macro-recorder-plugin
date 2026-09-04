@@ -286,8 +286,8 @@ N drop shadows: fewer edges reads quieter AND matches the deck's object
 language. Two rules keep it coherent:
 
 - **It is a console readout, not a list of cards.** Rows divide with a dotted
-  rule and a `.rack-lead` leader carries the eye from each macro's name to a
-  two-digit step count, the way an instrument list does; names are `--font-mono`
+  rule and each macro's name is followed by a right-aligned two-digit step
+  count, the way an instrument list does; names are `--font-mono`
   and `.rack-num` is lit (`--primary` plus a glow, not the small-text red —
   the glow is what carries it at that weight). The monospace grid is what
   makes it read as equipment; setting the names back in the sans face is what
@@ -312,14 +312,16 @@ language. Two rules keep it coherent:
 - **Counts are bare mono readouts everywhere** — the list header's
   `10 · 42`, each row's `05`, and the recording header's `02 steps`. The
   recording count was the one bordered pill on the panel; it is not.
-- **The whole closed row is the hover surface.** `.rack-row:not(.rack-row-open):hover`
-  lifts the row one tone ABOVE the card (`#FCFAF6` — the card itself is
-  too close to the well to register) with a hairline and darkens the
-  chevron; the disclosure button carries no hover of its own any more (a
-  tint on just the name read as a loose highlight floating in the row). The
-  leader sits at 0.16 alpha at rest — a guide for the eye, not a rule — and
-  the row's hover brings it to 0.3 (user report, 2026-09-04: at 0.35 it
-  competed with the name and the keys).
+- **The whole closed row is the hover surface, and there is no leader.**
+  `.rack-row:not(.rack-row-open):hover` lifts the row to the card colour
+  with a 0.2 hairline and darkens the chevron; the disclosure button
+  carries no hover of its own (a tint on just the name read as a loose
+  highlight floating in the row), and a first pass one tone above the card
+  was too strong for the paper. The dotted leader between the name and the
+  count is gone (user decision, 2026-09-04): with dotted row separators it
+  made two dotted lines per row and the list read as busy. `.rack-lead`
+  stays as the flex spacer that right-aligns the count; the pairing is
+  carried by proximity.
 - **One 4px gap on the row, and the keys are 22px.** The lid is
   `[number] [chevron name …leader count] [play] [options] [⋯]` with a single
   `gap-1` between every element and 6px side padding; the chevron carries no

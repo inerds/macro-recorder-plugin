@@ -16,7 +16,7 @@ findings belong in the failure taxonomy.
 
 | Issue | Fix |
 |---|---|
-| **The leader dots between a macro's name and its count were too strong, and the row hover was a tint on the name only.** | The leader is faint at rest and comes up on hover; the whole row is the hover surface, lifted a tone above the card with a hairline. |
+| **The leader dots between a macro's name and its count made two dotted lines per row, and the row hover was a tint on the name only.** | The leader is gone; the count stays right-aligned. The whole row is the hover surface, lifted to the card colour with a hairline. |
 | **Macro rows felt loose.** Two gaps stacked between the chevron and the name, and the three 24px icon keys with 6px gaps read as three objects while the name truncated at 300px. | One 4px gap on the row, no chevron margin, 22px keys. The name gains about 30px and the cluster reads as one. |
 | **Stagger did nothing to a macro with no keyframes.** It shifted keyframe frames only, so a macro of static edits replayed the same way on every selected layer. | Stagger now delays the layer instead: it moves each target's in point and `timelineOffset` by N frames per layer, in selection order, once per run. With At playhead on, the first layer's in point lands on the current frame. |
 | **Stagger could be set and then ignored in silence,** when the macro replayed as a scene script or when one layer was selected. | Both cases report a note on the run: "stagger ignored — this macro replayed as a scene script (nothing was selected)" and "stagger needs 2 or more selected layers — replayed without it". |
