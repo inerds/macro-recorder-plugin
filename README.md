@@ -13,8 +13,8 @@ plugin needs:
 - The QuickJS sandbox constraints that the typings do not mention, above all
   the no-job-pump callback contract (`pnpm test:quickjs` enforces it).
 - The host API's real runtime surface, found by introspection
-  (`docs/RUNTIME-API.md`), and confirmed host limits with evidence
-  (`docs/LIMITATIONS.md`).
+  (`docs/runtime-api.md`), and confirmed host limits with evidence
+  (`docs/limitations.md`).
 - A fake host scene for tests and a browser harness that reproduce the real
   proxies' traps (`shared/testing/fakeScene.ts`, `public/host-harness.html`).
 - Trace-driven debugging: every dev session writes an auditable bundle of
@@ -29,13 +29,26 @@ strip.
 
 Document map:
 
-- `docs/USER-GUIDE.md` — the end-user walkthrough of every feature.
-- `docs/RUNTIME-API.md` — the host API's real runtime surface. Read it before you
-  extend the engine; the published typings are wrong in both directions.
-- `docs/LIMITATIONS.md` — confirmed host limits, with evidence.
-- `docs/IMPROVEMENTS.md` — the running log of fixes.
-- `CLAUDE.md` — the invariants behind the code's shape.
-- `docs/STYLE-GUIDE.md` — the documentation style standard.
+- [`docs/user-guide.md`](docs/user-guide.md) — the end-user walkthrough of every
+  feature.
+- [`docs/architecture.md`](docs/architecture.md) — the invariants behind the
+  code's shape: the three TypeScript projects, the sandbox constraints, the
+  proxy boundary, the recording engine, and the gateway seam.
+- [`docs/design-system.md`](docs/design-system.md) — the panel's skin, deck, and
+  rack rules.
+- [`docs/runtime-api.md`](docs/runtime-api.md) — the host API's real runtime
+  surface. Read it before you extend the engine; the published typings are wrong
+  in both directions.
+- [`docs/limitations.md`](docs/limitations.md) — confirmed host limits, with
+  evidence.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, the checks a change must pass,
+  and how a release is cut.
+- [`docs/contributing/`](docs/contributing/) — the writing style standard, the
+  trace-triage workflow, and the `ENGINE_REV` rule.
+- [`docs/history/`](docs/history/) — the engineering log, the 2026-08-24 UI
+  audit, and the v3.1 roadmap.
+- [`docs/releases/`](docs/releases/) — the release notes per shared build.
+- [`CHANGELOG.md`](CHANGELOG.md) — user-visible changes per version.
 
 ## How the engine works
 
@@ -174,7 +187,7 @@ sandbox reproduces bugs that are already fixed.
 
 - The layout holds a `min-width: 260px` and scrolls horizontally below that.
 - Sharing is **Copy JSON** and **Import**, not file export — Creator's
-  sandboxed iframe can block downloads. `docs/LIMITATIONS.md` tracks the host
+  sandboxed iframe can block downloads. `docs/limitations.md` tracks the host
   limits with their evidence.
 
 ## License

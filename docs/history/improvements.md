@@ -1,11 +1,14 @@
 # Improvements
 
-This is a running log of issues found and fixed in the Macro Recorder plugin.
+This is the engineering log: what was wrong, what changed, one row per fix,
+newest first. `CHANGELOG.md` is the user-facing record of the same work — this
+file is the internal one.
 
 **Convention:** Add one row per fix, at the top of the newest dated section,
 right after the fix lands. Two columns only — what was wrong, and what changed.
 Keep each to a sentence or two: this is a changelog to scan, not a design doc.
-Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxonomy.
+Reasoning belongs in `../architecture.md` and `../design-system.md`, and open
+findings belong in the failure taxonomy.
 
 ---
 
@@ -78,7 +81,7 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 | Issue | Fix |
 |---|---|
-| **Applying a color token recorded/replayed as a flat RGB fill** — the token binding never survived a macro. | Confirmed a platform limit, not a recorder/playback bug (`LIMITATIONS.md`, conclusive): no token/slot surface exists on any enumerated paint/node/scene proxy, and the rev .51 probe's hunt through the last unprobed routes (`node.data`, `node.toJSON()`, scene-root `slots`) came back empty in two independent sessions — `toJSON()` is an `{id,type}` stub on this host, so no document route exists at all. The recorder can only ever see the resolved color; the ask is upstream. |
+| **Applying a color token recorded/replayed as a flat RGB fill** — the token binding never survived a macro. | Confirmed a platform limit, not a recorder/playback bug (`../limitations.md`, conclusive): no token/slot surface exists on any enumerated paint/node/scene proxy, and the rev .51 probe's hunt through the last unprobed routes (`node.data`, `node.toJSON()`, scene-root `slots`) came back empty in two independent sessions — `toJSON()` is an `{id,type}` stub on this host, so no document route exists at all. The recorder can only ever see the resolved color; the ask is upstream. |
 
 ---
 
@@ -95,7 +98,7 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 | Issue | Fix |
 |---|---|
-| **Trace sweep verdicts (10 traces, revs .47–.49):** the fill fix works live (topology remap replaced Ellipse 1's root fill for real), Macro 2's relative-offset replay is exact, simplify folding correct, .48/.49 field rollout clean, all fixed taxonomy items holding. The `selection:keyframes` event fired 311× in one session — every payload empty (limitation now conclusively triple-evidenced). | Evidence appended to `LIMITATIONS.md`'s entry; historical 08-24 backlog marked processed (superseded by fixes). |
+| **Trace sweep verdicts (10 traces, revs .47–.49):** the fill fix works live (topology remap replaced Ellipse 1's root fill for real), Macro 2's relative-offset replay is exact, simplify folding correct, .48/.49 field rollout clean, all fixed taxonomy items holding. The `selection:keyframes` event fired 311× in one session — every payload empty (limitation now conclusively triple-evidenced). | Evidence appended to `../limitations.md`'s entry; historical 08-24 backlog marked processed (superseded by fixes). |
 | **`probe()` was blind to paints** — `replace-paint` probes read `.staticValue` off a Paint proxy (null/null, no unreadable flag), and topology-remapped writes probed at the *recorded* path — a fill swap was indistinguishable from a silent failure in traces. | Paint-shaped resolved values probe as a summary (`{paintType, color, stops}`), and a path that fails to resolve on the target follows `resolvePaint`'s role-based descent to the paint that was actually written. |
 | **`set-plain` could create phantom properties** — the best-effort shape fallback can resolve a different node type (an ELLIPSE geometry for a group's `blendMode` path); bare assignment then *created* the flag and the read-back trivially passed — a mis-applied write reporting success. | The applier pre-reads the flag: a clean `undefined` means the node doesn't carry it → skip note (a *throwing* getter still writes — write-only flags stay writable). |
 
@@ -130,7 +133,7 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 | Issue | Fix |
 |---|---|
-| **"Add selected" never worked live** — five debug sessions (revs .42–.44) prove `creator.selection.keyframes` is a real but permanently EMPTY array on the host: `selectedCount` stayed 0 even with 21 keyframes on the offered layer, so the key was always disabled. ("Add all", by contrast, is fully live-verified: up to 198 captured steps retargeted with 0 failures.) | Filed in `LIMITATIONS.md` with the trace evidence. Rev .46 subscribes to the typed `selection:keyframes` event (feature-detected) and feeds the offer/capture from the latest event payload when the getter polls empty — the remaining route by which the host could deliver the selection; `selectionIntrospection` now reports `events: {supported, fired, lastCount}` so the next trace settles it. The disabled key's tooltip now tells the truth ("Creator hasn't reported any selected keyframes to plugins"). Triage taxonomy gains #16 (zero-delta transform statics: intentional) and #17 (this platform limit). |
+| **"Add selected" never worked live** — five debug sessions (revs .42–.44) prove `creator.selection.keyframes` is a real but permanently EMPTY array on the host: `selectedCount` stayed 0 even with 21 keyframes on the offered layer, so the key was always disabled. ("Add all", by contrast, is fully live-verified: up to 198 captured steps retargeted with 0 failures.) | Filed in `../limitations.md` with the trace evidence. Rev .46 subscribes to the typed `selection:keyframes` event (feature-detected) and feeds the offer/capture from the latest event payload when the getter polls empty — the remaining route by which the host could deliver the selection; `selectionIntrospection` now reports `events: {supported, fired, lastCount}` so the next trace settles it. The disabled key's tooltip now tells the truth ("Creator hasn't reported any selected keyframes to plugins"). Triage taxonomy gains #16 (zero-delta transform statics: intentional) and #17 (this platform limit). |
 
 ---
 
@@ -138,7 +141,7 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 | Issue | Fix |
 |---|---|
-| **"Add all" still lost the fill's KIND** — component steps can't say "this is a radial gradient", so a captured radial degraded to linear on conversion, and a target with no fill note-skipped the look entirely. | Capture now emits each fill first as a `replace-paint` with its complete snapshot (kind, gradientType, statics — animated-only components seeded from their earliest keyframe), then the animated components as keyframes ops on the fresh paint. Replay replaces a mismatched fill outright and adds one where none exists. Text layers' singular fills keep component capture (no replace surface). Also recorded live: `creator.selection.keyframes` exists on the real host ("Add selected (0)" rendered) — noted in `RUNTIME-API`. |
+| **"Add all" still lost the fill's KIND** — component steps can't say "this is a radial gradient", so a captured radial degraded to linear on conversion, and a target with no fill note-skipped the look entirely. | Capture now emits each fill first as a `replace-paint` with its complete snapshot (kind, gradientType, statics — animated-only components seeded from their earliest keyframe), then the animated components as keyframes ops on the fresh paint. Replay replaces a mismatched fill outright and adds one where none exists. Text layers' singular fills keep component capture (no replace surface). Also recorded live: `creator.selection.keyframes` exists on the real host ("Add selected (0)" rendered) — noted in `../runtime-api.md`. |
 
 ---
 
@@ -162,7 +165,7 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 | Issue | Fix |
 |---|---|
-| **Existing layer animation couldn't become a macro** — the recorder only diffs *changes*, so a layer's pre-existing timeline keyframes were invisible to it; users had to re-author motion while recording. | While recording, selecting a single keyframed layer raises an inline offer above the live feed — "Add all" pulls every animated path of the layer's subtree in as `keyframes` steps (synthesized from the tick's own snapshot through `buildStep`, so they replay/retarget/at-playhead like anything recorded); "Add selected" appears when the host's typed-but-unverified `selection.keyframes` surface proves live, matching by frame+value. Capture reads `lastSnapshot`, so it can never double-emit against the diff stream; a debug-session probe (`selectionIntrospection`) will turn the unverified surface into `RUNTIME-API` ground truth. |
+| **Existing layer animation couldn't become a macro** — the recorder only diffs *changes*, so a layer's pre-existing timeline keyframes were invisible to it; users had to re-author motion while recording. | While recording, selecting a single keyframed layer raises an inline offer above the live feed — "Add all" pulls every animated path of the layer's subtree in as `keyframes` steps (synthesized from the tick's own snapshot through `buildStep`, so they replay/retarget/at-playhead like anything recorded); "Add selected" appears when the host's typed-but-unverified `selection.keyframes` surface proves live, matching by frame+value. Capture reads `lastSnapshot`, so it can never double-emit against the diff stream; a debug-session probe (`selectionIntrospection`) will turn the unverified surface into `../runtime-api.md` ground truth. |
 
 ---
 
@@ -208,7 +211,7 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 | Issue | Fix |
 |---|---|
-| **The recording screen's only bottom action was Discard** — the screen's natural next step (Stop → review) lived solely in the deck, so the one full-width key at the foot was the destructive exit. | Bottom bar now mirrors the review bar it hands off to: **Stop** as the red CTA (same action as the deck's key), Discard as the outline secondary beside it. Retires the earlier "exactly one Stop while recording" rule (see `CLAUDE.md`); drivers matching Stop by name scope to `stop-button` (deck) / `stop-recording-button` (bar). |
+| **The recording screen's only bottom action was Discard** — the screen's natural next step (Stop → review) lived solely in the deck, so the one full-width key at the foot was the destructive exit. | Bottom bar now mirrors the review bar it hands off to: **Stop** as the red CTA (same action as the deck's key), Discard as the outline secondary beside it. Retires the earlier "exactly one Stop while recording" rule (see `../design-system.md`); drivers matching Stop by name scope to `stop-button` (deck) / `stop-recording-button` (bar). |
 | **The overflow menu's Delete item was click-dead when the menu opened low.** `DevSettings` wore `relative z-[1]` inside `#root`, so the dev strip out-stacked the portalled menu's `z-auto` positioner — the menu's bottom ~30px painted under the strip and `elementFromPoint` on "Delete" returned the DEV SETTINGS toggle (the same stacking trap `index.css` documents for `#root`). | Dropped the `z-[1]`; being positioned and later in the DOM already wins over the scrolling rack rows. Re-probed: all three hit-test points on Delete land in the menu, and a real mouse click opens the delete confirm. |
 | **The configure sheet was the one screen speaking the wrong voice** — a 14px sans-medium title ("Set values for …"), the only `text-14` in `src/`, against every sibling's red instrument-caps header. | Header joins the convention: `SET VALUES` in `instrument instrument-red`, the macro name on its own mono line (truncating, `title`-carried), full title kept for screen readers. |
 | **"← Review & save" promised a back navigation that didn't exist** — the arrow lived in a plain `<p>`; the only real exits are Discard/Save. | Dropped the arrow; the header stays as a label, which is what it is. |
@@ -221,13 +224,13 @@ Reasoning belongs in `CLAUDE.md`, and open findings belong in the failure taxono
 
 Full audit (findings, evidence, and the [larger] backlog: toast placement over
 action rows, unskinned toast, deck STOP dead during playback, Simplify
-dropping pins silently, inline step-edit commit affordance) → `UI-AUDIT.md`.
+dropping pins silently, inline step-edit commit affordance) → `ui-audit-2026-08-24.md`.
 
 ## 2026-08-24 — Macro sharing without file downloads
 
 | Issue | Fix |
 |---|---|
-| **Export JSON did nothing inside Creator.** The plugin iframe is sandboxed without `allow-downloads`, so the blob-anchor download was silently dropped — no file, no error (filed in `LIMITATIONS.md`). | Macros now travel as copied JSON: ⋮ → **Copy JSON** tries the async clipboard, then a hidden-textarea `execCommand("copy")` in the same gesture, and falls back to a dialog with the JSON pre-selected for a manual ⌘C; **Import** opens a paste-JSON dialog that feeds the existing `importMacro` validation and shows parse errors inline. Verified headless: granted-clipboard copy → paste → macro in the list, and the denied-clipboard fallback dialog with auto-selected JSON. |
+| **Export JSON did nothing inside Creator.** The plugin iframe is sandboxed without `allow-downloads`, so the blob-anchor download was silently dropped — no file, no error (filed in `../limitations.md`). | Macros now travel as copied JSON: ⋮ → **Copy JSON** tries the async clipboard, then a hidden-textarea `execCommand("copy")` in the same gesture, and falls back to a dialog with the JSON pre-selected for a manual ⌘C; **Import** opens a paste-JSON dialog that feeds the existing `importMacro` validation and shows parse errors inline. Verified headless: granted-clipboard copy → paste → macro in the list, and the denied-clipboard fallback dialog with auto-selected JSON. |
 
 ## 2026-08-23 — Compaction pass: one-chassis hero, denser list
 
@@ -302,11 +305,11 @@ dropping pins silently, inline step-edit commit affordance) → `UI-AUDIT.md`.
 | Landmarks, headings, and overflow were unset: two h1s, no `<main>`, and every scroller could scroll sideways. | One sr-only `<h1>`, an `<h2>` per mode, a `<main>` per mode body, `overflow-x-hidden` on every scroller, and the inert `sticky` classes removed. |
 | Motion was inconsistent: no press feedback, panels appeared instantly, theme switches smeared through every element's transition. | A `.press` affordance on every button (except the playback decisions), `inline-enter`/`panel-enter` staggers, an inset ring on the success flash that still reads under `prefers-reduced-motion`, and a transition freeze around the theme class toggle. |
 
-## 2026-08-22 — v3.1 pro-workflow features (ROADMAP.md)
+## 2026-08-22 — v3.1 pro-workflow features (roadmap-v3.1.md)
 
 | Issue | Fix |
 |---|---|
-| Position keyframes' motion-path bezier handles (spatial tangents) were never recorded — the serializer read only `frame/value/easing`, so curved motion replayed as straight lines. **Outcome:** live introspection showed the host does not expose them at all (`LIMITATIONS.md`); the defensive support stays dormant. | `KfSnap` gained `inTangent`/`outTangent`, read defensively (the typings omit them; their docs show them). The differ treats a handle-only edit as a keyframe change and keeps handles through move re-pairing; the applier writes them after add/change and **verifies the read-back**, noting "motion-path handle not supported by this host" instead of assuming. `record.start`'s debug probe now dumps a keyframe proxy's real surface so the next trace settles whether Creator exposes them. |
+| Position keyframes' motion-path bezier handles (spatial tangents) were never recorded — the serializer read only `frame/value/easing`, so curved motion replayed as straight lines. **Outcome:** live introspection showed the host does not expose them at all (`../limitations.md`); the defensive support stays dormant. | `KfSnap` gained `inTangent`/`outTangent`, read defensively (the typings omit them; their docs show them). The differ treats a handle-only edit as a keyframe change and keeps handles through move re-pairing; the applier writes them after add/change and **verifies the read-back**, noting "motion-path handle not supported by this host" instead of assuming. `record.start`'s debug probe now dumps a keyframe proxy's real surface so the next trace settles whether Creator exposes them. |
 | A 500ms tick loop turns one drag into a dozen micro-steps; the only tool was deleting them one by one. | **Simplify** button (review sheet + macro detail): merges runs of value edits on one property into first→last (dropping net no-ops) and folds keyframe add/change/remove chains into one net delta. Never reaches across structural/scene ops or disabled steps. Manual, never automatic. |
 | No way to keep a step but not run it, or to fix a recorded value without re-recording. | Steps can be **disabled** (eye toggle; playback sends only enabled steps) and **edited** inline (numbers, x/y vectors, colors, text, new-layer names) with the label rebuilt from the new value. Both persist and export. |
 | Keyframed macros always replayed at the recorded frames — the one thing AE animation presets do that we didn't. | **At playhead** play option: `playback.begin` reads `creator.timeline.currentFrame` and shifts every recorded keyframe so the macro's earliest lands on the playhead (scene scripts too). **Stagger** adds N frames per selected layer for a cascade. |
@@ -317,7 +320,7 @@ dropping pins silently, inline step-edit commit affordance) → `UI-AUDIT.md`.
 
 | Issue | Fix |
 |---|---|
-| Whether nesting selected layers at replay was possible at all remained unproven through three rounds of guesses. | Instrumented every attempt with breadcrumbs; one live trace delivered the verdict: **confirmed platform limitation** — no API route moves existing layers into a scene (`createSceneLayer(layers)` undefined, no-arg ignores selection, `shiftTo` throws). Logged in `LIMITATIONS.md` with the upstream ask; the verified guess-chain stays so a future host fix lights up automatically. Replay meanwhile falls back honestly. |
+| Whether nesting selected layers at replay was possible at all remained unproven through three rounds of guesses. | Instrumented every attempt with breadcrumbs; one live trace delivered the verdict: **confirmed platform limitation** — no API route moves existing layers into a scene (`createSceneLayer(layers)` undefined, no-arg ignores selection, `shiftTo` throws). Logged in `../limitations.md` with the upstream ask; the verified guess-chain stays so a future host fix lights up automatically. Replay meanwhile falls back honestly. |
 
 ## 2026-08-22 — Nesting from selection, order-based inside mapping
 

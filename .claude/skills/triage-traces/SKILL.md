@@ -56,7 +56,7 @@ For each confirmed finding, in order:
 - Dispatch a `macro-fixture` agent to write the regression test.
 - Review the test yourself; confirm it fails for the right reason.
 - Only then implement the fix, and re-run `pnpm test` plus `pnpm test:quickjs`.
-- Add a row to `docs/IMPROVEMENTS.md` (issue, fix — a sentence or two each). The fix
+- Add a row to `docs/history/improvements.md` (issue, fix — a sentence or two each). The fix
   is not done until it is logged there.
 
 Never fix without a test first — the whole point of the trace loop is that
@@ -68,6 +68,8 @@ Append the triaged filenames to `traces/.processed` so the next run skips them.
 
 ## Notes
 
+- The workflow, the trace-honesty rules, and the engine-revision fences are
+  documented in `docs/contributing/triage.md`.
 - `pnpm test:quickjs` must pass after any change to RPC shapes: it enforces the
   QuickJS no-job-pump contract that ordinary tests cannot catch.
 - Debug payloads are opt-in per session; if a trace lacks `snapshots` or

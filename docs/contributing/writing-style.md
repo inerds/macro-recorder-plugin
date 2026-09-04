@@ -41,7 +41,7 @@ own rules and are out of scope.
 - Introduce every list and table with a sentence that ends in a colon or a
   period.
 - Format file names, paths, commands, flags, and identifiers as `code`.
-- Write link text that names the target ("see `LIMITATIONS.md`"), never
+- Write link text that names the target ("see `docs/limitations.md`"), never
   "click here".
 - Spell out a number that starts a sentence; otherwise use numerals.
 

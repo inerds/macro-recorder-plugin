@@ -2,7 +2,7 @@
 
 This document lists the platform limits and the design limits that the Macro
 Recorder has found, with the evidence that established each one. Add an entry
-when you confirm a new limit. Move an entry to `IMPROVEMENTS.md` if an API
+when you confirm a new limit. Move an entry to `history/improvements.md` if an API
 change or a workaround ever lifts it.
 
 **Convention:** each entry states what does not work, why (with evidence), what
@@ -78,7 +78,7 @@ came back empty:
   empty quota map (`usedQuota: 0`, `get`/`set` null), not a document surface;
 - `node.toJSON()` and `activeScene.toJSON()` return bare `{id, type}` stubs on
   this host — there is no raw-document route to carry an `sid` or a `slots`
-  map (see the `toJSON()` caveat in `RUNTIME-API.md`);
+  map (see the `toJSON()` caveat in `runtime-api.md`);
 - the scene JSON root has no `slots`, `tokens`, `themes`, `styles`, or `vars`
   key, and a whole-trace search for token vocabulary is zero-hit in every
   session.
@@ -306,7 +306,7 @@ flow stays as the universal path.
 
 Recording is now whole-scene. The recorder captures edits on any layer, layer
 duplication and copy-paste (replayed as real `clone()` calls), new layers,
-deletions, and layer reordering. See "Engine v3" in `IMPROVEMENTS.md`.
+deletions, and layer reordering. See "Engine v3" in `history/improvements.md`.
 
 ---
 

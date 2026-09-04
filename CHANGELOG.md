@@ -1,7 +1,8 @@
 # Changelog
 
-User-visible changes per shared version. One dated block per release. The
-internal detail lives in `docs/IMPROVEMENTS.md`.
+This is the user-facing record: user-visible changes per shared version, one
+dated block per release. The engineering log — what was wrong and what changed,
+one row per fix — is `docs/history/improvements.md`.
 
 ## 0.5.0 — 2026-09-04
 

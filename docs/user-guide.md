@@ -8,7 +8,7 @@ them to.
 
 This guide covers every feature and how to use it. For what the engine does
 internally, see `README.md`. For what the platform cannot do, see
-`LIMITATIONS.md`.
+`limitations.md`.
 
 ---
 
@@ -364,7 +364,7 @@ which is why sharing is copy and paste.
 
 ## 11. Known limits
 
-Confirmed platform limits live in `LIMITATIONS.md` with evidence. You are most
+Confirmed platform limits live in `limitations.md` with evidence. You are most
 likely to meet these:
 
 - **Per-fill opacity** is not exposed to plugins — it records nothing.

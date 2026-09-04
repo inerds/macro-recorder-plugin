@@ -4,7 +4,7 @@
 > `v3.1-pro-workflow` and merged to `main` on 2026-08-22. At-playhead, stagger
 > and repeat are live-verified in Creator traces; simplify/edit/disable and
 > params are verified in the standalone UI. A UI/accessibility/copy pass
-> followed (IMPROVEMENTS.md). User-facing documentation in `USER-GUIDE.md`.
+> followed (`improvements.md`). User-facing documentation in `../user-guide.md`.
 
 ## Context
 
@@ -24,7 +24,7 @@ all four gap-closing features:
 4. **Parameters on apply** (gizmo knobs)
 
 Build in that order — 1 provides machinery 4 reuses. All are feasible under
-RUNTIME-API.md constraints (timeline.currentFrame is readable; everything
+`../runtime-api.md` constraints (timeline.currentFrame is readable; everything
 else is client-side data transforms + existing applier paths).
 
 ## 1. Step editing + Simplify
@@ -61,7 +61,7 @@ Sandbox math (bump ENGINE_REV):
 - `shared/protocol.ts`: `playback.begin` params gain
   `atPlayhead?: boolean; staggerFrames?: number`.
 - `plugin/playback.ts` `playbackBegin`: when `atPlayhead`, read
-  `creator.timeline.currentFrame` (tryRead; readonly per RUNTIME-API), find
+  `creator.timeline.currentFrame` (tryRead; readonly per `../runtime-api.md`), find
   the macro's minimum keyframe frame across `keyframes` payloads, store
   `frameOffsetBase = currentFrame - minFrame` on the session. Store
   `staggerFrames` too.
@@ -129,4 +129,4 @@ notes/pause plumbing, existing editors across features 1↔4.
   duplicate-and-rotate macro (spiral in one click). Pin a color as parameter
   → play shows the form → change → applies.
 - Traces confirm each; ENGINE_REV bumped for the sandbox changes; rows in
-  IMPROVEMENTS.md per landed feature.
+  `improvements.md` per landed feature.

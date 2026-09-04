@@ -32,7 +32,7 @@ per selected target (+10 each).
 The live position-keyframe proxy surface (trace 2026-08-21T21-53-02-401, rev
 .38) is `easing, frame, id, remove, value` — nothing else. The typings'
 example that writes `positionKeyframe.inTangent`/`outTangent` does not reflect
-the runtime. See `LIMITATIONS.md`. The engine keeps its defensive read and
+the runtime. See `limitations.md`. The engine keeps its defensive read and
 write of `KfSnap.inTangent`/`outTangent` so a future host lights it up
 automatically.
 
@@ -42,7 +42,7 @@ keyframes, staticValue`) despite the `Rectangle` typing omitting it, and no
 other rounding-shaped property (`radius`, `cornerRadius`, `corners`,
 `modifiers`) exists on the rectangle or its layer. **But it is a dead proxy**:
 its `staticValue` is 0 on every rectangle ever seen, rounded or not, and a
-corner-radius drag produces no snapshot change (`LIMITATIONS.md`,
+corner-radius drag produces no snapshot change (`limitations.md`,
 2026-08-23).
 
 ## Methods that EXIST but are untyped
@@ -88,7 +88,7 @@ These members are live on the runtime surface, and the typings omit them:
   the event DOES fire (`events.fired: 32`, trace 2026-08-26T03-55-48), but its
   payloads are as empty as the getter — `lastCount: 0` throughout. Both typed
   routes exist, and neither carries the timeline selection; the ask is
-  upstream. See `LIMITATIONS.md`.
+  upstream. See `limitations.md`.
 - Text layer: `text`, `fontFamily`, `fontStyle`, `alignment` (plain strings),
   `fontSize` (plain number), **singular** `fill` / `stroke` paints.
 - Scene-instance layer: `break()` (spills content into parent scene — works).
@@ -99,7 +99,7 @@ The typings declare these members, and the runtime does not have them:
 
 - `Scene.createSceneInstance(layers)` — **absent**, and no substitute works:
   `createSceneLayer(layers)` → undefined, no-arg creates empty (ignores
-  selection), `shiftTo` throws. CONFIRMED limitation (`LIMITATIONS.md`).
+  selection), `shiftTo` throws. CONFIRMED limitation (`limitations.md`).
 - `container.addFill/removeFill/addStroke/removeStroke/addMask/removeMask` —
   **absent**. Create via `createFill`/`createStroke`/`createMask`; remove via
   the OBJECT's own `.remove()` (paints, strokes, masks, trims, keyframes,
