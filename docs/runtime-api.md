@@ -27,6 +27,20 @@ Trace 2026-08-21T21-45-57-555 (rev .36): `playback.begin` with
 frame 16, and the keyframes landed at 16/63 (recorded 0/47). Stagger cascaded
 per selected target (+10 each).
 
+## Layer timing — `startFrame`, `endFrame`, `timelineOffset`
+
+All three are mutable plain properties on `LayerMixin` (vendor tarball
+`plugin-api.d.ts:583-591`), and the recorder reads them every tick
+(`engine/snapshot.ts` `PLAIN_PROPS`): readable live in 136 record traces;
+writes pending one live trace at rev `2026-09-04.1`. The traced
+`timelineOffset` values include negatives, so its sign convention is
+unverified.
+
+`delayLayer` (`sandbox/applier.ts`) is the only writer. It moves `startFrame`
+and `timelineOffset` by the same delta, reads both back, and reports a kept
+value as a note. It never writes `endFrame`, and it notes an `endFrame` the
+host moves on its own — that read is the evidence for the pending live check.
+
 ## Keyframe spatial tangents — NOT EXPOSED (verified 2026-08-22)
 
 The live position-keyframe proxy surface (trace 2026-08-21T21-53-02-401, rev

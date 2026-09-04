@@ -190,3 +190,12 @@ export function keyframeSpan(
   }
   return first === null || last === null ? null : { first, last };
 }
+
+/**
+ * True when the macro touches at least one keyframe. The sandbox uses it to
+ * choose between the keyframe frame shift and the layer delay; the UI uses it
+ * on `enabledSteps(macro)`, because the sandbox only ever sees enabled steps.
+ */
+export function hasKeyframes(steps: MacroStep[]): boolean {
+  return keyframeSpan(steps) !== null;
+}

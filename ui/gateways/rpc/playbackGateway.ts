@@ -47,6 +47,9 @@ export class RpcPlaybackGateway implements PlaybackGateway {
           ...(macro.source ? { sourceNodeId: macro.source.nodeId } : {}),
           ...(options?.atPlayhead ? { atPlayhead: true } : {}),
           ...(options?.staggerFrames ? { staggerFrames: options.staggerFrames } : {}),
+          // The sandbox delays a keyframe-free macro's layers on the first
+          // pass only; absent means pass 0, so legacy payloads stay identical.
+          ...(iteration > 0 ? { iteration } : {}),
           debug: trace.enabled,
         });
         trace.setContext({

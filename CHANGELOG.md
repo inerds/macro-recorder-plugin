@@ -6,6 +6,14 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- Stagger now works on a macro with no keyframes: it delays each selected
+  layer instead, moving the in point and the layer's own animation together.
+  The layers move in selection order, once per run, and a layer whose new in
+  point reaches its out point is skipped with a note.
+- At playhead now moves the first target layer's in point to the current
+  frame when the macro has no keyframes.
+- Stagger says when it does nothing: a macro that replays as a scene script,
+  or a run with one selected layer, now reports a note.
 - The plugin manifest now carries the version number.
 - The release zip is built by `pnpm bundle` and contains only the three
   files Creator needs.

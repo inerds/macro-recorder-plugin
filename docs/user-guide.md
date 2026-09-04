@@ -260,9 +260,12 @@ At playhead slides the whole macro along the timeline, so its **earliest
 keyframe lands on the current playhead frame**. Record a 0→30 bounce once,
 park the playhead at frame 120, and play at playhead: the bounce happens at
 120→150. All keyframes in the macro move together, and static (non-keyframe)
-edits are unaffected. It does nothing for a macro with no keyframes. **Newly
-recorded macros start with this on** — open the play options to turn it off
-for the session.
+edits are unaffected. **Newly recorded macros start with this on** — open the
+play options to turn it off for the session.
+
+A macro with no keyframes has nothing to slide, so At playhead moves the
+**first target layer's in point to the current frame** instead. The layer's
+own animation moves with the in point.
 
 ### Stagger
 
@@ -271,6 +274,24 @@ macros that replay as a scene script. It adds **N frames per layer**: the
 first selected layer starts at the playhead, the second N frames later, the
 third 2N later, and so on. That is a cascade in one click. Combine it with *At
 playhead*, or leave the playhead off to stagger from the recorded frames.
+
+#### Stagger on a macro with no keyframes
+
+A macro of static edits has no motion to cascade, so stagger **delays the
+layer** instead. The first selected layer keeps its in point, the second
+starts N frames later, and the third 2N later. Each layer's own animation
+moves with its in point, so an animated layer starts later as a whole. Turn
+*At playhead* on as well, and the first layer's in point lands on the current
+frame.
+
+Four things to expect from the delay:
+
+- The layers move in selection order.
+- The delay happens once per run. With *Repeat*, only the first pass moves
+  them.
+- The plugin skips a layer whose new in point reaches its out point, and
+  reports it as a note.
+- The out point never moves, so each layer gets shorter as it moves later.
 
 ### Repeat
 

@@ -306,6 +306,26 @@ check(
 );
 sendToPlugin({ t: "req", id: 13, method: "playback.end", params: {} });
 
+// 9. A later Repeat pass (iteration > 0) still answers in the same
+//    invocation — the delay decision must never introduce a thenable.
+const staticSteps = [
+  {
+    id: "s", kind: "transform", label: "move",
+    payload: { op: "set-static", path: ["position"], before: { x: 0, y: 0 }, after: { x: 10, y: 0 } },
+  },
+];
+posted.length = 0;
+sendToPlugin({
+  t: "req", id: 14, method: "playback.begin",
+  params: { steps: staticSteps, staggerFrames: 10, iteration: 1 },
+});
+check(
+  "playback.begin with iteration answers synchronously",
+  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.total === 1,
+  JSON.stringify(posted[0] ?? null),
+);
+sendToPlugin({ t: "req", id: 15, method: "playback.end", params: {} });
+
 onMessageCallback.dispose();
 vm.dispose();
 console.log(`\n${pass}/${pass + fail} QuickJS checks passed`);

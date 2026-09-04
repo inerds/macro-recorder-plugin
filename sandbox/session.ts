@@ -43,6 +43,19 @@ export interface PlaybackSession {
   frameOffsetBase: number;
   /** Extra frame shift per target index (targets mode cascade). */
   staggerFrames: number;
+  /** This is Repeat pass 0 — the only pass that delays layers. */
+  firstPass: boolean;
+  /**
+   * Keyframe-free macros only: how far to move each target's in point.
+   * `base` is the absolute in point the first target gets (at playhead);
+   * absent means each target keeps its own. `perTarget` is added per target
+   * index. `null` means this run delays nothing.
+   */
+  delay: { base?: number; perTarget: number } | null;
+  /** Why stagger did nothing this run — reported against the first target. */
+  staggerNote?: string;
+  /** The delay pass already ran, so step 0 never repeats it. */
+  onceDone?: boolean;
   /** Dev diagnostics opted into at playback.begin. */
   debug: boolean;
 }

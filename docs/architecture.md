@@ -233,6 +233,20 @@ Where each piece lives and the invariants worth keeping:
   `applyKeyframes` shifts the payload ONCE up front so matching and
   placement both see shifted frames. Stagger is `+ i × staggerFrames` per
   target in targets mode only.
+- **A macro with no keyframes has nothing to shift, so stagger delays the
+  layer** (rev `2026-09-04.1`): `begin` decides, step 0 acts. `playbackBegin`
+  parks `delay: { base?, perTarget }` on the session when
+  `hasKeyframes(steps)` is false, the mode is targets, and this is Repeat
+  pass 0 (`iteration`, sent by `playbackGateway`); `playbackStep` at index 0
+  calls `delayLayer` once per target before the step applies. `delayLayer`
+  (`sandbox/applier.ts`) is the only proxy toucher: it moves `startFrame` and
+  `timelineOffset` by the same delta, never writes `endFrame`, and turns
+  every outcome — including a host that keeps its own value — into a note.
+  Two reasons for the split: the per-target notes channel already reaches the
+  toast and the `playback-event` trace record, and `playback.begin`'s result
+  stays byte-identical. Keyframed macros never enter this path, so their
+  cascade is unchanged. Stagger that CANNOT act (scene mode, or one target)
+  parks a `staggerNote` reported the same way — nothing applies silently.
 - Params reference step ids; anything that regenerates ids (import,
   duplicate) or removes steps (delete, simplify) must remap or drop pins.
 

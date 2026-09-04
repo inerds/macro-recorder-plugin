@@ -1441,3 +1441,94 @@ export function readBaseline(target: AnyProxy, path: Path): Json | undefined {
     return undefined;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Layer delay (stagger for keyframe-free macros)
+// ---------------------------------------------------------------------------
+
+/** A finite number, or undefined — the host returns anything. */
+function finiteOf(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * Moves one layer later on the timeline: the in point and the layer's own
+ * animation together, the way After Effects sequences layers. A macro with no
+ * keyframes has nothing to cascade, so stagger delays the layer instead.
+ *
+ * `plan.base` is the absolute in point target 0 gets (apply at playhead);
+ * absent means the layer keeps its own. `plan.delta` is this target's share of
+ * the stagger. The out point is never written.
+ *
+ * Every outcome is a note, and this function never throws: a host that refuses
+ * a write, or hides a property, must be reported rather than silent.
+ */
+export function delayLayer(
+  node: AnyProxy,
+  plan: { base?: number; delta: number },
+  notes: string[],
+): void {
+  const start = finiteOf(tryRead(() => node.startFrame));
+  if (start === undefined) {
+    notes.push("couldn't read this layer's in point — stagger skipped");
+    return;
+  }
+  const end = finiteOf(tryRead(() => node.endFrame));
+  const offset = finiteOf(tryRead(() => node.timelineOffset));
+
+  const d = (plan.base ?? start) + plan.delta - start;
+  if (d === 0) {
+    notes.push(`in point already at ${start} — nothing to shift`);
+    return;
+  }
+  if (end !== undefined && start + d >= end) {
+    notes.push(
+      `stagger would move the in point to ${start + d}, at or past the out point (${end}) — skipped`,
+    );
+    return;
+  }
+
+  // The layer's own animation rides with the in point. A host that keeps its
+  // value leaves the feature as an in-point move, and says so.
+  if (offset !== undefined) {
+    let moved = false;
+    try {
+      node.timelineOffset = offset + d;
+      moved = finiteOf(tryRead(() => node.timelineOffset)) === offset + d;
+    } catch {
+      moved = false;
+    }
+    if (!moved) {
+      notes.push(
+        "the host kept timelineOffset unchanged — this layer's own animation stays where it was",
+      );
+    }
+  }
+
+  try {
+    node.startFrame = start + d;
+  } catch (error) {
+    notes.push(
+      `couldn't set the in point: ${error instanceof Error ? error.message : String(error)} — stagger skipped`,
+    );
+    return;
+  }
+  if (finiteOf(tryRead(() => node.startFrame)) !== start + d) {
+    notes.push("the host kept startFrame unchanged — the write didn't take");
+    return;
+  }
+
+  notes.push(
+    `delayed this layer by ${d} frames — in point ${start} → ${start + d}` +
+      (plan.base !== undefined && plan.delta === 0 ? " (at playhead)" : ""),
+  );
+
+  // Evidence for the live check: the typings call endFrame independent, and
+  // nobody has written one of these on a real host before.
+  if (end !== undefined) {
+    const endAfter = finiteOf(tryRead(() => node.endFrame));
+    if (endAfter !== undefined && endAfter !== end) {
+      notes.push(`the host also moved the out point ${end} → ${endAfter}`);
+    }
+  }
+}

@@ -128,7 +128,7 @@ the fake scene from the console through `window.harness`.
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (438 tests, 20 files)
+pnpm test          # vitest: engine logic, reducer, demo-macro replay (458 tests, 20 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)

@@ -4,8 +4,8 @@ import { useId, useRef, useState } from "react";
 
 import type { EditableValue } from "../../engine/editing";
 import { describePlaybackMode, playbackModeHint } from "../../engine/playbackMode";
-import { keyframeSpan } from "../../engine/steps";
-import type { PlayOptions } from "../gateways/types";
+import { hasKeyframes, keyframeSpan } from "../../engine/steps";
+import { enabledSteps, type PlayOptions } from "../gateways/types";
 import type { PlayingState } from "../state/appReducer";
 import { stepStatusFor, type PlayStepStatus } from "../state/stepStatus";
 import { useNarrowPanel } from "../state/useNarrowPanel";
@@ -101,7 +101,10 @@ export function MacroRow({
 
   // Playback indices count ENABLED steps and keep climbing across repeats;
   // the list renders every step, so map back to its own index.
-  const enabled = macro.steps.filter((step) => step.disabled !== true);
+  const enabled = enabledSteps(macro);
+  // The sandbox only ever sees the enabled steps, so the play options must
+  // read "has keyframes" from the same list.
+  const noKeyframes = !hasKeyframes(enabled);
   let activeIndex: number | undefined;
   // Per-row pending/running/done/failed, keyed by FULL-array index — the same
   // enabled→full walk, so a skipped step simply gets no entry (it is not part
@@ -265,6 +268,7 @@ export function MacroRow({
                 macroName={macro.name}
                 disabled={playDisabled}
                 sceneScript={mode.mode === "scene"}
+                noKeyframes={noKeyframes}
                 value={options}
                 onChange={setOptions}
                 onPlay={(next) => {
@@ -395,6 +399,7 @@ export function MacroRow({
                           macroName={macro.name}
                           disabled={playDisabled}
                           sceneScript={mode.mode === "scene"}
+                          noKeyframes={noKeyframes}
                           value={options}
                           onChange={setOptions}
                           onPlay={(next) => {

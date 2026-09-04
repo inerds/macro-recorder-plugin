@@ -42,7 +42,12 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   readable sub-path (unreadable-before / valued-after IS the creation
   signal) — in traces before .52 both probe empty/null and prove nothing;
   and `debug.breadcrumbs` (guess-chain logs, e.g. the nest routes) exists
-  only from .52 on.
+  only from .52 on. One more fence at rev `2026-09-04.1`: the layer-delay
+  notes (`delayed this layer by N frames`, the two `stagger ignored` /
+  `stagger needs 2 or more` notes, and the `startFrame`/`timelineOffset`
+  read-back notes) exist only from that rev — an earlier trace of a
+  keyframe-free macro with stagger set is silent because the engine did
+  nothing, not because the writes failed.
 
 ## The dev strip
 

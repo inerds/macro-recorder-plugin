@@ -20,6 +20,9 @@ export interface PlayOptionsPopoverProps {
   disabled?: boolean;
   /** This macro replays as a scene script, so stagger has no targets. */
   sceneScript?: boolean;
+  /** This macro has no keyframes, so stagger and At playhead delay the
+   *  layer instead of moving keyframes. */
+  noKeyframes?: boolean;
   /** The row's current options (the bare Play button uses them too). */
   value: PlayOptions;
   onChange: (options: PlayOptions) => void;
@@ -57,6 +60,7 @@ export function PlayOptionsPopover({
   macroName,
   disabled,
   sceneScript,
+  noKeyframes,
   value,
   onChange,
   onPlay,
@@ -85,6 +89,19 @@ export function PlayOptionsPopover({
   const atPlayhead = value.atPlayhead ?? DEFAULTS.atPlayhead;
   const staggerFrames = value.staggerFrames ?? DEFAULTS.staggerFrames;
   const repeat = value.repeat ?? DEFAULTS.repeat;
+
+  // A macro with no keyframes has nothing to slide along the timeline, so
+  // both options move the layer itself. Scene scripts have no targets at
+  // all, and that message wins.
+  const delaysLayers = noKeyframes === true && !sceneScript;
+  const staggerHint = sceneScript
+    ? "Stagger needs a macro that applies to selected layers"
+    : delaysLayers
+      ? "No keyframes in this macro: stagger delays each layer instead, in point and animation together."
+      : undefined;
+  const playheadHint = delaysLayers
+    ? "Moves the first layer's in point to the current frame."
+    : "Moves the macro's earliest keyframe to the current frame.";
 
   const update = (patch: Partial<typeof DEFAULTS>) => {
     onChange(normalize({ atPlayhead, staggerFrames, repeat, ...patch }));
@@ -144,7 +161,7 @@ export function PlayOptionsPopover({
             <label htmlFor={playheadId}>At playhead</label>
           </div>
           <p id={playheadHintId} className="text-11 text-muted-foreground">
-            Moves the macro's earliest keyframe to the current frame.
+            {playheadHint}
           </p>
         </div>
 
@@ -162,12 +179,12 @@ export function PlayOptionsPopover({
               suffix=" frames"
               disabled={sceneScript}
               className="h-6 w-20"
-              {...(sceneScript ? { "aria-describedby": staggerHintId } : {})}
+              {...(staggerHint ? { "aria-describedby": staggerHintId } : {})}
             />
           </div>
-          {sceneScript && (
+          {staggerHint && (
             <p id={staggerHintId} className="text-11 text-muted-foreground">
-              Stagger needs a macro that applies to selected layers
+              {staggerHint}
             </p>
           )}
         </div>

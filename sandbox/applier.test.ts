@@ -12,7 +12,7 @@ import type { Json } from "../engine/json";
 import { makeGradientFill, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { diffSnapshots } from "../engine/diff";
 import type { StepPayload } from "../engine/steps";
-import { applyStep, readBaseline, type ApplyContext } from "./applier";
+import { applyStep, delayLayer, readBaseline, type ApplyContext } from "./applier";
 
 const exact: ApplyContext = { origins: {}, baselines: {} };
 
@@ -1739,5 +1739,151 @@ describe("set-plain blendMode is a lowercase union on the real host (rev .51 tra
 
     expect(outcome.notes).toEqual([]);
     expect(target.blendMode).toBe("multiply");
+  });
+});
+
+/**
+ * Stagger on a keyframe-free macro delays the layer. The fake scene models a
+ * well-behaved host, so hosts that refuse or rewrite a write get purpose-built
+ * stubs here — the fake must never become more permissive than the real host.
+ */
+describe("delayLayer", () => {
+  it("moves the in point and the layer's own animation by the same delta", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 10 }, notes);
+
+    expect(target.startFrame).toBe(10);
+    expect(target.timelineOffset).toBe(10);
+    expect(target.endFrame).toBe(150);
+    expect(notes).toEqual(["delayed this layer by 10 frames — in point 0 → 10"]);
+  });
+
+  it("reports a zero delta rather than writing nothing silently", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 0 }, notes);
+
+    expect(target.startFrame).toBe(0);
+    expect(notes).toEqual(["in point already at 0 — nothing to shift"]);
+  });
+
+  it("puts the first target's in point on the playhead, then staggers from it", () => {
+    const ids = makeIds();
+    const first = makeNode("Layer A", {}, ids);
+    const second = makeNode("Layer B", {}, ids);
+    const firstNotes: string[] = [];
+    const secondNotes: string[] = [];
+
+    delayLayer(first, { base: 100, delta: 0 }, firstNotes);
+    delayLayer(second, { base: 100, delta: 10 }, secondNotes);
+
+    expect(first.startFrame).toBe(100);
+    expect(second.startFrame).toBe(110);
+    expect(firstNotes).toEqual([
+      "delayed this layer by 100 frames — in point 0 → 100 (at playhead)",
+    ]);
+    expect(secondNotes).toEqual(["delayed this layer by 110 frames — in point 0 → 110"]);
+  });
+
+  it("skips a layer whose shifted in point would reach its out point", () => {
+    const target: Record<string, unknown> = { startFrame: 0, endFrame: 15, timelineOffset: 0 };
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 20 }, notes);
+
+    expect(target.startFrame).toBe(0);
+    expect(target.timelineOffset).toBe(0);
+    expect(notes).toEqual([
+      "stagger would move the in point to 20, at or past the out point (15) — skipped",
+    ]);
+  });
+
+  it("reports a host that accepts the in-point write and keeps its own value", () => {
+    const target: Record<string, unknown> = { endFrame: 150, timelineOffset: 0 };
+    Object.defineProperty(target, "startFrame", {
+      get: () => 0,
+      set: () => {},
+      configurable: true,
+    });
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 10 }, notes);
+
+    expect(target.startFrame).toBe(0);
+    expect(notes).toEqual(["the host kept startFrame unchanged — the write didn't take"]);
+  });
+
+  it("skips a layer whose in point can't be read", () => {
+    const target: Record<string, unknown> = {};
+    Object.defineProperty(target, "startFrame", {
+      get: () => {
+        throw new Error("no such property");
+      },
+      configurable: true,
+    });
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 10 }, notes);
+
+    expect(notes).toEqual(["couldn't read this layer's in point — stagger skipped"]);
+  });
+
+  it("falls back to the in point alone when the host keeps timelineOffset", () => {
+    const target: Record<string, unknown> = { startFrame: 0, endFrame: 150 };
+    Object.defineProperty(target, "timelineOffset", {
+      get: () => 0,
+      set: () => {},
+      configurable: true,
+    });
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 10 }, notes);
+
+    expect(target.startFrame).toBe(10);
+    expect(notes).toEqual([
+      "the host kept timelineOffset unchanged — this layer's own animation stays where it was",
+      "delayed this layer by 10 frames — in point 0 → 10",
+    ]);
+  });
+
+  it("reports an out point the host moved on its own", () => {
+    const target: Record<string, unknown> = { endFrame: 150, timelineOffset: 0 };
+    let start = 0;
+    Object.defineProperty(target, "startFrame", {
+      get: () => start,
+      set: (next: number) => {
+        start = next;
+        // some hosts keep the duration and slide the out point with it
+        target.endFrame = 150 + next;
+      },
+      configurable: true,
+    });
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 10 }, notes);
+
+    expect(notes).toEqual([
+      "delayed this layer by 10 frames — in point 0 → 10",
+      "the host also moved the out point 150 → 160",
+    ]);
+  });
+
+  it("reports a host that refuses the in-point write", () => {
+    const target: Record<string, unknown> = { endFrame: 150, timelineOffset: 0 };
+    Object.defineProperty(target, "startFrame", {
+      get: () => 0,
+      set: () => {
+        throw new Error("✗ Invalid input");
+      },
+      configurable: true,
+    });
+    const notes: string[] = [];
+
+    delayLayer(target, { delta: 10 }, notes);
+
+    expect(notes).toEqual(["couldn't set the in point: ✗ Invalid input — stagger skipped"]);
   });
 });

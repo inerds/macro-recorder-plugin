@@ -10,7 +10,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-08-26.52";
+export const ENGINE_REV = "2026-09-04.1";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -159,6 +159,12 @@ export interface RpcContracts {
       atPlayhead?: boolean;
       /** Targets mode: additional frame shift per selected layer (i × n). */
       staggerFrames?: number;
+      /**
+       * Which Repeat ×N pass this is, 0-based. Absent means 0. A
+       * keyframe-free macro delays its layers on the first pass only, so the
+       * delay does not compound across repeats.
+       */
+      iteration?: number;
       debug?: boolean;
     };
     result: {

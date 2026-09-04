@@ -7,9 +7,11 @@ import type { NodeSnapshot, Path } from "../engine/snapshot";
 import { pathKey, propClassOf } from "../engine/snapshot";
 import { nodeTypeName } from "../engine/labels";
 import type { LayerRef, StepPayload } from "../engine/steps";
+import { hasKeyframes } from "../engine/steps";
 import { resolvePaint,
   applyNodeSpec,
   applyStep,
+  delayLayer,
   readBaseline,
   reorderChildren,
   resolvePath,
@@ -829,6 +831,8 @@ export function playbackBegin(params: {
   sourceNodeId?: string;
   atPlayhead?: boolean;
   staggerFrames?: number;
+  /** 0-based Repeat pass; absent = 0. Only pass 0 delays layers. */
+  iteration?: number;
   debug?: boolean;
 }): { total: number; targetCount: number; frameOffset?: number } {
   const selection = ((): AnyProxy[] => {
@@ -844,20 +848,32 @@ export function playbackBegin(params: {
 
   // Apply at playhead: slide the recorded motion so its first keyframe
   // lands where the user parked the playhead. A macro without keyframes has
-  // nothing to slide; a host without a readable timeline gets no shift.
+  // no keyframe to slide — it moves its layers instead (delayBase below).
+  // A host without a readable timeline gets neither.
+  const keyframed = hasKeyframes(params.steps);
   let frameOffsetBase = 0;
+  let delayBase: number | undefined;
   if (params.atPlayhead) {
     const currentFrame = tryRead(() => creator.timeline.currentFrame);
-    const earliest = earliestKeyframe(params.steps);
-    if (typeof currentFrame === "number" && Number.isFinite(currentFrame) && earliest !== undefined) {
-      frameOffsetBase = currentFrame - earliest;
+    if (typeof currentFrame === "number" && Number.isFinite(currentFrame)) {
+      const earliest = earliestKeyframe(params.steps);
+      if (keyframed && earliest !== undefined) {
+        frameOffsetBase = currentFrame - earliest;
+      } else if (!keyframed) {
+        delayBase = currentFrame;
+      }
     }
   }
   const staggerFrames =
     typeof params.staggerFrames === "number" && Number.isFinite(params.staggerFrames)
       ? params.staggerFrames
       : 0;
-  const timing = { frameOffsetBase, staggerFrames };
+  // Repeat ×N is N begin/steps/end passes. The delay happens once, on the
+  // first, so repeats do not push the layers further out every time.
+  const firstPass = !(
+    typeof params.iteration === "number" && Number.isFinite(params.iteration) && params.iteration > 0
+  );
+  const timing = { frameOffsetBase, staggerFrames, firstPass };
   const frameOffsetResult = frameOffsetBase !== 0 ? { frameOffset: frameOffsetBase } : {};
 
   if (mode === "scene") {
@@ -870,6 +886,15 @@ export function playbackBegin(params: {
       origins: {},
       baselines: [],
       ...timing,
+      delay: null,
+      // A scene script binds each step to its own recorded layer, so there is
+      // no target order to cascade. Say so rather than doing nothing.
+      ...(staggerFrames > 0
+        ? {
+            staggerNote:
+              "stagger ignored — this macro replayed as a scene script (nothing was selected)",
+          }
+        : {}),
       debug: params.debug === true,
     };
     session.recording = null;
@@ -905,6 +930,21 @@ export function playbackBegin(params: {
     }
   });
 
+  // A keyframe-free macro has no motion to cascade, so stagger delays the
+  // layer instead: in point and the layer's own animation together. Only on
+  // the first Repeat pass, and only when there is something to move.
+  const delay =
+    !keyframed && firstPass && (staggerFrames > 0 || delayBase !== undefined)
+      ? {
+          ...(delayBase !== undefined ? { base: delayBase } : {}),
+          perTarget: staggerFrames,
+        }
+      : null;
+  const staggerNote =
+    staggerFrames > 0 && targets.length < 2
+      ? "stagger needs 2 or more selected layers — replayed without it"
+      : undefined;
+
   session.playback = {
     mode,
     targets: [...targets],
@@ -916,6 +956,8 @@ export function playbackBegin(params: {
     origins,
     baselines,
     ...timing,
+    delay,
+    ...(staggerNote !== undefined ? { staggerNote } : {}),
     debug: params.debug === true,
   };
   session.recording = null;
@@ -942,6 +984,31 @@ export function playbackStep(params: { index: number }): {
   breadcrumbs.length = 0;
   let before: TargetProbe[] = [];
   let after: TargetProbe[] = [];
+
+  // Once per run, before step 0 applies: `playbackBegin` decided what stagger
+  // means for this macro, and this is where it acts. It sits OUTSIDE the
+  // per-target try below, so a failing step 0 never hides these notes — the
+  // notes channel is how the delay reaches the toast and the trace.
+  if (params.index === 0 && playback.firstPass && !playback.onceDone) {
+    playback.onceDone = true;
+    const label = playback.targetNames[0] ?? "scene";
+    if (playback.staggerNote) notes.push({ target: label, message: playback.staggerNote });
+    if (playback.delay) {
+      const { base, perTarget } = playback.delay;
+      playback.targets.forEach((target, i) => {
+        const delayNotes: string[] = [];
+        // The SELECTED layer moves, so a duplicate that step 0 makes from it
+        // inherits the delay.
+        delayLayer(
+          target,
+          { ...(base !== undefined ? { base } : {}), delta: i * perTarget },
+          delayNotes,
+        );
+        const name = playback.targetNames[i] ?? `layer ${i + 1}`;
+        for (const message of delayNotes) notes.push({ target: name, message });
+      });
+    }
+  }
 
   if (playback.mode === "scene") {
     const ref = payload ? layerRefOf(payload) : undefined;

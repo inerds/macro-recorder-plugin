@@ -704,6 +704,9 @@ describe("apply at playhead + stagger", () => {
     expect(a.rotation.keyframes.map((k: Any) => k.frame)).toEqual([100, 130]);
     expect(b.rotation.keyframes.map((k: Any) => k.frame)).toEqual([105, 135]);
     expect(c.rotation.keyframes.map((k: Any) => k.frame)).toEqual([110, 140]);
+    // A keyframed macro cascades keyframes, never the layers themselves —
+    // the delay path is for keyframe-free macros only.
+    expect([a.startFrame, b.startFrame, c.startFrame]).toEqual([0, 0, 0]);
   });
 
   it("applies the playhead shift in scene mode too, and none without a readable timeline", () => {
@@ -730,6 +733,176 @@ describe("apply at playhead + stagger", () => {
     expect(begin.frameOffset).toBeUndefined();
     playbackStep({ index: 0 });
     expect(c.rotation.keyframes.map((k: Any) => k.frame)).toEqual([10, 40]);
+  });
+});
+
+describe("delay for keyframe-free macros", () => {
+  function moveStep(layer: Any) {
+    return step({
+      op: "set-static",
+      path: ["position"],
+      before: { x: 0, y: 0 },
+      after: { x: 10, y: 0 },
+      layer,
+    });
+  }
+
+  function kfStep(layer: Any) {
+    return step({
+      op: "keyframes",
+      path: ["rotation"],
+      added: [{ frame: 10, value: 0 }, { frame: 40, value: 90 }],
+      removed: [],
+      changed: [],
+      layer,
+    });
+  }
+
+  function threeTargets() {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    const c = scene.addLayer(makeNode("C", {}, ids));
+    stubCreator(scene, [a, b, c]);
+    return { scene, a, b, c };
+  }
+
+  it("delays each selected layer by the stagger and still applies the step", () => {
+    const { a, b, c } = threeTargets();
+
+    playbackBegin({ steps: [moveStep({ id: "REC", name: "Rec" })] as Any, staggerFrames: 10 });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    expect([a.startFrame, b.startFrame, c.startFrame]).toEqual([0, 10, 20]);
+    expect([a.timelineOffset, b.timelineOffset, c.timelineOffset]).toEqual([0, 10, 20]);
+    expect((result.notes ?? []).map((n: Any) => `${n.target}: ${n.message}`)).toEqual([
+      "A: in point already at 0 — nothing to shift",
+      "B: delayed this layer by 10 frames — in point 0 → 10",
+      "C: delayed this layer by 20 frames — in point 0 → 20",
+    ]);
+    expect(a.position.staticValue).toEqual({ x: 10, y: 0 });
+    expect(c.position.staticValue).toEqual({ x: 10, y: 0 });
+  });
+
+  it("puts the first layer's in point on the playhead and staggers from there", () => {
+    const { a, b, c } = threeTargets();
+    (globalThis as Any).creator.timeline = { currentFrame: 100 };
+
+    const begin = playbackBegin({
+      steps: [moveStep({ id: "REC", name: "Rec" })] as Any,
+      atPlayhead: true,
+      staggerFrames: 10,
+    });
+    const result = playbackStep({ index: 0 });
+
+    // No keyframes, so nothing slides along the timeline: the layers move.
+    expect(begin.frameOffset).toBeUndefined();
+    expect([a.startFrame, b.startFrame, c.startFrame]).toEqual([100, 110, 120]);
+    expect([a.timelineOffset, b.timelineOffset, c.timelineOffset]).toEqual([100, 110, 120]);
+    expect((result.notes ?? [])[0]).toEqual({
+      target: "A",
+      message: "delayed this layer by 100 frames — in point 0 → 100 (at playhead)",
+    });
+  });
+
+  it("leaves a keyframed macro's layers alone — stagger stays a keyframe cascade", () => {
+    const { a, b, c } = threeTargets();
+
+    playbackBegin({ steps: [kfStep({ id: "REC", name: "Rec" })] as Any, staggerFrames: 10 });
+    const result = playbackStep({ index: 0 });
+
+    expect([a.startFrame, b.startFrame, c.startFrame]).toEqual([0, 0, 0]);
+    expect(result.notes ?? []).toEqual([]);
+    expect(a.rotation.keyframes.map((k: Any) => k.frame)).toEqual([10, 40]);
+    expect(c.rotation.keyframes.map((k: Any) => k.frame)).toEqual([30, 60]);
+  });
+
+  it("delays once — a later Repeat pass moves nothing", () => {
+    const { a, b, c } = threeTargets();
+
+    playbackBegin({
+      steps: [moveStep({ id: "REC", name: "Rec" })] as Any,
+      staggerFrames: 10,
+      iteration: 1,
+    });
+    const result = playbackStep({ index: 0 });
+
+    expect([a.startFrame, b.startFrame, c.startFrame]).toEqual([0, 0, 0]);
+    expect(result.notes ?? []).toEqual([]);
+  });
+
+  it("delays before step 0 only, not before every step", () => {
+    const { a, b, c } = threeTargets();
+    const layer = { id: "REC", name: "Rec" };
+
+    playbackBegin({ steps: [moveStep(layer), moveStep(layer)] as Any, staggerFrames: 10 });
+    playbackStep({ index: 0 });
+    const second = playbackStep({ index: 1 });
+
+    expect([a.startFrame, b.startFrame, c.startFrame]).toEqual([0, 10, 20]);
+    expect(second.notes ?? []).toEqual([]);
+  });
+
+  it("says so when stagger has only one selected layer", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    stubCreator(scene, [a]);
+
+    playbackBegin({ steps: [moveStep({ id: "REC", name: "Rec" })] as Any, staggerFrames: 10 });
+    const result = playbackStep({ index: 0 });
+
+    expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
+      "stagger needs 2 or more selected layers — replayed without it",
+    );
+    expect(a.startFrame).toBe(0);
+  });
+
+  it("says so when stagger falls to a scene script", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [moveStep({ id: a.id, name: "A" }), moveStep({ id: b.id, name: "B" })] as Any,
+      staggerFrames: 10,
+    });
+    const result = playbackStep({ index: 0 });
+
+    expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
+      "stagger ignored — this macro replayed as a scene script (nothing was selected)",
+    );
+    expect([a.startFrame, b.startFrame]).toEqual([0, 0]);
+  });
+
+  it("keeps the delay notes when step 0 fails on a target", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    // A host that refuses this one write — the delay ran before the step, so
+    // its notes must survive the failure.
+    Object.defineProperty(b.position, "staticValue", {
+      get: () => ({ x: 0, y: 0 }),
+      set: () => {
+        throw new Error("✗ Invalid input");
+      },
+      configurable: true,
+    });
+    stubCreator(scene, [a, b]);
+
+    playbackBegin({ steps: [moveStep({ id: "REC", name: "Rec" })] as Any, staggerFrames: 10 });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([{ target: "B", message: "✗ Invalid input" }]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
+      "delayed this layer by 10 frames — in point 0 → 10",
+    );
+    expect(b.startFrame).toBe(10);
   });
 });
 
