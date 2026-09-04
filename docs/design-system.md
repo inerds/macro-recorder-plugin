@@ -312,6 +312,14 @@ language. Two rules keep it coherent:
 - **Counts are bare mono readouts everywhere** — the list header's
   `10 · 42`, each row's `05`, and the recording header's `02 steps`. The
   recording count was the one bordered pill on the panel; it is not.
+- **The whole closed row is the hover surface.** `.rack-row:not(.rack-row-open):hover`
+  lifts the row one tone ABOVE the card (`#FCFAF6` — the card itself is
+  too close to the well to register) with a hairline and darkens the
+  chevron; the disclosure button carries no hover of its own any more (a
+  tint on just the name read as a loose highlight floating in the row). The
+  leader sits at 0.16 alpha at rest — a guide for the eye, not a rule — and
+  the row's hover brings it to 0.3 (user report, 2026-09-04: at 0.35 it
+  competed with the name and the keys).
 - **One 4px gap on the row, and the keys are 22px.** The lid is
   `[number] [chevron name …leader count] [play] [options] [⋯]` with a single
   `gap-1` between every element and 6px side padding; the chevron carries no

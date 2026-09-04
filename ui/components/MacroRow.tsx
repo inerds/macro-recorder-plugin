@@ -192,7 +192,7 @@ export function MacroRow({
           <button
             type="button"
             ref={disclosureRef}
-            className="press flex min-w-0 flex-1 items-center gap-1 rounded-[7px] text-left hover:bg-accent/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="press flex min-w-0 flex-1 items-center gap-1 rounded-[7px] text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={onToggleExpand}

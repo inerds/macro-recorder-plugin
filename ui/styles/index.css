@@ -296,7 +296,31 @@ body::before {
      don't read as one stutter ("recolo….…03"). */
   margin-block: 0 3px;
   margin-inline: 6px 4px;
-  border-bottom: 1px dotted rgba(42, 38, 35, 0.35);
+  /* Faint on purpose: it is a guide for the eye, not a rule. At 0.35 it
+     competed with the name and the keys (user report, 2026-09-04); the row's
+     hover brings it back up so the pairing is still legible on demand. */
+  border-bottom: 1px dotted rgba(42, 38, 35, 0.16);
+  transition: border-color 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The whole closed row is the hover surface, lifted to card white with a
+   hairline — the old hover tinted only the name button, which read as a
+   loose highlight floating inside the row. */
+.rack-row:not(.rack-row-open):hover {
+  /* One tone ABOVE the card: the card itself is too close to the well to
+     register as a hover. */
+  background: #FCFAF6;
+  box-shadow:
+    inset 0 0 0 1px rgba(42, 38, 35, 0.26),
+    0 1px 2px -1px rgba(42, 38, 35, 0.2);
+}
+
+.rack-row:not(.rack-row-open):hover .lucide-chevron-right {
+  color: var(--foreground);
+}
+
+.rack-row:not(.rack-row-open):hover .rack-lead {
+  border-bottom-color: rgba(42, 38, 35, 0.3);
 }
 
 /*

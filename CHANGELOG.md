@@ -6,7 +6,7 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
-- Tightened the macro rows: the name has more room and the three row keys sit together.
+- Tightened the macro rows: the name has more room and the three row keys sit together. Rows now lift as a whole when you hover, and the dotted leader is fainter.
 - Stagger now works on a macro with no keyframes: it delays each selected
   layer instead, moving the in point and the layer's own animation together.
   The layers move in selection order, once per run, and a layer whose new in
