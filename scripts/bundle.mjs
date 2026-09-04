@@ -8,12 +8,14 @@ import { fileURLToPath } from "node:url";
  * containing exactly manifest.json, plugin.js, and ui.html at the zip root.
  * Run via `pnpm bundle` (which builds first) — this script assumes dist/ is
  * already up to date and fails loudly if the three files are missing.
+ * `pnpm bundle:dev` builds in development mode and passes --dev.
  */
 
 const root = resolve(fileURLToPath(import.meta.url), "..", "..");
 const distDir = resolve(root, "dist");
 const releaseDir = resolve(root, "release");
 
+const dev = process.argv.includes("--dev");
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const version = pkg.version;
 if (!version) {
@@ -29,7 +31,10 @@ if (missing.length) {
 }
 
 mkdirSync(releaseDir, { recursive: true });
-const zipName = `macro-recorder-v${version}.zip`;
+// A development build (vite build --mode development: dev strip on, React
+// dev build, manifest name "Macro Recorder (dev)") gets a -dev suffix so it
+// can never be mistaken for the release.
+const zipName = `macro-recorder-v${version}${dev ? "-dev" : ""}.zip`;
 const zipPath = resolve(releaseDir, zipName);
 rmSync(zipPath, { force: true });
 

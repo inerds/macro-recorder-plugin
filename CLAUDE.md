@@ -44,6 +44,8 @@ pnpm type-check                # tsc -b across all three project references
 pnpm test                      # vitest run (458 tests, 20 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
+pnpm bundle                    # release zip → release/macro-recorder-v<version>.zip
+pnpm bundle:dev                # dev build (dev strip on, "(dev)" manifest) → …-dev.zip
 ```
 
 Single test file / single test:

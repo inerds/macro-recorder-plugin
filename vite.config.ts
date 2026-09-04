@@ -23,16 +23,22 @@ import pkg from "./package.json" with { type: "json" };
  */
 function injectManifestVersion(version: string): Plugin {
   let outDir = "dist";
+  let dev = false;
   return {
     name: "macro-recorder-inject-manifest-version",
     apply: "build",
     configResolved(config) {
       outDir = config.build.outDir;
+      // `vite build --mode development` is the DEV build: the dev strip is
+      // on, React is unminified, and the manifest says so — a tester can
+      // hold both plugins in Creator without confusing them.
+      dev = config.mode === "development";
     },
     closeBundle() {
       const manifestPath = resolve(outDir, "manifest.json");
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-      manifest.version = version;
+      manifest.version = dev ? `${version}-dev` : version;
+      if (dev) manifest.name = `${manifest.name} (dev)`;
       writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };

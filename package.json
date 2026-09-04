@@ -1,7 +1,7 @@
 {
   "name": "macro-recorder",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A LottieFiles Creator plugin that records editing steps and replays them as macros.",
   "license": "MIT",
   "type": "module",
@@ -25,6 +25,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "bundle": "pnpm build && node scripts/bundle.mjs",
+    "bundle:dev": "tsc -b && NODE_ENV=development vite build --mode development && node scripts/bundle.mjs --dev",
     "type-check": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",

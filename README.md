@@ -155,7 +155,8 @@ docs/           User guide, architecture, design system, runtime API, limitation
 
 Each tree compiles under its own `tsconfig.*.json` and `tsconfig.json` is the
 solution file. `pnpm bundle` builds and writes `release/macro-recorder-v<version>.zip`
-with exactly the three files Creator needs; the build stamps the version into
+with exactly the three files Creator needs, and `pnpm bundle:dev` writes the
+`-dev` build with the dev strip on; the build stamps the version into
 `manifest.json`.
 
 ## Diagnostics and triage

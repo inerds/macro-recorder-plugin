@@ -4,7 +4,7 @@ This is the user-facing record: user-visible changes per shared version, one
 dated block per release. The engineering log — what was wrong and what changed,
 one row per fix — is `docs/history/improvements.md`.
 
-## Unreleased
+## 0.6.0 — 2026-09-04
 
 - Rounded corners now follow three sizes across the panel: cards and menus, keys, and recessed fields and lists.
 - Tightened the macro rows: the name has more room and the three row keys sit together. Rows now lift as a whole when you hover, and the dotted leader between the name and the count is gone.

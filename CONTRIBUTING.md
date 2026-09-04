@@ -115,6 +115,16 @@ keep traces honest, and the engine-revision fences are in
 3. Add the release notes as `docs/releases/vX.Y.Z.md`. Follow the shape of
    [`docs/releases/v0.5.0.md`](docs/releases/v0.5.0.md): the tagline,
    highlights, what the build fixes, and the honest list of host limits.
-4. Run `pnpm bundle`. It builds the production output and packs the
-   distributable zip that a user adds as a plugin folder in Creator.
-5. Run the four checks above one more time against the released commit.
+4. Run `pnpm bundle`. It builds the production output and packs
+   `release/macro-recorder-v<version>.zip`, the distributable a user adds
+   as a plugin in Creator.
+5. Run `pnpm bundle:dev` for the development build,
+   `release/macro-recorder-v<version>-dev.zip`. It is built with
+   `vite build --mode development`: the dev strip (demo macros, mock
+   scenarios) is on, React is unminified, and the manifest names the plugin
+   "Macro Recorder (dev)" with a `-dev` version, so a tester can hold both
+   in Creator. Trace capture stays off there, since no dev server answers
+   the trace endpoint. Never upload the dev build as the release.
+6. Run the four checks above one more time against the released commit,
+   then commit the bump, the changelog block and the release notes together
+   as "Release X.Y.Z".
