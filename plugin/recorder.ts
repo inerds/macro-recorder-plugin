@@ -10,7 +10,6 @@ import { session } from "./session";
 import type { Json } from "../shared/json";
 import { toJson } from "../shared/json";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyProxy = any;
 
 /**

@@ -1,0 +1,6 @@
+dist/
+node_modules/
+traces/
+pnpm-lock.yaml
+*.md
+vendor/

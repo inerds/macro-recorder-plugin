@@ -20,7 +20,6 @@ import type {
 
 import { PLAIN_PROPS, propsForType } from "../shared/snapshot";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyProxy = any;
 
 /** Groups nest; a runaway/cyclic tree must not hang the sandbox. Imported

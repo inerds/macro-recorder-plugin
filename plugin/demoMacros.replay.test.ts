@@ -25,7 +25,6 @@ import { playbackBegin, playbackEnd, playbackStep } from "./playback";
 
 const macros = buildDemoMacros(1_700_000_000_000);
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 
 /**

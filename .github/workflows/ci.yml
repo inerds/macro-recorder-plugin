@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the packageManager version in package.json so CI never
+      # drifts from what contributors run locally.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm test
+      - run: pnpm test:quickjs
+      - run: pnpm build
+
+      # `pnpm format:check` is intentionally not run here: the existing
+      # codebase is not yet prettier-clean under prettier.config.mjs (a
+      # one-shot `pnpm format` was skipped because it would have touched
+      # too much of the tree). Add this step back once the tree has been
+      # formatted and committed.

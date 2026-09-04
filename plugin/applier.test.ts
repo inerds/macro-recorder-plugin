@@ -1174,7 +1174,6 @@ describe("group re-creation", () => {
   });
 });
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 
 describe("text layers (untyped runtime surface)", () => {

@@ -2,7 +2,6 @@ import type { Json } from "../shared/json";
 import type { MacroStep } from "../shared/macro";
 import type { SceneSnapshot } from "../shared/snapshot";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyProxy = any;
 
 export interface RecordingSession {

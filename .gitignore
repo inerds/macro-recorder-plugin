@@ -3,3 +3,6 @@ dist/
 traces/
 .claude/settings.local.json
 .DS_Store
+*.zip
+release/
+*.log

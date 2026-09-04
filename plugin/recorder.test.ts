@@ -15,7 +15,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { makeIds, makeNode } from "../shared/testing/fakeScene";
 import { recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 
 function makeSceneRoot(nextId: (p: string) => string, layers: Any[]) {

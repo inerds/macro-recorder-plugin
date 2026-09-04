@@ -14,7 +14,6 @@ import { pathKey, propClassOf } from "../shared/snapshot";
 import { computeTarget } from "../shared/relative";
 import type { StepPayload } from "../shared/steps";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyProxy = any;
 
 export interface ApplyContext {

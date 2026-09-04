@@ -18,7 +18,6 @@ import { resolvePaint,
 // order, not shape-type matching, maps recorded content onto nested content)
 import { session } from "./session";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyProxy = any;
 
 /**

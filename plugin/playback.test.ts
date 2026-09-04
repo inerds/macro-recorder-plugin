@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { makeIds, makeNode } from "../shared/testing/fakeScene";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 
 function makeSceneRoot(nextId: (p: string) => string) {
