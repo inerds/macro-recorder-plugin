@@ -150,7 +150,7 @@ scripts/        The trace server, the QuickJS smoke test, and the release bundle
 vendor/         Tarballs of Creator packages that are not on npm, with a README.
 docs/           User guide, architecture, design system, runtime API, limitations,
                 contributing guides, release notes per version, and the history log.
-.github/        The CI workflow: type-check, tests, QuickJS smoke, build.
+.github/        CI (type-check, tests, QuickJS smoke, build) and the tag-driven Release workflow.
 ```
 
 Each tree compiles under its own `tsconfig.*.json` and `tsconfig.json` is the

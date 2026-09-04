@@ -128,3 +128,16 @@ keep traces honest, and the engine-revision fences are in
 6. Run the four checks above one more time against the released commit,
    then commit the bump, the changelog block and the release notes together
    as "Release X.Y.Z".
+7. Tag that commit and push the tag:
+
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+   The Release workflow (`.github/workflows/release.yml`) checks that the
+   tag matches `package.json`, runs the four checks, builds both bundles,
+   and publishes a GitHub Release named after the tag with the changelog
+   block as its body and the release zip attached. 0.x tags are marked as
+   pre-releases. The dev zip is never attached to the release; it is kept
+   as a workflow artifact for collaborators, for 30 days.

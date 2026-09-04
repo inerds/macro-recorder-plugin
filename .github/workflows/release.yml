@@ -1,0 +1,62 @@
+name: Release
+
+# A pushed tag vX.Y.Z publishes a GitHub Release with the release zip and the
+# changelog block for that version as the body. The dev zip is NOT attached:
+# it is uploaded as a workflow artifact, visible to collaborators only.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The tag must match package.json, or the release would carry the
+      # wrong version in its manifest.
+      - name: Check the tag against package.json
+        run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" --check-tag "$GITHUB_REF_NAME" > /dev/null
+
+      - run: pnpm type-check
+      - run: pnpm test
+      - run: pnpm test:quickjs
+
+      - name: Build the release and dev bundles
+        run: |
+          pnpm bundle
+          pnpm bundle:dev
+
+      - name: Write the release body from CHANGELOG.md
+        run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > release/body.md
+
+      - name: Publish the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release/body.md
+          files: release/macro-recorder-${{ github.ref_name }}.zip
+          # 0.x builds are pre-releases until the first 1.0.
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
+
+      - name: Keep the dev bundle as a workflow artifact (collaborators only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: macro-recorder-${{ github.ref_name }}-dev
+          path: release/macro-recorder-${{ github.ref_name }}-dev.zip
+          retention-days: 30
