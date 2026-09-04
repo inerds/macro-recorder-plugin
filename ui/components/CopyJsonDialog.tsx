@@ -89,7 +89,7 @@ export function CopyJsonDialog({
           rows={7}
           aria-label={payload ? `JSON for ${payload.name}` : "Macro JSON"}
           onFocus={(event) => event.currentTarget.select()}
-          className="mono w-full resize-none rounded-[7px] border border-border bg-background px-2 py-1.5 text-11 leading-relaxed text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="mono w-full resize-none rounded border border-border bg-background px-2 py-1.5 text-11 leading-relaxed text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           data-testid="copy-json-textarea"
         />
         {blocked && (

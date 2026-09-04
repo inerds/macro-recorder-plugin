@@ -16,6 +16,7 @@ findings belong in the failure taxonomy.
 
 | Issue | Fix |
 |---|---|
+| **Radii were on four tiers.** The step strip sat at 8px between the rack's 4 and the card's 10, the cream keys at 6 beside 7px icon keys, the menu and toast at 8, and text fields at 7 and 8. | Three tiers: raised paper 10, keys 7, wells 4. The step strip, text fields and the number field are 4; the cream keys 7; the menu popup and toast 10; menu items 6, concentric in the popup. |
 | **The row hover was a flat lift.** | The name lights on hover: a hair heavier, a light edge under the strokes, a faint ink glow, in the family of the number's glow. |
 | **The rows above and below an open card lost their dotted rules,** so the card read as nested between them. | The neighbours keep their rules; only the card itself carries none. |
 | **The leader dots between a macro's name and its count made two dotted lines per row, and the row hover was a tint on the name only.** | The leader is gone; the count stays right-aligned. The whole row is the hover surface, lifted to the card colour with a hairline. |

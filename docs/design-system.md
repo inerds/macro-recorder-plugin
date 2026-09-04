@@ -47,6 +47,16 @@ load-bearing:
 - All CSS lives in `ui/styles/index.css`; the build inlines one file. No
   network assets, system font stacks only (`--font-sans`, `--font-mono` are
   overridden too).
+- **Three radius tiers, by what the surface is** (2026-09-04): raised paper
+  10px (the panel plate, cards, notices, dialogs, menus, toasts); keys 7px
+  (every key and icon key); wells 4px (the rack, the step strip, text
+  fields, swatches). The deck keeps its own smaller set (window 6, keys 4,
+  LCD 3) because it is a dark moulded object, not paper. The library derives
+  its radii from `--radius`, so `index.css` pins the ones that land off-tier
+  (menu popup, text fields, the number field's wrapper). Menu items are 6px:
+  concentric inside the 10px popup with its 4px padding. The step strip was
+  8px — a fourth tier — and the rack 4; a well inside a 4px well with 4px
+  padding, or inside a 10px card with a 6px inset, wants 4.
 - Small red text uses `--ink-red-text` (#B5301F, 5.2:1), never `--primary`
   (#C8382B) — that one is for fills. Red is never a readout: the Simplify
   count (`5 → 3`) is muted ink at weight 500, because a red number beside a

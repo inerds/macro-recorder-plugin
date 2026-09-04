@@ -111,7 +111,7 @@ export function ImportButton({ onImport }: ImportButtonProps) {
             }}
             aria-invalid={error !== null}
             aria-describedby={error ? errorId : undefined}
-            className="mono w-full resize-none rounded-[7px] border border-border bg-background px-2 py-1.5 text-11 leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="mono w-full resize-none rounded border border-border bg-background px-2 py-1.5 text-11 leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="import-json-input"
           />
           {error && (

@@ -6,6 +6,7 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- Rounded corners now follow three sizes across the panel: cards and menus, keys, and recessed fields and lists.
 - Tightened the macro rows: the name has more room and the three row keys sit together. Rows now lift as a whole when you hover, and the dotted leader between the name and the count is gone.
 - Stagger now works on a macro with no keyframes: it delays each selected
   layer instead, moving the in point and the layer's own animation together.

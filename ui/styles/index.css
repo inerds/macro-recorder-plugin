@@ -93,6 +93,31 @@ body::before {
 }
 
 /*
+ * Radius tiers (2026-09-04). Three, by what the surface IS:
+ *   raised paper 10px — panel plate, cards, notices, dialogs, menus, toasts
+ *   keys          7px — every key and icon key
+ *   wells         4px — the rack, the step strip, text fields, swatches
+ * The deck keeps its own smaller set (window 6, keys 4, LCD 3): it is a
+ * dark moulded object, not paper. The library's controls derive theirs from
+ * `--radius`, so the ones that landed off-tier are pinned here.
+ */
+/* Document-wide, not `.panel-root`: dialogs and menus render in a portal
+   after #root, and the number fields inside them are inputs too. */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea {
+  border-radius: 4px;
+}
+
+[role="menu"] {
+  border-radius: 10px;
+}
+
+/* Concentric inside the 10px popup with its 4px padding. */
+[role="menuitem"] {
+  border-radius: 6px;
+}
+
+/*
  * Dialogs are centred by layout — their resting `transform` is `none`. The
  * component library still ships shadcn's translate-based entrance
  * (`slide-in-from-left-1/2`, `slide-in-from-top-[48%]`), which assumes the
@@ -127,7 +152,7 @@ body::before {
   max-width: 100%;
   gap: 8px;
   padding: 5px 10px;
-  border-radius: 8px;
+  border-radius: 10px; /* raised-paper tier, like the card and the menu */
   background: #2a2623; /* the skin's ink — matches the deck chassis family */
   color: #f2ede3; /* panel cream on ink */
   font-size: 12px;
@@ -358,7 +383,11 @@ body::before {
  */
 .step-strip {
   overflow: clip;
-  border-radius: 8px;
+  /* 4px: the wells tier, same as the rack. Inside the recording well (4px,
+     4px padding) and the card (10px, 6px inset) the concentric rule asks
+     for a small inner radius; 8 read as a soft chip (user decision,
+     2026-09-04). */
+  border-radius: 4px;
   /* One tone below the card so the strip reads seated IN it (and lighter
      than the recording feed's muted well, so it pops there). */
   background: var(--background);
@@ -451,7 +480,7 @@ body::before {
      larger. Faces are moulded gradients with a top sheen, not flat paint;
      the red gradient values are the plates' own, duplicated deliberately —
      if you retune one, retune both. */
-  border-radius: 6px;
+  border-radius: 7px; /* the keys tier — same as the row's icon keys */
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
@@ -561,7 +590,7 @@ body::before {
   padding-inline: 6px;
   gap: 4px;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px; /* the keys tier */
   background: transparent;
   box-shadow: none;
   font-size: 10px;
