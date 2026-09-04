@@ -16,6 +16,7 @@ findings belong in the failure taxonomy.
 
 | Issue | Fix |
 |---|---|
+| **The row hover was a flat lift.** | The name lights on hover: a hair heavier, a light edge under the strokes, a faint ink glow, in the family of the number's glow. |
 | **The rows above and below an open card lost their dotted rules,** so the card read as nested between them. | The neighbours keep their rules; only the card itself carries none. |
 | **The leader dots between a macro's name and its count made two dotted lines per row, and the row hover was a tint on the name only.** | The leader is gone; the count stays right-aligned. The whole row is the hover surface, lifted to the card colour with a hairline. |
 | **Macro rows felt loose.** Two gaps stacked between the chevron and the name, and the three 24px icon keys with 6px gaps read as three objects while the name truncated at 300px. | One 4px gap on the row, no chevron margin, 22px keys. The name gains about 30px and the cluster reads as one. |

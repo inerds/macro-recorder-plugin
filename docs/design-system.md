@@ -314,8 +314,11 @@ language. Two rules keep it coherent:
   recording count was the one bordered pill on the panel; it is not.
 - **The whole closed row is the hover surface, and there is no leader.**
   `.rack-row:not(.rack-row-open):hover` lifts the row to the card colour
-  with a 0.2 hairline and darkens the chevron; the disclosure button
-  carries no hover of its own (a tint on just the name read as a loose
+  with a 0.2 hairline, darkens the chevron, and lights the name the way the
+  number is lit at rest — weight 600 (mono bold keeps the advance, so nothing
+  reflows), a light edge under the strokes and a faint ink glow, the
+  letterpress-on-paper look (user ask, 2026-09-04: "more hardware-ish"); the
+  disclosure button carries no hover of its own (a tint on just the name read as a loose
   highlight floating in the row), and a first pass one tone above the card
   was too strong for the paper. The dotted leader between the name and the
   count is gone (user decision, 2026-09-04): with dotted row separators it
