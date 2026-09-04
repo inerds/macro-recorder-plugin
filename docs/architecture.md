@@ -88,7 +88,7 @@ unit-testable without a Creator mock. Preserve this: new engine logic belongs in
 `shared/`, driven by snapshots, not in a new proxy-reading module.
 
 `shared/testing/fakeScene.ts` is the test double for that proxy surface, shared
-by `public/host-harness.html` and vitest. It reproduces the real API's traps on
+by `dev/harness/host-harness.html` and vitest. It reproduces the real API's traps on
 purpose — most importantly that the host silently discards an assignment to
 `staticValue` when keyframes exist (`plugin-api.d.ts:17-18`). Never make the
 fake more permissive than the real host; that would hide the bugs it exists to
@@ -290,12 +290,12 @@ only to `preventDefault()`. Persistence is likewise environment-split:
 
 ## Local harnesses
 
-`public/host-harness.html` fakes the Creator host — a fake `creator` global with
+`dev/harness/host-harness.html` fakes the Creator host — a fake `creator` global with
 fake scene nodes, the **real compiled `plugin.js`**, and the real UI iframe — so
 the full record→diff→playback loop runs in a plain browser. Because it loads the
 compiled bundle, `pnpm build` after any `plugin/` or `shared/` change or you are
 testing stale code. Drive it from the console via `window.harness`.
-`public/sandbox-test.html` is narrower: it reproduces the opaque-origin sandbox
+`dev/harness/sandbox-test.html` is narrower: it reproduces the opaque-origin sandbox
 to test the no-`localStorage` / no-`randomUUID` paths.
 
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`

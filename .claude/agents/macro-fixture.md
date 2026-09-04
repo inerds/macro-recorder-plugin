@@ -28,7 +28,7 @@ Reuse the existing helpers rather than adding new ones.
 
 ## The fake scene
 
-`shared/testing/fakeScene.ts` is shared with `public/host-harness.html`. It
+`shared/testing/fakeScene.ts` is shared with `dev/harness/host-harness.html`. It
 mirrors the real API's awkward parts on purpose:
 - `staticValue` writes are **silently discarded when keyframes exist**
   (`plugin-api.d.ts:17-18`).

@@ -1,5 +1,5 @@
 /**
- * Fake Creator scene, shared by public/host-harness.html and vitest.
+ * Fake Creator scene, shared by dev/harness/host-harness.html and vitest.
  *
  * This is the only test double for the live-proxy surface that
  * plugin/serialize.ts and plugin/applier.ts talk to. It deliberately mirrors

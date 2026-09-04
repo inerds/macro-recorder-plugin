@@ -38,9 +38,14 @@ function injectManifestVersion(version: string): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss(), creator(), injectManifestVersion(pkg.version), traceServer()],
+  // The dev harnesses (dev/harness/*.html) are served at the dev server's root
+  // so `http://localhost:5173/host-harness.html` keeps working, but they are
+  // dev tooling: the build copies no public dir, so dist/ is exactly the
+  // three files the plugin bundle needs.
+  publicDir: command === "serve" ? "dev/harness" : false,
   // The deck's nameplate reads this. Injected rather than hard-coded so the
   // faceplate can never drift from the released version.
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
-});
+}));

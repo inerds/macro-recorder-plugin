@@ -16,7 +16,7 @@ plugin needs:
   (`docs/runtime-api.md`), and confirmed host limits with evidence
   (`docs/limitations.md`).
 - A fake host scene for tests and a browser harness that reproduce the real
-  proxies' traps (`shared/testing/fakeScene.ts`, `public/host-harness.html`).
+  proxies' traps (`shared/testing/fakeScene.ts`, `dev/harness/host-harness.html`).
 - Trace-driven debugging: every dev session writes an auditable bundle of
   RPC traffic, snapshots, and probes (see "Diagnostics and triage").
 
@@ -122,7 +122,7 @@ every sandbox-side change; the handshake compares revisions and logs a loud
 global, fake scene nodes, the real compiled `plugin.js`, and the real panel
 iframe. Run `pnpm build` first — the harness loads the compiled bundle. Drive
 the fake scene from the console through `window.harness`.
-`public/sandbox-test.html` reproduces Creator's opaque-origin iframe (no
+`dev/harness/sandbox-test.html` reproduces Creator's opaque-origin iframe (no
 `localStorage`, no `crypto.randomUUID`) for the fallback paths.
 
 ## Tests
