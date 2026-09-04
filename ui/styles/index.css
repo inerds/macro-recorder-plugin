@@ -229,9 +229,12 @@ body::before {
 /* The open macro POPS OUT of the rack as a raised card (user concept,
    2026-08-24 — replaces the earlier seated-tray treatment): margins clear
    the well on every side, the card takes the skin's paper treatment
-   (hairline ring, one soft drop, top-edge highlight), and the adjacent
-   dotted rules disappear — the gap does the separating. These rules sit
-   AFTER `.rack-row + .rack-row` on purpose: same specificity, later wins. */
+   (hairline ring, one soft drop, top-edge highlight). The card itself
+   carries no dotted rule (it would draw across its rounded top), but its
+   NEIGHBOURS keep theirs: with the rules removed the rows above and below
+   lost their edge and the card read as nested between them (user report,
+   2026-09-04). These rules sit AFTER `.rack-row + .rack-row` on purpose:
+   same specificity, later wins. */
 .rack-row-open {
   margin: 6px;
   border-radius: 10px;
@@ -242,9 +245,13 @@ body::before {
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-.rack-row + .rack-row-open,
-.rack-row-open + .rack-row {
+.rack-row + .rack-row-open {
   border-top: none;
+}
+
+/* The row above the card gets the rule the card cannot carry. */
+.rack-row:has(+ .rack-row-open) {
+  border-bottom: 1px dotted rgba(42, 38, 35, 0.3);
 }
 
 /* The index reads as a lit segment: --primary rather than the small-text red,

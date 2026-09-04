@@ -336,8 +336,12 @@ language. Two rules keep it coherent:
   "N steps" — so the readout is decorative and an `sr-only` "4 steps" carries
   the meaning. Keep both.
 - **The open macro POPS OUT as a card** (user concept, 2026-08-24):
-  `.rack-row-open` lifts out of the rack with 6px margins, the paper-card
-  treatment, and no adjacent dotted rules — the gap separates. Its lid drops
+  `.rack-row-open` lifts out of the rack with 6px margins and the paper-card
+  treatment. Its NEIGHBOURS keep their dotted rules (`:has(+ .rack-row-open)`
+  gives the row above a bottom rule, since the card cannot carry a top one
+  across its rounded corners): with the rules removed the rows above and
+  below lost their edges and the card read as nested between them (user
+  report, 2026-09-04). Its lid drops
   the play/options/overflow cluster and shows ONE disclosure cue — the
   leading chevron beside the number, rotated (user decision, 2026-09-03: the
   earlier trailing ChevronUp made two arrows point at each other) — except
