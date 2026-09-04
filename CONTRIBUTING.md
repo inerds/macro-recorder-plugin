@@ -39,6 +39,9 @@ so a pure VM promise chain never settles there and code that passes in a
 browser can be dead in Creator. A change under `sandbox/` or `engine/` is not
 covered by `pnpm test` alone.
 
+The CI workflow in `.github/workflows/ci.yml` runs the same checks on every
+push and pull request.
+
 ## The three source trees
 
 `engine/` holds the pure logic both sides use: the protocol, the snapshot

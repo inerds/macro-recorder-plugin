@@ -12,6 +12,17 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-04 — Repository restructure
+
+| Issue | Fix |
+|---|---|
+| **The engineering handbook lived in `CLAUDE.md`,** an 822-line file only AI tooling reads, and the docs folder mixed living guides with finished plans. | `CLAUDE.md` is a short pointer plus rules. The rationale moved to `architecture.md`, `design-system.md` and `contributing/`. Finished plans and audits are under `history/`, release notes are one file per version under `releases/`, and `CONTRIBUTING.md` explains setup, checks and releases. |
+| **Two vendored tarballs sat at the repo root, the release zip was hand-made, and the manifest had no version.** | Tarballs live in `vendor/` with a README. `pnpm bundle` writes the zip into an ignored `release/` folder, and the build stamps `package.json`'s version into `dist/manifest.json`. Added package metadata, `.editorconfig`, `.node-version`, a Prettier config, an explicit vitest config, and a CI workflow. |
+| **The dev harness pages shipped in every build** because Vite copied `public/` into `dist/`. | They live in `dev/harness/`, served at the dev server root in development only. `dist/` is exactly the three bundle files. |
+| **The source trees were named by where code was used** (`plugin/`, `shared/`, `src/`), which told a newcomer nothing. | Renamed to `sandbox/`, `engine/` and `ui/` as a pure move, with `tsconfig.sandbox.json` and `tsconfig.ui.json`. Behaviour and `ENGINE_REV` are unchanged. |
+
+---
+
 ## 2026-09-03 — Spin the reels; no text selection; flatter chassis
 
 | Issue | Fix |

@@ -4,6 +4,12 @@ This is the user-facing record: user-visible changes per shared version, one
 dated block per release. The engineering log — what was wrong and what changed,
 one row per fix — is `docs/history/improvements.md`.
 
+## Unreleased
+
+- The plugin manifest now carries the version number.
+- The release zip is built by `pnpm bundle` and contains only the three
+  files Creator needs.
+
 ## 0.5.0 — 2026-09-04
 
 - Redrew the deck after a studio reel-to-reel: spun-metal three-spoke

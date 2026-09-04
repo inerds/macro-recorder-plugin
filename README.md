@@ -139,6 +139,25 @@ pumping the VM job queue. A pure VM promise chain never settles there, so code
 that passes in a browser can be dead in Creator. The smoke test drives the
 real bundle with zero pumps and asserts the RPC contract holds.
 
+## Repository layout
+
+```
+sandbox/        The QuickJS plugin sandbox: RPC dispatcher, serializer, applier, store, manifest.
+engine/         The pure engine both sides use: protocol, snapshots, differ, labels, simplify.
+ui/             The React panel: state machine, gateways, components, styles, dev strip.
+dev/harness/    Host-emulation pages for the dev server only. Never part of the build.
+scripts/        The trace server, the QuickJS smoke test, and the release bundler.
+vendor/         Tarballs of Creator packages that are not on npm, with a README.
+docs/           User guide, architecture, design system, runtime API, limitations,
+                contributing guides, release notes per version, and the history log.
+.github/        The CI workflow: type-check, tests, QuickJS smoke, build.
+```
+
+Each tree compiles under its own `tsconfig.*.json` and `tsconfig.json` is the
+solution file. `pnpm bundle` builds and writes `release/macro-recorder-v<version>.zip`
+with exactly the three files Creator needs; the build stamps the version into
+`manifest.json`.
+
 ## Diagnostics and triage
 
 Dev sessions write a **trace bundle** per record and playback run to
