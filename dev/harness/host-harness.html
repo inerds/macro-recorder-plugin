@@ -3,7 +3,7 @@
      the REAL UI iframe. Lets the full record/diff/playback loop be tested
      in a plain browser. Not part of the shipped plugin.
 
-     The fake scene itself lives in shared/testing/fakeScene.ts so that this
+     The fake scene itself lives in engine/testing/fakeScene.ts so that this
      page and the vitest suite drive the SAME test double. That module is
      imported as TypeScript, which the Vite dev server transforms on request —
      so this page works under `pnpm dev`, not from a static build. -->
@@ -21,7 +21,7 @@
     <div id="panel-slot"></div>
     <pre id="log"></pre>
     <script type="module">
-      import { makeScene } from "/shared/testing/fakeScene.ts";
+      import { makeScene } from "/engine/testing/fakeScene.ts";
 
       const logEl = document.getElementById("log");
       function log(...args) {

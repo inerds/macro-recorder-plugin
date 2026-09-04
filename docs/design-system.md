@@ -6,14 +6,14 @@ token delivery mechanism, the control hierarchy, the deck's light and motion
 layers, and the rack's readout grammar. Every rule here is load-bearing: each
 one records a specific failure that the current shape prevents.
 
-All CSS lives in `src/styles/index.css`, with the hero's rules in
-`src/styles/deck.css` (imported from `index.css`, so the build still inlines
+All CSS lives in `ui/styles/index.css`, with the hero's rules in
+`ui/styles/deck.css` (imported from `index.css`, so the build still inlines
 one stylesheet). The architecture behind the panel is in
 [`architecture.md`](architecture.md).
 
 ## The skin — one committed look, and how it wins
 
-`src/theme/vintageTokens.ts` exports `VINTAGE_TOKENS`, passed to the library's
+`ui/theme/vintageTokens.ts` exports `VINTAGE_TOKENS`, passed to the library's
 `ThemeProvider` in `app.tsx`. That provider writes every `--*` key of its
 `tokens` prop as an **inline custom property on `<html>`**, which outranks both
 `:root` and `.dark` in the library's `theme.css`. Consequences, all
@@ -26,7 +26,7 @@ load-bearing:
   `--sidebar-*` included) or an unset one falls back to library teal.
 - Creator's interface theme touches exactly ONE pixel surface: the
   `.host-frame` gutter. The relay is the official ThemeProvider sync
-  pattern (ui-library docs): `plugin/theme.ts` reads `creator.ui.theme` and
+  pattern (ui-library docs): `sandbox/theme.ts` reads `creator.ui.theme` and
   subscribes to `change:theme` (both feature-detected — absent from typings
   AND from our live introspection, runtime-api.md item 10), forwarding
   `{ type: "change:theme", tokens, themeName }` on boot, on `hello`, and on
@@ -44,7 +44,7 @@ load-bearing:
   on it: 10px radius, `overflow: clip`, one seat shadow. The gutter costs
   16px of height, so panel-height math (collapse threshold, README's
   develop-at size) is against the panel, not the window.
-- All CSS lives in `src/styles/index.css`; the build inlines one file. No
+- All CSS lives in `ui/styles/index.css`; the build inlines one file. No
   network assets, system font stacks only (`--font-sans`, `--font-mono` are
   overridden too).
 - Small red text uses `--ink-red-text` (#B5301F, 5.2:1), never `--primary`
@@ -82,7 +82,7 @@ load-bearing:
 
 ## The deck
 
-`src/components/deck/` — rendered once in `app.tsx`, above the mode switch, on
+`ui/components/deck/` — rendered once in `app.tsx`, above the mode switch, on
 **every** screen. It owns the Record/Stop transport, the step counter, the
 recording clock, the status lamp, and the state word.
 
@@ -217,7 +217,7 @@ recording clock, the status lamp, and the state word.
   in one pane: two panes side by side read as two instruments, and the
   trailing gutter is only ~84px wide at 300px.
 - The faceplate's lower legend is the package version, which `vite.config.ts`
-  injects as `__APP_VERSION__` (declared in `src/vite-env.d.ts`), so it can
+  injects as `__APP_VERSION__` (declared in `ui/vite-env.d.ts`), so it can
   never drift from what shipped.
 - **The Record key's visible legend is `REC`, its accessible name is
   `Record`** (aria-label). Consequence for the headless driver: `walk.mjs`
@@ -237,7 +237,7 @@ recording clock, the status lamp, and the state word.
   padding, and `height = 110 * (window / 272)` (117px at a 300px panel). Get
   this wrong and the reels quietly letterbox inside the glass instead of
   filling it — widening the chassis on its own buys nothing.
-- Deck CSS lives in **`src/styles/deck.css`**, imported from `index.css`
+- Deck CSS lives in **`ui/styles/deck.css`**, imported from `index.css`
   (Vite still inlines one stylesheet). Anything reused outside the hero —
   `.key`, `.card`, `.instrument`, `.mono` — stays in `index.css`.
 - Rotation is the CSS `rotate` property on the reel groups with
@@ -302,7 +302,7 @@ language. Two rules keep it coherent:
   `NARROW_PANEL_PX` = 262, kept equal to the CSS) because the menu is
   portalled out of the container query's reach. Open cards keep everything.
 - **Step rows show PROPERTY → RESULT; the before value is sr-only.**
-  `labelPartsOf` (shared/labels.ts) splits a label into path/before/after
+  `labelPartsOf` (engine/labels.ts) splits a label into path/before/after
   only when re-joining reproduces the stored label byte-for-byte (imported
   v1 macros may carry labels their payload no longer emits); otherwise the
   row falls back to splitting at the last arrow. The result is capped at
@@ -335,7 +335,7 @@ language. Two rules keep it coherent:
   when open (never both). The footer key mirrors the lid's mount rule:
   while THAT macro plays it stays mounted and swaps to Stop (two stops on
   the open card, same grammar as the recording screen's pair). Duration in
-  FRAMES (via `shared/steps.ts#keyframeSpan` — the UI never learns fps, a
+  FRAMES (via `engine/steps.ts#keyframeSpan` — the UI never learns fps, a
   timecode would be a lie) rides the play key's `title` and an sr-only
   span; it lost its visible seat to the key.
 - **Steps are ONE `.step-strip`** (one `bg-card` surface, 8px radius,

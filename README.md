@@ -9,14 +9,14 @@ developers**. Beyond the product, it documents patterns that any Creator
 plugin needs:
 
 - A panel-to-sandbox RPC protocol with a mock fallback, so every panel state
-  is reachable without Creator (`src/gateways/`, `shared/protocol.ts`).
+  is reachable without Creator (`ui/gateways/`, `engine/protocol.ts`).
 - The QuickJS sandbox constraints that the typings do not mention, above all
   the no-job-pump callback contract (`pnpm test:quickjs` enforces it).
 - The host API's real runtime surface, found by introspection
   (`docs/runtime-api.md`), and confirmed host limits with evidence
   (`docs/limitations.md`).
 - A fake host scene for tests and a browser harness that reproduce the real
-  proxies' traps (`shared/testing/fakeScene.ts`, `dev/harness/host-harness.html`).
+  proxies' traps (`engine/testing/fakeScene.ts`, `dev/harness/host-harness.html`).
 - Trace-driven debugging: every dev session writes an auditable bundle of
   RPC traffic, snapshots, and probes (see "Diagnostics and triage").
 
@@ -52,13 +52,13 @@ Document map:
 
 ## How the engine works
 
-- `shared/` holds the pure, fully unit-tested logic both sides use: protocol,
+- `engine/` holds the pure, fully unit-tested logic both sides use: protocol,
   snapshot model, structural differ, labels, relative-playback math,
   simplification, and value editing.
-- `plugin/` is the QuickJS sandbox: RPC dispatcher, defensive
+- `sandbox/` is the QuickJS sandbox: RPC dispatcher, defensive
   proxy-to-snapshot serializer, step applier, and the `clientStorage` store.
   The sandbox has no timers — the panel owns all timing.
-- `src/gateways/rpc/` is the panel side: the RPC bridge, the tick-loop
+- `ui/gateways/rpc/` is the panel side: the RPC bridge, the tick-loop
   recorder gateway, and the paced step-by-step playback orchestrator.
 
 Recording watches the whole scene — every layer's subtree, paints, masks,
@@ -110,9 +110,9 @@ Run `pnpm dev`, then add the plugin in Creator:
 4. Open the **Develop** tab.
 5. Enter `http://localhost:5173` and click Continue.
 
-**After any change under `plugin/` or `shared/`, remove and re-add the
+**After any change under `sandbox/` or `engine/`, remove and re-add the
 plugin.** Creator evaluates `plugin.js` once and never re-fetches it, while
-Vite serves the panel fresh. Bump `ENGINE_REV` in `shared/protocol.ts` with
+Vite serves the panel fresh. Bump `ENGINE_REV` in `engine/protocol.ts` with
 every sandbox-side change; the handshake compares revisions and logs a loud
 `plugin engine is STALE` warning on mismatch.
 
@@ -172,13 +172,13 @@ sandbox reproduces bugs that are already fixed.
 
 ## Architecture pointers
 
-- `src/state/appReducer.ts` — one discriminated-union state machine
+- `ui/state/appReducer.ts` — one discriminated-union state machine
   (`idle → recording → reviewing`, `idle → playing`).
-- `src/gateways/types.ts` — the three gateway interfaces the panel talks to;
-  `src/gateways/index.ts` is the single real-versus-mock seam.
-- `plugin/serialize.ts` and `plugin/applier.ts` — the only two files that
+- `ui/gateways/types.ts` — the three gateway interfaces the panel talks to;
+  `ui/gateways/index.ts` is the single real-versus-mock seam.
+- `sandbox/serialize.ts` and `sandbox/applier.ts` — the only two files that
   touch Creator's live node proxies. Everything downstream is plain data.
-- `shared/testing/fakeScene.ts` — the test double for the proxy surface,
+- `engine/testing/fakeScene.ts` — the test double for the proxy surface,
   shared by the harness and vitest. It reproduces the host's traps on
   purpose, above all that a `staticValue` write does nothing while keyframes
   exist. Never make it more permissive than the real host.

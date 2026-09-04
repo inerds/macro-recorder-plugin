@@ -61,7 +61,7 @@ These members are live on the runtime surface, and the typings omit them:
   07-40-35, two independent sessions). The raw-document form is NOT
   guaranteed. Every reader of `toJSON()` must treat an id/type stub as a
   normal, empty outcome — which they do. The readers are the per-fill opacity
-  recovery in `plugin/serialize.ts#collectPaintOpacities` and the rev .51
+  recovery in `sandbox/serialize.ts#collectPaintOpacities` and the rev .51
   token hunt.
 - Every `Animatable`: `clearKeyframes()` (bulk animated→static),
   `getValueAt(frame)`.
@@ -137,7 +137,7 @@ Other documents cite these items by number, so keep the numbering stable:
     change events exist, so polling plus diff is the only recording mechanism.
     One exception is under probe: the ui-library docs document
     `creator.ui.theme` and a `change:theme` event (ThemeProvider sync).
-    `plugin/theme.ts` implements that relay fully feature-detected — NEVER
+    `sandbox/theme.ts` implements that relay fully feature-detected — NEVER
     live-verified, because our introspection predates the probe. If a trace
     shows the frame matching Creator's theme, the event exists; move this note
     accordingly.

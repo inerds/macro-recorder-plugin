@@ -36,34 +36,34 @@ pnpm build         # production bundle → dist/
 `pnpm test:quickjs` is the only check that exercises the compiled bundle.
 Creator invokes the sandbox's callback without pumping the QuickJS job queue,
 so a pure VM promise chain never settles there and code that passes in a
-browser can be dead in Creator. A change under `plugin/` or `shared/` is not
+browser can be dead in Creator. A change under `sandbox/` or `engine/` is not
 covered by `pnpm test` alone.
 
 ## The three source trees
 
-`shared/` holds the pure logic both sides use: the protocol, the snapshot
+`engine/` holds the pure logic both sides use: the protocol, the snapshot
 model, the structural differ, labels, relative-playback math, simplification,
 and value editing. It compiles under both the panel and the sandbox
 configurations, so it must not reference `window`, `document`, or Node APIs.
-When a `shared/` module needs a platform capability, inject it.
+When an `engine/` module needs a platform capability, inject it.
 
-`plugin/` is the QuickJS sandbox: the RPC dispatcher, the defensive
+`sandbox/` is the QuickJS sandbox: the RPC dispatcher, the defensive
 proxy-to-snapshot serializer, the step applier, and the `clientStorage` store.
 The sandbox has no timers and no DOM. The panel owns all timing.
 
-`src/` is the React panel: the state machine, the gateways, and the components.
+`ui/` is the React panel: the state machine, the gateways, and the components.
 It talks to the sandbox only through the three interfaces in
-`src/gateways/types.ts`, which is what makes every panel state reachable
+`ui/gateways/types.ts`, which is what makes every panel state reachable
 without Creator.
 
 ## Where a change goes
 
-- **Engine logic** — a new diff rule, label, or transform — goes in `shared/`,
+- **Engine logic** — a new diff rule, label, or transform — goes in `engine/`,
   driven by snapshots, with unit tests beside it.
-- **Reads and writes of Creator's live node proxies** go in `plugin/serialize.ts`
-  or `plugin/applier.ts`. Those two files are the only ones allowed to touch a
+- **Reads and writes of Creator's live node proxies** go in `sandbox/serialize.ts`
+  or `sandbox/applier.ts`. Those two files are the only ones allowed to touch a
   proxy. Everything downstream is plain data.
-- **Panel work** goes in `src/`. Read
+- **Panel work** goes in `ui/`. Read
   [`docs/design-system.md`](docs/design-system.md) first; the skin's rules are
   load-bearing.
 
@@ -72,10 +72,10 @@ exist. Read it before you move anything across one.
 
 ## Bump ENGINE_REV
 
-Bump `ENGINE_REV` in `shared/protocol.ts` with every sandbox-behaviour change.
+Bump `ENGINE_REV` in `engine/protocol.ts` with every sandbox-behaviour change.
 Creator evaluates `plugin.js` once at plugin load and never re-fetches it, so a
 stale sandbox reproduces bugs that are already fixed. After any change under
-`plugin/` or `shared/`, remove and re-add the plugin in Creator. See
+`sandbox/` or `engine/`, remove and re-add the plugin in Creator. See
 [`docs/contributing/engine-rev.md`](docs/contributing/engine-rev.md).
 
 ## Documentation you must update

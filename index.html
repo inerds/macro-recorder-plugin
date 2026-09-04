@@ -10,7 +10,7 @@
       // tokens, themeName }; painting --host-frame-bg on <html> here means
       // the gutter never flashes the dark CSS fallback in a light-theme
       // Creator while the bundle loads. KEEP the resolution chain in sync
-      // with src/theme/useHostBackground.ts.
+      // with ui/theme/useHostBackground.ts.
       addEventListener("message", function (event) {
         var data = event.data && (event.data.pluginMessage || event.data);
         if (!data || data.type !== "change:theme") return;
@@ -29,6 +29,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/ui/main.tsx"></script>
   </body>
 </html>

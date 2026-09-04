@@ -1,0 +1,735 @@
+@import "tailwindcss";
+@import "@lottiefiles/creator-plugins-ui/theme.css";
+@import "./deck.css";
+
+/* Vestigial: the panel wears one committed skin and never flips to dark.
+   Kept so the library's own `dark:` utilities stay parseable. */
+@custom-variant dark (&:is(.dark *));
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  min-width: 260px;
+}
+
+/* Paper grain. A fixed, multiplied turbulence tile — it has to sit UNDER the
+   panel's own shadows (which are ink on cream) but over the flat background,
+   hence the stacking pair with #root. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/*
+ * NO z-index here. `position: relative` alone is enough to lift #root above
+ * the fixed grain overlay (both sit at stacking level 0, and #root comes
+ * later in the DOM), while adding a z-index would create a stacking context
+ * that buries every portalled popover: Base UI renders menus into a portal
+ * div AFTER #root whose positioner is `z-auto`, and the menu's own `z-50`
+ * does nothing because that element is `position: static`. With z-index: 1
+ * here the whole panel painted on top of the open dropdown, so clicks
+ * hit-tested to the row underneath and the menu looked dead.
+ */
+#root {
+  position: relative;
+}
+
+/* The plugin sits as a plate on Creator's own chrome: an 8px gutter wearing
+   the HOST's interface background, framing the cream panel. The colour comes
+   from Creator's theme relay (useHostBackground sets --host-frame-bg inline);
+   the fallback is theme.css's `.dark --background` for before the host has
+   said anything — it cannot be a live token, VINTAGE_TOKENS repaints those
+   cream. No transition on purpose: a theme flip should snap, not smear. The
+   gutter costs the panel 16px of height, so collapse thresholds fire at
+   window heights 16px taller than before. */
+.host-frame {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  background: var(--host-frame-bg, hsl(198 16.7% 11.8%));
+}
+
+/* The panel is the height container for the deck's collapse rule. It is a
+   flex column of exactly 100% height, so `size` containment has the definite
+   block size it needs and nothing here can grow it. Inside the dark frame it
+   is a plate: the skin's 10px radius (clipping the chassis's square corners
+   — the dark ground shows there now, not cream slivers) and one soft seat
+   shadow, highlight on the top edge per the one-light rule. */
+.panel-root {
+  container: panel / size;
+  border-radius: 10px;
+  overflow: clip;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 16px -8px rgba(0, 0, 0, 0.55);
+  /* An instrument, not a document: a drag across the faceplate or a
+     double-tap on a key must never paint a selection highlight (user ask,
+     2026-09-03). Fields opt back in below — their text is the user's. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.panel-root input,
+.panel-root textarea,
+.panel-root [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
+ * Dialogs are centred by layout — their resting `transform` is `none`. The
+ * component library still ships shadcn's translate-based entrance
+ * (`slide-in-from-left-1/2`, `slide-in-from-top-[48%]`), which assumes the
+ * dialog is centred BY that same transform. Mismatched, it starts the panel
+ * 50%/48% of its own size up and to the left and flies it in diagonally from
+ * outside the panel. Zero the translate and the intended zoom + fade is what
+ * is left: a modal should arrive where it lives, not travel to it.
+ */
+[role="dialog"],
+[role="alertdialog"] {
+  --tw-enter-translate-x: 0;
+  --tw-enter-translate-y: 0;
+  --tw-exit-translate-x: 0;
+  --tw-exit-translate-y: 0;
+}
+
+/*
+ * Toasts: the library ships a full-width near-black slab (bg 10% black,
+ * text-15 title, 20px icons, shadow-lg) sized for a full app window — at a
+ * 300px panel it dwarfs every instrument. Restyle as a compact ink chip in
+ * the skin's language: the panel's one dark object is the deck, so a small
+ * dark annunciator chip reads as part of the machine. The library classes
+ * are hardcoded (no props), hence attribute-contains selectors on the fixed
+ * z-100 viewport — same override strategy as the dialog fix above.
+ */
+[class*="z-100"][class*="fixed"] {
+  padding: 10px;
+  gap: 6px;
+}
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] {
+  width: auto;
+  max-width: 100%;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #2a2623; /* the skin's ink — matches the deck chassis family */
+  color: #f2ede3; /* panel cream on ink */
+  font-size: 12px;
+  box-shadow:
+    0 1px 2px -1px rgba(42, 38, 35, 0.3),
+    0 4px 12px -6px rgba(42, 38, 35, 0.45);
+}
+/* title/description arrive with text-15/text-13 — bring them to panel scale */
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] [class*="text-15"] {
+  font-size: 12px;
+  line-height: 1.35;
+}
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] [class*="text-13"] {
+  font-size: 11px;
+}
+/* 20px status icons read as dashboard warnings; 14px matches text-12 weight */
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] svg[class*="h-5"] {
+  width: 14px;
+  height: 14px;
+}
+[class*="z-100"][class*="fixed"] [class*="pointer-events-auto"] button svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---------------------------------------------------------------- type --- */
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Machine-panel labels: small, wide, and never in the ink used for body copy. */
+.instrument {
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--label-fg);
+}
+
+.instrument-red {
+  color: var(--ink-red-text);
+}
+
+/* -------------------------------------------------------------- surface --- */
+
+/* A card is a sheet of paper on the panel: hairline ink edge, one soft drop,
+   one 1px highlight along the top so it reads as raised rather than drawn. */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 1px 1px rgba(42, 38, 35, 0.04),
+    0 2px 6px -2px rgba(42, 38, 35, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/*
+ * The rack — a console readout, not a stack of cards. One shallow well, rows
+ * divided by a dotted rule, and a leader carrying the eye from each macro's
+ * name to its step count the way an instrument list or a table of contents
+ * does. Fewer edges than cards, and the monospace grid is what makes it read
+ * as equipment rather than as a web list.
+ */
+.rack {
+  overflow: hidden;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--card) 60%, var(--background));
+  box-shadow:
+    inset 0 0 0 1px rgba(42, 38, 35, 0.22),
+    inset 0 1px 3px rgba(42, 38, 35, 0.14);
+}
+
+/* Transparent, so the well shows through and `.success-flash` (which animates
+   background-color) still has somewhere to land. */
+.rack-row {
+  position: relative;
+  background: transparent;
+  transition:
+    margin 200ms cubic-bezier(0.2, 0, 0, 1),
+    border-radius 200ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 200ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rack-row {
+    transition: none;
+  }
+}
+
+.rack-row + .rack-row {
+  border-top: 1px dotted rgba(42, 38, 35, 0.3);
+}
+
+/* The open macro POPS OUT of the rack as a raised card (user concept,
+   2026-08-24 — replaces the earlier seated-tray treatment): margins clear
+   the well on every side, the card takes the skin's paper treatment
+   (hairline ring, one soft drop, top-edge highlight), and the adjacent
+   dotted rules disappear — the gap does the separating. These rules sit
+   AFTER `.rack-row + .rack-row` on purpose: same specificity, later wins. */
+.rack-row-open {
+  margin: 6px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px rgba(42, 38, 35, 0.28),
+    0 2px 6px -2px rgba(42, 38, 35, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.rack-row + .rack-row-open,
+.rack-row-open + .rack-row {
+  border-top: none;
+}
+
+/* The index reads as a lit segment: --primary rather than the small-text red,
+   because the glow carries it above the 3:1 bar at this weight. */
+.rack-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+  text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+/*
+ * A narrow panel spends the squeeze on the closed rows' furniture, never on
+ * the macro's name: the leader, the two-digit count and the play-options key
+ * all go, leaving the name, the number and the two keys that carry the row's
+ * decisions. The count's words survive in the row's sr-only text, and the
+ * play options move into the overflow menu (MacroRow gates the item on
+ * useNarrowPanel — the menu is portalled, out of this container's reach).
+ * An OPEN row keeps everything: its card has the width to say it.
+ */
+/* NOT the deck's 286px breakpoint: the panel inside the 8px gutter is 284px
+   wide at Creator's 300px window, so that one is always on there. Rows give
+   up their furniture only below a 262px panel (a ~278px window) — the width
+   at which a 17-character name stops fitting beside the full cluster. Keep
+   this number equal to NARROW_PANEL_PX in ui/state/useNarrowPanel.ts. */
+@container panel (max-width: 262px) {
+  .rack-row:not(.rack-row-open) .rack-lead,
+  .rack-row:not(.rack-row-open) .rack-count,
+  .rack-row:not(.rack-row-open) [data-testid="play-options-trigger"] {
+    display: none;
+  }
+}
+
+.rack-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* The leader. Decorative — the accessible name already pairs macro and count,
+   so it is aria-hidden and free to be a bare rule. */
+.rack-lead {
+  flex: 1 1 auto;
+  min-width: 10px;
+  /* A wider start gap so a truncated name's ellipsis and the leader's dots
+     don't read as one stutter ("recolo….…03"). */
+  margin-block: 0 3px;
+  margin-inline: 6px 4px;
+  border-bottom: 1px dotted rgba(42, 38, 35, 0.35);
+}
+
+/*
+ * Opening a row reveals a compartment inside the rack, not more of the same
+ * surface: the well is darker than the step rows seated in it, so the rows
+ * read as sitting IN something rather than floating on it.
+ */
+.rack-drawer {
+  background: var(--muted);
+  /* Hairline top edge over the shadow: without it the recess has no lip and
+     the well just reads as a darker block. */
+  box-shadow:
+    inset 0 1px 0 rgba(42, 38, 35, 0.1),
+    inset 0 3px 4px -3px rgba(42, 38, 35, 0.45);
+}
+
+/*
+ * The steps are ONE strip of paper seated in the well — the rack's own
+ * grammar (one surface, dotted rules) one level down. N floating pills read
+ * as N objects; a log is one object. Rows are bg-inherit so the hover
+ * action lane (which paints bg-inherit too) always lands on the strip's own
+ * ground; the strip owns the tone, radius, and clips the rows' corners.
+ */
+.step-strip {
+  overflow: clip;
+  border-radius: 8px;
+  /* One tone below the card so the strip reads seated IN it (and lighter
+     than the recording feed's muted well, so it pops there). */
+  background: var(--background);
+  box-shadow:
+    0 0 0 1px rgba(42, 38, 35, 0.14),
+    0 1px 2px -1px rgba(42, 38, 35, 0.18);
+}
+
+.step-strip > li + li {
+  border-top: 1px dotted rgba(42, 38, 35, 0.25);
+}
+
+/*
+ * Paced playback — the strip walks its own list while a macro plays, the way
+ * an actions palette does. Only the playing macro's card sets [data-status];
+ * the recording feed and the review sheet never do.
+ *
+ * Every state is carried by COLOUR and GLYPH (dimmed vs. full, numeral vs.
+ * check vs. red alert) with the word in an sr-only suffix on the row. The
+ * fades and the pulse are decoration on top of that — which is what makes
+ * the reduced-motion pair below a fallback rather than a loss.
+ */
+.step-strip [data-status] {
+  transition:
+    opacity 180ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Not yet reached — present, legible, and plainly not the subject. */
+.step-strip [data-status="pending"] {
+  opacity: 0.55;
+}
+
+.step-strip [data-status="running"],
+.step-strip [data-status="done"],
+.step-strip [data-status="failed"] {
+  opacity: 1;
+}
+
+/* The running row's numeral is a lit segment — same recipe as .rack-num,
+   since it is the same idea one level down. */
+.step-strip [data-status="running"] .step-num {
+  color: var(--primary);
+  text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 35%, transparent);
+  animation: step-running-pulse 1.4s ease-in-out infinite alternate;
+}
+
+/* Shallower than record-pulse: this one sits under a moving playhead and a
+   full blink at 2Hz would fight the row-to-row travel for attention. */
+@keyframes step-running-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-strip [data-status="running"] .step-num {
+    animation: none;
+  }
+  .step-strip [data-status] {
+    transition: none;
+  }
+}
+
+/* A recoverable problem, not a failure — amber, not the action red. */
+.warn-box {
+  border: 1px solid color-mix(in srgb, var(--lamp-amber) 70%, transparent);
+  background: color-mix(in srgb, var(--lamp-amber) 16%, transparent);
+  border-radius: 10px;
+}
+
+/* ----------------------------------------------------------------- keys --- */
+
+/*
+ * A key is a physical button: ink outline, a hard 1.5px drop that it travels
+ * into when pressed. Doubled selectors on purpose — the library's Button
+ * merges `size="sm"` utilities (`h-6 rounded font-normal`) into the same
+ * element, and a single class would lose to them on nothing but source order.
+ */
+.key.key {
+  height: 26px;
+  padding-inline: 8px;
+  gap: 5px;
+  border: 1px solid var(--ink);
+  /* Geometry and finish shadow the deck's .key-plate caps (deck.css) — one
+     key family on two grounds. 6px, not the plates' 4px: this cap is a step
+     larger. Faces are moulded gradients with a top sheen, not flat paint;
+     the red gradient values are the plates' own, duplicated deliberately —
+     if you retune one, retune both. */
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 1.5px 0 var(--ink);
+  transition:
+    translate 120ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    color 150ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.key.key svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The key's own travel replaces `.press`'s scale — pressing a key is a
+   downward stroke, not a shrink. */
+.key.key:active:not(:disabled) {
+  translate: 0 1.5px;
+  scale: 1;
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.key.key:disabled {
+  opacity: 0.4;
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+.key-red.key-red {
+  background: linear-gradient(180deg, #e0574a 0%, #c8382b 60%, #b3301f 100%);
+  color: #fff3ee;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 1.5px 0 var(--ink);
+}
+
+.key-red.key-red:hover:not(:disabled) {
+  background: linear-gradient(180deg, #e45c4a 0%, #bc3124 100%);
+}
+
+.key-red.key-red:active:not(:disabled) {
+  background: linear-gradient(180deg, #be3428 0%, #9e2a1e 100%);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.28),
+    0 0 0 var(--ink);
+}
+
+/* A dead red key. A faded red cap still reads as "the action is here"; a
+   dead key is a cream blank with no drop to travel into, so the surface
+   says "not yet" before the pointer does. Doubled selector to out-rank the
+   library's `disabled:opacity-50` and `.key.key:disabled` above. */
+.key.key-red:disabled {
+  background: linear-gradient(180deg, #f1ece3, #e4ddd0);
+  color: var(--muted-foreground);
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px rgba(42, 38, 35, 0.35);
+  transform: none;
+  translate: none;
+}
+
+.key-outline.key-outline {
+  background: linear-gradient(180deg, #fbf8f2 0%, #f0ebe2 100%);
+  color: var(--ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1.5px 0 var(--ink);
+}
+
+.key-outline.key-outline:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f4efe6 0%, #e7e0d3 100%);
+}
+
+/* An armed destructive key: the label change must not be the only cue, and
+   `.instrument-red` alone loses to `.key-outline.key-outline` on specificity.
+   Text/ink red is --ink-red-text (5.2:1), never --primary. */
+.key-armed.key-armed {
+  background: var(--card);
+  color: var(--ink-red-text);
+  border-color: var(--ink-red-text);
+  box-shadow: 0 1.5px 0 var(--ink-red-text);
+}
+
+.key-armed.key-armed:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink-red-text) 8%, var(--card));
+}
+
+.key-armed.key-armed:active:not(:disabled) {
+  box-shadow: 0 0 0 var(--ink-red-text);
+}
+
+/*
+ * The third rank. The panel ranks its controls by how much chrome they wear:
+ * primary = red key (one per surface), secondary = cream key, tertiary =
+ * quiet — instrument type on nothing at all, no ink edge and no drop, so a
+ * standalone utility (Import, Simplify) cannot outrank the decision beside
+ * it. Doubled selector for the same tailwind-merge reason as `.key.key`.
+ * Feedback is `.press`'s scale: travel belongs to keys that have a shadow to
+ * travel into.
+ */
+.key-quiet.key-quiet {
+  /* 24px, not the 22px the type wants: the WCAG 2.5.8 target floor. */
+  height: 24px;
+  padding-inline: 6px;
+  gap: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* Ink, not --label-fg: a quiet CONTROL has to be distinguishable from the
+     `.instrument` caption sitting right beside it, which is that colour. */
+  color: var(--ink);
+  /* `scale` rides along because this shorthand would otherwise replace
+     `.press`'s transition wholesale and leave the 0.96 snap uneased. */
+  transition:
+    background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    color 150ms cubic-bezier(0.2, 0, 0, 1),
+    scale 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.key-quiet.key-quiet svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* An ink wash rather than --secondary, which is a 1.05:1 no-op against the
+   drawer's --muted ground. Background only — the rest colour is already ink. */
+.key-quiet.key-quiet:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+/* One rule for both flavours of "off": SimplifyButton stays focusable with
+   aria-disabled, ImportButton would use the real attribute. */
+.key-quiet.key-quiet:disabled,
+.key-quiet.key-quiet[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+/*
+ * Keys wear an outline, not a ring. Tailwind's `ring-*` utilities are
+ * box-shadow, they live in `@layer utilities`, and the skin's unlayered
+ * `box-shadow` on `.key.key` / `.key-quiet.key-quiet` beats the whole layer —
+ * so a focused key showed nothing at all. Outline is a separate property and
+ * cannot be overwritten by the key's own drop.
+ */
+.key.key:focus-visible,
+.key-quiet.key-quiet:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The record glyph on the empty state's Record key (the transport's REC
+   wears a bare legend by user decision, 2026-08-24) — currentColor
+   throughout, so it recolors with the key. */
+.key-dot {
+  display: grid;
+  width: 9px;
+  height: 9px;
+  flex: none;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.key-dot > span {
+  display: block;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* ------------------------------------------------------------- feedback --- */
+
+@keyframes record-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.record-pulse {
+  animation: record-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-pulse {
+    animation: none;
+  }
+}
+
+@keyframes success-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--lamp-green) 25%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lamp-green) 60%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+
+.success-flash {
+  animation: success-flash 1.5s ease-out forwards;
+}
+
+/* `forwards` holds the last frame, so the flash's transparent end-state would
+   sit on top of `.rack-row-open`'s ground for the full 1.5s and blink the
+   open row back to the rack's colour. Same flash, landing where it started. */
+@keyframes success-flash-open {
+  0% {
+    background-color: color-mix(in srgb, var(--lamp-green) 25%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lamp-green) 60%, transparent);
+  }
+  100% {
+    background-color: var(--card);
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+
+.rack-row-open.success-flash {
+  animation-name: success-flash-open;
+}
+
+/* Pressable affordance for every button that isn't a playback decision. */
+.press {
+  transition-property: scale, background-color, color, border-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.press:active {
+  scale: 0.96;
+}
+
+/* Something appeared in place: a short drop-in, never a slide-across. */
+@keyframes inline-enter {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.inline-enter {
+  animation: inline-enter 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/* A whole panel arriving: its parts land in reading order. */
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.enter-1,
+.enter-2,
+.enter-3 {
+  animation: panel-enter 300ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.enter-1 {
+  animation-delay: 0ms;
+}
+
+.enter-2 {
+  animation-delay: 100ms;
+}
+
+.enter-3 {
+  animation-delay: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The flash still has to communicate — it just stops moving. */
+  .success-flash {
+    animation: success-flash 1.5s steps(1, end) forwards;
+  }
+
+  .press {
+    transition-property: background-color, color, border-color, opacity;
+  }
+
+  .press:active {
+    scale: 1;
+  }
+
+  .inline-enter,
+  .enter-1,
+  .enter-2,
+  .enter-3 {
+    animation: none;
+  }
+
+  .key.key {
+    transition-property: background-color, color, border-color, opacity;
+  }
+}

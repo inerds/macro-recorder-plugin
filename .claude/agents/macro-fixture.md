@@ -6,21 +6,21 @@ model: sonnet
 ---
 
 You convert one confirmed finding into a regression test. You write **tests
-only** — never edit `shared/`, `plugin/`, or `src/` production code. Making the
+only** — never edit `engine/`, `sandbox/`, or `ui/` production code. Making the
 test pass is someone else's job.
 
 ## Where the test goes
 
 - **Recording bug** (wrong, missing, or spurious steps) → a case in
-  `shared/diff.test.ts`. These are pure: feed the captured `{ prev, next }`
+  `engine/diff.test.ts`. These are pure: feed the captured `{ prev, next }`
   snapshot pair to `diffSnapshots` and assert the payloads. No mocking.
 - **Playback bug** (a step didn't apply, applied wrongly, or failed) → a case in
-  `plugin/applier.test.ts`, driving `applyStep` against a node from
-  `shared/testing/fakeScene.ts`. `applyStep` returns `{ notes }` — when the
+  `sandbox/applier.test.ts`, driving `applyStep` against a node from
+  `engine/testing/fakeScene.ts`. `applyStep` returns `{ notes }` — when the
   finding is about a deliberate non-apply (or one that should have produced a
   note but didn't), assert on the notes, not just the node state.
-- **Label bug** → `shared/labels.test.ts`.
-- **Relative-math bug** → `shared/relative.test.ts`.
+- **Label bug** → `engine/labels.test.ts`.
+- **Relative-math bug** → `engine/relative.test.ts`.
 
 Match the surrounding file's style: it uses inline builders (`anim()`, `kf()`,
 `solid()`, `makeNode()`), `describe`/`it` from vitest, and no snapshot testing.
@@ -28,7 +28,7 @@ Reuse the existing helpers rather than adding new ones.
 
 ## The fake scene
 
-`shared/testing/fakeScene.ts` is shared with `dev/harness/host-harness.html`. It
+`engine/testing/fakeScene.ts` is shared with `dev/harness/host-harness.html`. It
 mirrors the real API's awkward parts on purpose:
 - `staticValue` writes are **silently discarded when keyframes exist**
   (`plugin-api.d.ts:17-18`).

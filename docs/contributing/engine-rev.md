@@ -1,6 +1,6 @@
 # ENGINE_REV and the stale-sandbox trap
 
-`ENGINE_REV` in `shared/protocol.ts` is the sandbox's behaviour revision. This
+`ENGINE_REV` in `engine/protocol.ts` is the sandbox's behaviour revision. This
 document is short because the rule is short: bump it with every sandbox-side
 change, and check it first when a trace looks wrong.
 
@@ -16,11 +16,11 @@ counter within that day.
 ## The trap
 
 Creator evaluates `plugin.js` once at plugin load and never re-fetches it,
-while Vite serves the UI fresh. After any change under `plugin/` or `shared/`,
+while Vite serves the UI fresh. After any change under `sandbox/` or `engine/`,
 you must remove and re-add the plugin in Creator. If you do not, traces
 reproduce bugs that are already fixed.
 
-The dev server force-recompiles `plugin.js` when any `plugin/` or `shared/`
+The dev server force-recompiles `plugin.js` when any `sandbox/` or `engine/`
 source changes (`scripts/trace-server.ts` touches the entry file — the vendor
 plugin only watches `plugin.ts` itself). That keeps the bundle fresh on disk;
 it cannot make Creator re-read it.

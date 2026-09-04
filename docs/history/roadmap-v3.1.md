@@ -29,7 +29,7 @@ else is client-side data transforms + existing applier paths).
 
 ## 1. Step editing + Simplify
 
-**Simplify** — new `shared/simplify.ts`: `simplifySteps(steps): MacroStep[]`
+**Simplify** — new `engine/simplify.ts`: `simplifySteps(steps): MacroStep[]`
 (pure, testable):
 - Merge runs of consecutive `set-static` payloads on the same path (and same
   layer ref): keep first `before`, last `after`; drop the run if net no-op
@@ -58,16 +58,16 @@ payload editing is out of scope for this pass (values live per-frame).
 ## 2. Apply at playhead + stagger
 
 Sandbox math (bump ENGINE_REV):
-- `shared/protocol.ts`: `playback.begin` params gain
+- `engine/protocol.ts`: `playback.begin` params gain
   `atPlayhead?: boolean; staggerFrames?: number`.
-- `plugin/playback.ts` `playbackBegin`: when `atPlayhead`, read
+- `sandbox/playback.ts` `playbackBegin`: when `atPlayhead`, read
   `creator.timeline.currentFrame` (tryRead; readonly per `../runtime-api.md`), find
   the macro's minimum keyframe frame across `keyframes` payloads, store
   `frameOffsetBase = currentFrame - minFrame` on the session. Store
   `staggerFrames` too.
 - `ApplyContext` gains `frameOffset?: number`. In `playbackStep`: targets
   mode passes `base + i * stagger` per target; scene mode passes `base`.
-- `plugin/applier.ts` `applyKeyframes`: offset every snap frame (added,
+- `sandbox/applier.ts` `applyKeyframes`: offset every snap frame (added,
   removed, changed.before/after) by `context.frameOffset ?? 0` BEFORE
   matching/upserting, so lookup and placement both use shifted frames.
   `adjust()` already transforms values; add the frame shift alongside.
@@ -102,15 +102,15 @@ applies on top of the last").
 
 ## Files touched (by feature)
 
-1. `shared/simplify.ts` (new) + tests; `shared/macro.ts` (disabled,
-   tolerant validation); `src/state/appReducer.ts` (+ events),
+1. `engine/simplify.ts` (new) + tests; `engine/macro.ts` (disabled,
+   tolerant validation); `ui/state/appReducer.ts` (+ events),
    `AppContext.tsx`, `StepRow.tsx` (toggle + editors), `ReviewPanel.tsx`,
    `MacroRow.tsx`/detail; `playbackGateway.ts` (filter disabled).
-2. `shared/protocol.ts`, `plugin/playback.ts`, `plugin/applier.ts`
+2. `engine/protocol.ts`, `sandbox/playback.ts`, `sandbox/applier.ts`
    (+ applier tests for frame offset & stagger), `playbackGateway.ts`,
    play-options popover component, `AppContext.tsx`.
 3. `playbackGateway.ts` loop + reducer totals + popover count input.
-4. `shared/macro.ts` (params), reducer `configuring` state + events,
+4. `engine/macro.ts` (params), reducer `configuring` state + events,
    pre-play sheet component reusing editors, `AppContext.play` substitution.
 
 Reuse: `labelOf` for relabeling, `jsonEqual` for no-op detection, existing

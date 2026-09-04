@@ -24,7 +24,7 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   under `import.meta.env.DEV`; the sandbox attaches snapshot pairs and target
   probes only when asked. Never make them unconditional — `pnpm test:quickjs`
   asserts a default response carries no `debug` key.
-- **Tap the seam once.** `RpcClient` (`src/gateways/rpc/bridge.ts`) is the only
+- **Tap the seam once.** `RpcClient` (`ui/gateways/rpc/bridge.ts`) is the only
   place that sees both directions. Add instrumentation there, not in the
   gateways.
 - **A traced snapshot pair must be diffScene's exact input.** `recordStop`'s
@@ -46,13 +46,13 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
 
 ## The dev strip
 
-`DevSettings` (`src/dev/`) is the ONE dev strip at the panel foot — gated on
+`DevSettings` (`ui/dev/`) is the ONE dev strip at the panel foot — gated on
 `import.meta.env.DEV` alone so it works in both modes, collapsed to a single
 header row by default. Everything dev-only renders as sections inside its
 drawer: load demo macros / clear all / preload-when-empty, then `TraceStrip`
 (both modes), then `DebugStrip`'s mock scenario controls — which render only
 when `gateways.mocks` exists, i.e. only when the handshake *fails*, never
-inside Creator. `src/dev/demoMacros.ts` builds demo macros from real
+inside Creator. `ui/dev/demoMacros.ts` builds demo macros from real
 `StepPayload`s through `buildStep` so they replay — keep them that way.
 There is no bulk delete on the store surface; clear-all loops `list()` +
 `remove()`. Clear-all is a two-tap arm/confirm: `.key-armed` (index.css) is

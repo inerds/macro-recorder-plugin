@@ -158,7 +158,7 @@ cannot read the value back to replay it.
 
 **What the user sees:** a drag of the corner radius during a recording adds no
 step, and a macro cannot round corners on replay. The engine keeps `roundness`
-in the RECTANGLE registry (`shared/snapshot.ts`), so a host that starts to
+in the RECTANGLE registry (`engine/snapshot.ts`), so a host that starts to
 report it records automatically.
 
 **Path to lift:** the host wires the rectangle's corner radius to the exposed

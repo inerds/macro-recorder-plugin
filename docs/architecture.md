@@ -24,21 +24,21 @@ plain data.
 `tsconfig.json` is a solution file referencing three configs. The split is a
 correctness boundary, not organization:
 
-- `tsconfig.app.json` — `["src", "shared"]`, DOM libs, `vite/client` types.
-- `tsconfig.plugin.json` — `["plugin", "shared"]`, **no DOM lib**, and
+- `tsconfig.ui.json` — `["ui", "engine"]`, DOM libs, `vite/client` types.
+- `tsconfig.sandbox.json` — `["sandbox", "engine"]`, **no DOM lib**, and
   `typeRoots` pointing at `@lottiefiles/creator-plugin-types` so the `creator`
-  global resolves. Also sets `noUncheckedIndexedAccess`, which the app config
+  global resolves. Also sets `noUncheckedIndexedAccess`, which the UI config
   does not.
 - `tsconfig.node.json` — build tooling.
 
-So `shared/` compiles under both and must not reference `window`, `document`, or
-Node APIs. If a `shared/` module needs a platform capability, inject it (see
-`parseImportedMacro(json, makeId)` in `shared/macro.ts`) rather than reaching for
+So `engine/` compiles under both and must not reference `window`, `document`, or
+Node APIs. If an `engine/` module needs a platform capability, inject it (see
+`parseImportedMacro(json, makeId)` in `engine/macro.ts`) rather than reaching for
 a global.
 
 ## ENGINE_REV discipline
 
-Bump `ENGINE_REV` in `shared/protocol.ts` with EVERY sandbox-behaviour change.
+Bump `ENGINE_REV` in `engine/protocol.ts` with EVERY sandbox-behaviour change.
 The handshake compares revisions, stamps both into traces
 (`env.sandboxRev`/`uiRev`), and shows an in-panel banner on mismatch. Creator
 evaluates `plugin.js` once and never re-fetches it, so a stale sandbox
@@ -54,12 +54,12 @@ Creator invokes the sandbox's `onMessage` callback and does **not** pump the
 QuickJS job queue afterward. A pure VM promise chain never resolves there. The
 README states this; the consequences for how you write code:
 
-- `plugin/rpc-server.ts` calls the handler and, if the result is not a thenable,
+- `sandbox/rpc-server.ts` calls the handler and, if the result is not a thenable,
   responds **inline in the same invocation**. Do not refactor that dispatch into
   `await handler(...)` — it would deadlock every sync method inside Creator while
   passing in a browser.
 - An async handler is only safe if it *starts* by awaiting a native-backed
-  promise. In practice that means `creator.clientStorage.*` (`plugin/store.ts`);
+  promise. In practice that means `creator.clientStorage.*` (`sandbox/store.ts`);
   its settlement is what pumps the queue and drains the `.then()` continuations.
   A handler that awaits a VM-only promise first is dead code in Creator.
 - The sandbox has **no timers**. All timing lives in the UI —
@@ -82,12 +82,12 @@ re-attempt to record it; it is a documented platform limit.
 ## Layering — where the proxies stop
 
 Exactly **two** files touch Creator's live node proxies:
-`plugin/serialize.ts` (proxy → `NodeSnapshot`) and `plugin/applier.ts`
+`sandbox/serialize.ts` (proxy → `NodeSnapshot`) and `sandbox/applier.ts`
 (`StepPayload` → proxy writes). Everything downstream of those is plain data and
 unit-testable without a Creator mock. Preserve this: new engine logic belongs in
-`shared/`, driven by snapshots, not in a new proxy-reading module.
+`engine/`, driven by snapshots, not in a new proxy-reading module.
 
-`shared/testing/fakeScene.ts` is the test double for that proxy surface, shared
+`engine/testing/fakeScene.ts` is the test double for that proxy surface, shared
 by `dev/harness/host-harness.html` and vitest. It reproduces the real API's traps on
 purpose — most importantly that the host silently discards an assignment to
 `staticValue` when keyframes exist (`plugin-api.d.ts:17-18`). Never make the
@@ -96,7 +96,7 @@ catch.
 
 Both proxy files are defensive because proxies vary by node type and any
 getter can throw — `serialize.ts` wraps every read in `tryRead` and simply
-omits unreadable properties; `shared/json.ts#toJson` deep-copies into JSON-safe
+omits unreadable properties; `engine/json.ts#toJson` deep-copies into JSON-safe
 data with a depth cap so nothing uncloneable escapes into an RPC payload. An
 absent property is a normal outcome, never an error.
 
@@ -143,7 +143,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   with keyframes is selected — computed from the tick's OWN snapshot plus a
   defensive `selection.nodes` read, never a second serialize.
   `record.captureKeyframes` (sync handler) synthesizes steps via
-  `shared/capture.ts` from **`lastSnapshot`** — never a fresh serialize.
+  `engine/capture.ts` from **`lastSnapshot`** — never a fresh serialize.
   Scope "all" is a FULL-STATE capture (rev .43, fills whole since .45):
   each fill first as `replace-paint` with its complete PaintSnapshot —
   kind and gradientType survive replay, animated-only components seeded
@@ -168,7 +168,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   that the recording screen re-renders at 2Hz. UI: `CaptureOfferRow` shares
   the above-feed slot with the discard confirm, which wins; notices now
   ride in recording mode too (the toast bridge reads idle OR recording).
-- **Replay picks a mode in `chooseMode` (plugin/playback.ts)**: macros
+- **Replay picks a mode in `chooseMode` (sandbox/playback.ts)**: macros
   touching >1 pre-existing layer or containing unretargetable scene ops
   (remove/reorder/break/nest/fresh add-layer) replay as SCENE SCRIPTS — each
   step resolves its layer id → name → priorName → skip-note; values apply
@@ -214,17 +214,17 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
 
 Where each piece lives and the invariants worth keeping:
 
-- `shared/simplify.ts` is pure and order-preserving. A run is keyed by
+- `engine/simplify.ts` is pure and order-preserving. A run is keyed by
   (layer id, pathKey); structural/scene ops and disabled steps are barriers,
   and a static edit never merges with a keyframe edit on the same path (the
   value's meaning changed). `foldKeyframes` is the net-delta algebra —
   extend it with a test per new case, it's easy to get a sign wrong.
-- `shared/editing.ts` is the single definition of "editable": the review
+- `engine/editing.ts` is the single definition of "editable": the review
   row, the macro detail, and the parameter form must all go through
   `editableValueOf`/`withEditedValue` so a value kind that's editable in one
   place is editable everywhere (and relabeled the same way).
 - Disabled steps never reach the sandbox: `enabledSteps` in
-  `src/gateways/types.ts` filters client-side, so playback indices are into
+  `ui/gateways/types.ts` filters client-side, so playback indices are into
   the ENABLED list. Repeat ×N is also purely client-side (one
   begin/steps/end pass per iteration; progress = iteration×len + index).
 - The only sandbox part is the frame shift: `playbackBegin` computes
@@ -238,9 +238,9 @@ Where each piece lives and the invariants worth keeping:
 
 ## The gateway seam
 
-`src/gateways/index.ts` is the only place that decides real-vs-mock. It pings
+`ui/gateways/index.ts` is the only place that decides real-vs-mock. It pings
 `hello` (4 × 150ms) and falls back to mocks + `DebugStrip` on timeout. The UI
-depends only on the three interfaces in `src/gateways/types.ts` — components
+depends only on the three interfaces in `ui/gateways/types.ts` — components
 never import an RPC class directly, which is what makes every UI state reachable
 standalone.
 
@@ -260,7 +260,7 @@ already accumulated the earlier ones.
 
 ## UI state
 
-`src/state/appReducer.ts` is a single discriminated union over
+`ui/state/appReducer.ts` is a single discriminated union over
 `idle | recording | reviewing | playing`. Every case guards on `state.mode` and
 returns `state` unchanged when the event doesn't apply to the current mode — keep
 that pattern; it is what makes late-arriving gateway callbacks (a tick that lands
@@ -277,7 +277,7 @@ Three, and they differ in what globals exist:
 | Creator UI iframe (opaque origin) | **no** | **throws** | yes | yes |
 | QuickJS plugin sandbox | **no** | n/a | **no** | **no** |
 
-`shared/id.ts#newId` exists for exactly this and is the only id source — never
+`engine/id.ts#newId` exists for exactly this and is the only id source — never
 call `crypto.randomUUID` directly. The same table is why the panel must never
 rely on **native form submission**: Creator's sandboxed iframe can lack
 `allow-forms`, which silently swallows the submit event (the Set values
@@ -285,7 +285,7 @@ sheet's Play was dead in Creator while passing every standalone check).
 Buttons act via `onClick`, Enter via key handlers; an `onSubmit` may exist
 only to `preventDefault()`. Persistence is likewise environment-split:
 `LocalMacroStore` (localStorage, with in-memory fallback when it throws) versus
-`RpcMacroStore` → `plugin/store.ts` (`creator.clientStorage`, keys prefixed
+`RpcMacroStore` → `sandbox/store.ts` (`creator.clientStorage`, keys prefixed
 `macro:`, one entry per macro).
 
 ## Local harnesses
@@ -293,7 +293,7 @@ only to `preventDefault()`. Persistence is likewise environment-split:
 `dev/harness/host-harness.html` fakes the Creator host — a fake `creator` global with
 fake scene nodes, the **real compiled `plugin.js`**, and the real UI iframe — so
 the full record→diff→playback loop runs in a plain browser. Because it loads the
-compiled bundle, `pnpm build` after any `plugin/` or `shared/` change or you are
+compiled bundle, `pnpm build` after any `sandbox/` or `engine/` change or you are
 testing stale code. Drive it from the console via `window.harness`.
 `dev/harness/sandbox-test.html` is narrower: it reproduces the opaque-origin sandbox
 to test the no-`localStorage` / no-`randomUUID` paths.
@@ -313,7 +313,7 @@ declares the same URL.
   host that adds any surface shows up unchanged; the full ask (read a binding
   AND apply-by-reference) is upstream.
 - Verification gap noted in the 08-26 triage sweep: `set-static` in
-  plugin/applier.ts has no post-write read-back (unlike `set-plain`, fixes
+  sandbox/applier.ts has no post-write read-back (unlike `set-plain`, fixes
   #13/#20), so a host-swallowed absolute write is indistinguishable from a
   coincidental value match in probes. No trace shows it firing; watch for it.
 
@@ -321,7 +321,7 @@ declares the same URL.
   for the breadcrumb evidence and the upstream ask). The guess-chain stays in
   place so a future host that adds any of the routes starts working without
   code changes.
-- Never live-verified yet: the interface-theme relay (`plugin/theme.ts` —
+- Never live-verified yet: the interface-theme relay (`sandbox/theme.ts` —
   `creator.ui.theme` / `change:theme` per the ui-library docs,
   feature-detected, silent on hosts without it); the set-plain read-back
   DISCARD note (no host-discarded write has appeared in a ≥.41 trace);

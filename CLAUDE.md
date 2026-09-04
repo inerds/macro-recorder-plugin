@@ -49,9 +49,9 @@ pnpm test:quickjs              # builds first, then drives dist/plugin.js in rea
 Single test file / single test:
 
 ```bash
-pnpm vitest run shared/diff.test.ts
+pnpm vitest run engine/diff.test.ts
 pnpm vitest run -t "position"          # filter by test name across all files
-pnpm vitest shared/diff.test.ts        # watch just that file
+pnpm vitest engine/diff.test.ts        # watch just that file
 ```
 
 `pnpm test:quickjs` is the only test that exercises the compiled bundle, so it is
@@ -61,7 +61,7 @@ claiming plugin-side work is done.
 
 ## Rules for every change
 
-1. **Bump `ENGINE_REV` in `shared/protocol.ts` with every sandbox-behaviour
+1. **Bump `ENGINE_REV` in `engine/protocol.ts` with every sandbox-behaviour
    change.** Creator evaluates `plugin.js` once and never re-fetches it, so a
    stale sandbox reproduces bugs that are already fixed. See
    [`docs/contributing/engine-rev.md`](docs/contributing/engine-rev.md).
@@ -72,10 +72,10 @@ claiming plugin-side work is done.
    `docs/architecture.md` or `docs/design-system.md`. File a confirmed platform
    limit in [`docs/limitations.md`](docs/limitations.md) with its evidence, and
    move the entry to the improvements log if the host later lifts it.
-3. **Keep the proxy boundary.** Only `plugin/serialize.ts` and
-   `plugin/applier.ts` touch Creator's live node proxies. New engine logic goes
-   in `shared/`, driven by snapshots, so it stays unit-testable without a
-   Creator mock. Never make `shared/testing/fakeScene.ts` more permissive than
+3. **Keep the proxy boundary.** Only `sandbox/serialize.ts` and
+   `sandbox/applier.ts` touch Creator's live node proxies. New engine logic goes
+   in `engine/`, driven by snapshots, so it stays unit-testable without a
+   Creator mock. Never make `engine/testing/fakeScene.ts` more permissive than
    the real host.
 4. **Never read a trace bundle into the main context.** Bundles are large. Use
    `/triage-traces`, which fans out the read-only `macro-triage` agent

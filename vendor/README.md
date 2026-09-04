@@ -6,7 +6,7 @@ installed via `file:` deps in `package.json` rather than a registry range.
 
 - `lottiefiles-creator-plugin-types-0.0.2.tgz` — `@lottiefiles/creator-plugin-types`.
   Not published to the npm registry at all. Ambient types for the `creator`
-  global (see `tsconfig.plugin.json`'s `typeRoots`).
+  global (see `tsconfig.sandbox.json`'s `typeRoots`).
 - `lottiefiles-vite-plugin-creator-0.0.2.tgz` — `@lottiefiles/vite-plugin-creator`.
   The registry does carry this package, but only from `0.0.6` onward, and
   `0.0.7` declares a peer dependency on `vite@^8.0.0`. This project pins
