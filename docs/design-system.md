@@ -312,6 +312,15 @@ language. Two rules keep it coherent:
 - **Counts are bare mono readouts everywhere** — the list header's
   `10 · 42`, each row's `05`, and the recording header's `02 steps`. The
   recording count was the one bordered pill on the panel; it is not.
+- **One 4px gap on the row, and the keys are 22px.** The lid is
+  `[number] [chevron name …leader count] [play] [options] [⋯]` with a single
+  `gap-1` between every element and 6px side padding; the chevron carries no
+  extra margin. The quiet icon keys (`ICON_KEY_CLASS`) are 22px, not 24: at
+  24px with 6px gaps the ~14px glyphs sat 26px apart and read as three
+  objects while the name truncated to "Bounce & se…" at 300px (user report,
+  2026-09-04). A hairline key group and a two-key row were rendered and
+  rejected — the group adds an edge per row, the two-key row hides the
+  options behind a tap.
 - **The two-digit count is `aria-hidden`, with the words beside it.** "04"
   spoken aloud is meaningless, and `walk.mjs` asserts the row's text contains
   "N steps" — so the readout is decorative and an `sr-only` "4 steps" carries

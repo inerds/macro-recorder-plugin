@@ -134,7 +134,7 @@ export function MacroRow({
     >
       {renaming ? (
         <div
-          className={`flex items-center gap-1.5 px-2 py-1 ${
+          className={`flex items-center gap-1 px-1.5 py-1 ${
             expanded ? "border-b border-dotted border-border" : ""
           }`}
         >
@@ -180,7 +180,7 @@ export function MacroRow({
         </div>
       ) : (
         <div
-          className={`flex items-center gap-1.5 px-2 py-1 ${
+          className={`flex items-center gap-1 px-1.5 py-1 ${
             expanded ? "border-b border-dotted border-border" : ""
           }`}
         >
@@ -192,13 +192,13 @@ export function MacroRow({
           <button
             type="button"
             ref={disclosureRef}
-            className="press flex min-w-0 flex-1 items-center gap-1.5 rounded-[7px] text-left hover:bg-accent/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="press flex min-w-0 flex-1 items-center gap-1 rounded-[7px] text-left hover:bg-accent/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={onToggleExpand}
           >
             <ChevronRight
-              className={`me-1.5 size-3 shrink-0 text-muted-foreground/70 transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
+              className={`me-0.5 size-3 shrink-0 text-muted-foreground/70 transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
                 expanded ? "rotate-90" : ""
               }`}
               strokeWidth={2.5}
@@ -359,7 +359,7 @@ export function MacroRow({
                   ? `Duration ${span.last - span.first} fr`
                   : undefined;
                 return (
-                  <div className="mt-1.5 flex items-center gap-1.5 border-t border-dotted border-border px-2 pt-1.5">
+                  <div className="mt-1.5 flex items-center gap-1 border-t border-dotted border-border px-1.5 pt-1.5">
                     <button
                       type="button"
                       className={ICON_KEY_CLASS}

@@ -16,6 +16,7 @@ findings belong in the failure taxonomy.
 
 | Issue | Fix |
 |---|---|
+| **Macro rows felt loose.** Two gaps stacked between the chevron and the name, and the three 24px icon keys with 6px gaps read as three objects while the name truncated at 300px. | One 4px gap on the row, no chevron margin, 22px keys. The name gains about 30px and the cluster reads as one. |
 | **Stagger did nothing to a macro with no keyframes.** It shifted keyframe frames only, so a macro of static edits replayed the same way on every selected layer. | Stagger now delays the layer instead: it moves each target's in point and `timelineOffset` by N frames per layer, in selection order, once per run. With At playhead on, the first layer's in point lands on the current frame. |
 | **Stagger could be set and then ignored in silence,** when the macro replayed as a scene script or when one layer was selected. | Both cases report a note on the run: "stagger ignored — this macro replayed as a scene script (nothing was selected)" and "stagger needs 2 or more selected layers — replayed without it". |
 | **The engineering handbook lived in `CLAUDE.md`,** an 822-line file only AI tooling reads, and the docs folder mixed living guides with finished plans. | `CLAUDE.md` is a short pointer plus rules. The rationale moved to `architecture.md`, `design-system.md` and `contributing/`. Finished plans and audits are under `history/`, release notes are one file per version under `releases/`, and `CONTRIBUTING.md` explains setup, checks and releases. |
