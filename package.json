@@ -38,7 +38,7 @@
     "@lottiefiles/creator-plugin-types": "file:vendor/lottiefiles-creator-plugin-types-0.0.2.tgz",
     "@lottiefiles/creator-plugins-ui": "^0.2.2",
     "@lottiefiles/vite-plugin-creator": "file:vendor/lottiefiles-vite-plugin-creator-0.0.2.tgz",
-    "lucide-react": "^0.544.0",
+    "lucide-react": "^1.39.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
