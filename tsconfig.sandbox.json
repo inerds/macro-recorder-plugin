@@ -24,10 +24,8 @@
 
     "noUncheckedIndexedAccess": true,
 
-    "typeRoots": [
-      "./node_modules/@types",
-      "./node_modules/@lottiefiles/creator-plugin-types"
-    ]
+    "types": ["creator-api-types"],
+    "typeRoots": ["./node_modules/@types", "./node_modules/@lottiefiles"]
   },
   "include": ["sandbox", "engine"]
 }

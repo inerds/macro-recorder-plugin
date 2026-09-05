@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@lottiefiles/creator-plugin-types':
-        specifier: file:vendor/lottiefiles-creator-plugin-types-0.0.2.tgz
-        version: file:vendor/lottiefiles-creator-plugin-types-0.0.2.tgz
       '@lottiefiles/creator-plugins-ui':
         specifier: ^0.2.2
         version: 0.2.2(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -27,6 +24,9 @@ importers:
         specifier: ^19.1.1
         version: 19.2.8(react@19.2.8)
     devDependencies:
+      '@lottiefiles/creator-api-types':
+        specifier: ^1.0.1
+        version: 1.0.1
       '@tailwindcss/vite':
         specifier: ^4.1.0
         version: 4.3.3(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0))
@@ -535,9 +535,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lottiefiles/creator-plugin-types@file:vendor/lottiefiles-creator-plugin-types-0.0.2.tgz':
-    resolution: {integrity: sha512-a/iNsPwVoJIy3HyEUIMGG7ioV4m4TntrM7qE5Cfg/q0rwDX0E85xH9BRwQEfIff5P9xLaO0tM5i7fTs/EDsBew==, tarball: file:vendor/lottiefiles-creator-plugin-types-0.0.2.tgz}
-    version: 0.0.2
+  '@lottiefiles/creator-api-types@1.0.1':
+    resolution: {integrity: sha512-xb2v0V5KmHaxg9pk5ZmLKIO2mCj3wqNiUP88KZYpr7PXk1brPeG+VTPMZPLjUyP9tsNGYKD7hPkigk10GHBdjA==}
 
   '@lottiefiles/creator-plugins-ui@0.2.2':
     resolution: {integrity: sha512-VA7eE7E8LO8ouuAZb1DIaVhAlcujcxVD+B3BV6StGZBSP7UGaQH3vpGStnDHDhaxwluGADUxgcdYN6X8FaHZ0Q==}
@@ -1672,7 +1671,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lottiefiles/creator-plugin-types@file:vendor/lottiefiles-creator-plugin-types-0.0.2.tgz': {}
+  '@lottiefiles/creator-api-types@1.0.1': {}
 
   '@lottiefiles/creator-plugins-ui@0.2.2(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:

@@ -35,7 +35,6 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@lottiefiles/creator-plugin-types": "file:vendor/lottiefiles-creator-plugin-types-0.0.2.tgz",
     "@lottiefiles/creator-plugins-ui": "^0.2.2",
     "@lottiefiles/vite-plugin-creator": "file:vendor/lottiefiles-vite-plugin-creator-0.0.2.tgz",
     "lucide-react": "^0.544.0",
@@ -43,13 +42,14 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@lottiefiles/creator-api-types": "^1.0.1",
     "@tailwindcss/vite": "^4.1.0",
-    "quickjs-emscripten": "^0.32.0",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
     "prettier": "^3.6.2",
+    "quickjs-emscripten": "^0.32.0",
     "tailwindcss": "^4.1.0",
     "typescript": "~5.9.3",
     "vite": "^7.1.12",
