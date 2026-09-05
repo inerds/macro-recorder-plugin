@@ -15,7 +15,7 @@ jobs:
 
       # Pinned to the packageManager version in package.json so CI never
       # drifts from what contributors run locally.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.33.0
 
