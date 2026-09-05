@@ -257,7 +257,7 @@ describe("what each demo macro actually does", () => {
     expect(macro.steps[1]!.label).toContain("position = ");
   });
 
-  // The real host's BlendMode is a lowercase string union (plugin-api.d.ts) —
+  // The real host's BlendMode is a lowercase string union (the `BlendMode` type in creator-api-types 1.0.1) —
   // assigning "NORMAL" throws "✗ Invalid input" on a live host (trace
   // 2026-08-26T08-15-55-277_playback-Style-stamp.json, rev .51). The applier
   // correctly catches that throw and turns it into a skip note rather than a

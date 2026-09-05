@@ -20,10 +20,11 @@ while Vite serves the UI fresh. After any change under `sandbox/` or `engine/`,
 you must remove and re-add the plugin in Creator. If you do not, traces
 reproduce bugs that are already fixed.
 
-The dev server force-recompiles `plugin.js` when any `sandbox/` or `engine/`
-source changes (`scripts/trace-server.ts` touches the entry file — the vendor
-plugin only watches `plugin.ts` itself). That keeps the bundle fresh on disk;
-it cannot make Creator re-read it.
+The dev server recompiles `plugin.js` when any `sandbox/` or `engine/` source
+changes. `@lottiefiles/vite-plugin-creator` watches `sandbox/` itself;
+`scripts/trace-server.ts` touches the entry file for `engine/` edits, because
+the plugin ignores every path outside `sandbox/`. That keeps the bundle fresh
+on disk; it cannot make Creator re-read it.
 
 ## When you triage
 

@@ -32,19 +32,19 @@ export function traceServer(outDir = "traces"): Plugin {
     configureServer(server) {
       const dir = resolve(server.config.root, outDir);
 
-      // @lottiefiles/vite-plugin-creator recompiles the sandbox bundle ONLY
-      // when the manifest entry file itself (sandbox/plugin.ts) changes — edits
-      // to sandbox/applier.ts, engine/*.ts etc. keep serving a STALE plugin.js
-      // forever (this cost a whole day of "why is the sandbox still old").
-      // Touch the entry file whenever any engine source changes so their
-      // watcher rebuilds and pushes the SSE hot-reload.
+      // @lottiefiles/vite-plugin-creator 0.0.7 recompiles the sandbox bundle
+      // on ANY file change under its `pluginDir` (sandbox/), so sandbox edits
+      // need no help. It ignores everything outside that directory, so an
+      // engine/*.ts edit still keeps serving a STALE plugin.js forever (this
+      // cost a whole day of "why is the sandbox still old"). Touch the entry
+      // file whenever an engine source changes so their watcher rebuilds and
+      // pushes the SSE hot-reload.
       const entry = resolve(server.config.root, "sandbox", "plugin.ts");
-      const sandboxDir = resolve(server.config.root, "sandbox") + sep;
       const engineDir = resolve(server.config.root, "engine") + sep;
       let touching = false;
       server.watcher.on("change", (file) => {
         if (touching || file === entry) return;
-        if (!file.startsWith(sandboxDir) && !file.startsWith(engineDir)) return;
+        if (!file.startsWith(engineDir)) return;
         if (file.endsWith(".test.ts")) return;
         touching = true;
         try {

@@ -6,7 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-import { traceServer } from "./scripts/trace-server";
+import { traceServer } from "./scripts/trace-server.ts";
 import pkg from "./package.json" with { type: "json" };
 
 /**
@@ -49,7 +49,7 @@ export default defineConfig(({ command }) => ({
     react(),
     tailwindcss(),
     // `pluginDir` defaults to "plugin". The sandbox tree is named sandbox/, so
-    // it must be named here: the vendor plugin reads sandbox/manifest.json and
+    // it must be named here: the Creator plugin reads sandbox/manifest.json and
     // derives the esbuild entry from the manifest's `entry` field
     // (plugin.js → sandbox/plugin.ts). Renaming the tree without this breaks
     // both the dev endpoint and the build.

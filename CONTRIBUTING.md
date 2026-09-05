@@ -14,7 +14,7 @@ a release is cut.
 
 ## Prerequisites
 
-- Node.js 22 or later.
+- Node.js 22.12 or later.
 - pnpm (the repository pins `pnpm@10.33.0` through `packageManager`).
 
 ```bash

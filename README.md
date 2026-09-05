@@ -147,7 +147,6 @@ engine/         The pure engine both sides use: protocol, snapshots, differ, lab
 ui/             The React panel: state machine, gateways, components, styles, dev strip.
 dev/harness/    Host-emulation pages for the dev server only. Never part of the build.
 scripts/        The trace server, the QuickJS smoke test, and the release bundler.
-vendor/         The vendored @lottiefiles/vite-plugin-creator tarball, with a README.
 docs/           User guide, architecture, design system, runtime API, limitations,
                 contributing guides, release notes per version, and the history log.
 .github/        CI (type-check, tests, QuickJS smoke, build) and the tag-driven Release workflow.
