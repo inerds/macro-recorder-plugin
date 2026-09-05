@@ -110,8 +110,10 @@ function introspectSelection(): Json {
 
 /**
  * Dev-only: the first RECTANGLE shape's real surface plus every plausible
- * home for corner rounding — the typings list `roundness` only as a creation
- * option, and no trace has ever seen `rect.roundness.staticValue` leave 0.
+ * home for corner rounding. 1.0.1 types `Rectangle.roundness` as a full
+ * `Animatable<number>`, but the proxy stays dead at runtime — no trace has
+ * ever seen `rect.roundness.staticValue` leave 0 — so this probe keeps
+ * looking for the property's real home.
  */
 function introspectRectangle(root: AnyProxy): Json {
   const find = (node: AnyProxy, depth: number): AnyProxy | undefined => {
@@ -489,11 +491,13 @@ const selectionEvents = {
 
 export function initSelectionEvents(): void {
   try {
-    const on = (creator as AnyProxy).on;
-    if (typeof on !== "function") return;
-    on.call(creator, "selection:keyframes", (event: AnyProxy) => {
+    // Typed since 1.0.1, still feature-detected: a host that predates the
+    // event bus has no `on` at all.
+    if (typeof creator.on !== "function") return;
+    creator.on("selection:keyframes", (event: AnyProxy) => {
       selectionEvents.fired += 1;
-      // Typed as PluginEvent {type, data}; accept a bare array defensively.
+      // Typed as the bare Keyframe[] payload; the runtime shape is
+      // unverified, so accept a {data} envelope defensively too.
       let data: AnyProxy;
       try {
         data = Array.isArray(event) ? event : event?.data;

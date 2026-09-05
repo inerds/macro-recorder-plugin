@@ -416,31 +416,25 @@ function paintSpec(spec: PaintSnapshot): Record<string, Json> {
 }
 
 /**
- * Removes an entry from fills/strokes/masks. The typings promise
- * container.removeFill(index) etc., but the real host has none of those —
- * removal lives on the object itself (paint.remove(), per introspection).
- * Try both; report whether anything was actually removed.
+ * Removes an entry from fills/strokes/masks. Removal lives on the ENTRY, not
+ * on the container: SolidPaint.remove(), Stroke.remove(), Mask.remove() (all
+ * typed in creator-api-types 1.0.1, and what introspection always found).
+ * The container-level removeFill/removeStroke/removeMask that the old 0.0.2
+ * typings promised never existed at runtime and are gone from the typings
+ * too, so there is nothing left to probe for.
+ *
+ * The list is re-read afterwards: a remove() that quietly does nothing must
+ * report a miss, never a silent success.
  */
 function removeListEntry(container: AnyProxy, marker: string, index: number): boolean {
-  const methodName =
-    marker === "fills" ? "removeFill" : marker === "strokes" ? "removeStroke" : "removeMask";
-  const byMethod = tryRead(() => container[methodName]);
-  if (typeof byMethod === "function") {
-    try {
-      byMethod.call(container, index);
-      return true;
-    } catch {
-      // fall through to the object's own remove()
-    }
-  }
   const list = tryRead(() => container[marker]);
   const entry = Array.isArray(list) ? list[index] : undefined;
   if (entry && typeof entry.remove === "function") {
     try {
-      const before = Array.isArray(list) ? list.length : undefined;
+      const before = list.length;
       entry.remove();
       const after = tryRead(() => container[marker]);
-      return !Array.isArray(after) || before === undefined || after.length < before;
+      return !Array.isArray(after) || after.length < before;
     } catch {
       return false;
     }
@@ -1044,8 +1038,8 @@ export function applyStep(
 }
 
 /**
- * Realizes a recorded shape order on the target via the host's untyped
- * moveBefore/moveAfter (runtime-discovered; absent from the typings). The
+ * Realizes a recorded shape order on the target via moveBefore/moveAfter —
+ * runtime-discovered here, and typed since creator-api-types 1.0.1. The
  * permutation maps new position -> previous index; target shapes beyond the
  * recorded range keep their relative order at the end. The result is
  * verified by re-reading the list — a partial apply is reported, not hidden.
@@ -1523,8 +1517,11 @@ export function delayLayer(
       (plan.base !== undefined && plan.delta === 0 ? " (at playhead)" : ""),
   );
 
-  // Evidence for the live check: the typings call endFrame independent, and
-  // nobody has written one of these on a real host before.
+  // Evidence for the live check: 1.0.1 types startFrame, endFrame and
+  // timelineOffset as plain mutable numbers, and shiftTo(frame) moves the
+  // whole window (both points plus the keyframes) together. What a bare
+  // startFrame write does to the out point on a real host is still
+  // unverified, so record what actually happened.
   if (end !== undefined) {
     const endAfter = finiteOf(tryRead(() => node.endFrame));
     if (endAfter !== undefined && endAfter !== end) {

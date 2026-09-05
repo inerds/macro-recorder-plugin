@@ -228,7 +228,7 @@ describe("static writes onto an animated target", () => {
       after: 45,
     });
 
-    // The host would discard this write silently (plugin-api.d.ts:17-18).
+    // The host would discard this write silently (docs/runtime-api.md quirk 4).
     expect(target.rotation.staticValue).toBe(0);
     expect(outcome.notes).toEqual([
       "rotation has keyframes here — static value not applied",
@@ -1110,9 +1110,7 @@ describe("path data replay", () => {
 
 describe("paint removal on the real host's surface (object-level remove)", () => {
   it("replace-paint actually replaces when only paint.remove() exists", () => {
-    // Real Creator has no container.removeFill — removal is on the paint.
     const target = makeNode("Polygon 1", { fills: [{ r: 1, g: 2, b: 3 }] }, makeIds());
-    target.removeFill = undefined;
 
     const outcome = apply(target, {
       op: "replace-paint",
@@ -1131,7 +1129,6 @@ describe("paint removal on the real host's surface (object-level remove)", () =>
 
   it("remove-paint works via paint.remove() and notes a genuine miss", () => {
     const target = makeNode("Polygon 1", { fills: [{ r: 1, g: 2, b: 3 }] }, makeIds());
-    target.removeFill = undefined;
 
     apply(target, { op: "remove-paint", path: ["fills", 0] });
     expect(target.fills).toHaveLength(0);
@@ -1706,7 +1703,7 @@ describe("set-plain refuses phantom properties (trace 2026-08-26T04-04, idx 15)"
 });
 
 describe("set-plain blendMode is a lowercase union on the real host (rev .51 trace)", () => {
-  // Confirmed live: plugin-api.d.ts's BlendMode is "normal" | "multiply" |
+  // Confirmed live: the 1.0.1 BlendMode type is "normal" | "multiply" |
   // ... (all lowercase, hyphenated multi-word members). Assigning the
   // differently-cased "NORMAL" throws "✗ Invalid input" on a real host
   // (trace 2026-08-26T08-15-55-277_playback-Style-stamp.json). The applier

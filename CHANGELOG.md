@@ -4,6 +4,12 @@ This is the user-facing record: user-visible changes per shared version, one
 dated block per release. The engineering log — what was wrong and what changed,
 one row per fix — is `docs/history/improvements.md`.
 
+## Unreleased
+
+- A macro step that nests layers now says plainly when Creator could not move
+  the layers into a new scene layer, and that the nested scene was rebuilt
+  from the recording instead.
+
 ## 0.6.0 — 2026-09-04
 
 - Rounded corners now follow three sizes across the panel: cards and menus, keys, and recessed fields and lists.

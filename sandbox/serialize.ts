@@ -121,8 +121,9 @@ export function serializeAnimatable(prop: AnyProxy): AnimatableSnapshot {
 
 export function serializePaint(paint: AnyProxy): PaintSnapshot {
   const type = tryRead(() => String(paint.type));
-  // Per-paint opacity exists in Creator's UI even though the published
-  // typings omit it — probe defensively.
+  // Per-paint opacity exists in Creator's UI, but 1.0.1 still omits it from
+  // SolidPaint/GradientPaint and the proxies do not expose it either
+  // (docs/runtime-api.md quirk 6) — probe defensively anyway.
   const opacity = tryRead(() => paint.opacity);
   const opacitySnap =
     opacity !== undefined && isAnimatableLike(opacity)

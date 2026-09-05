@@ -49,7 +49,7 @@ export interface StrokeSnapshot {
   fill: PaintSnapshot;
 }
 
-/** Trim path (untyped runtime surface: node.trimPaths / createTrimPath). */
+/** Trim path (node.trimPaths / createTrimPath; typed since 1.0.1). */
 export interface TrimSnapshot {
   start?: AnimatableSnapshot;
   end?: AnimatableSnapshot;
@@ -100,9 +100,9 @@ const TRANSFORM_PROPS = [
 ] as const;
 
 /**
- * Animatable property names per node type (plugin-api.d.ts). Unknown types
- * fall back to probing the union of everything — reads are defensive, absent
- * properties are simply omitted.
+ * Animatable property names per node type (creator-api-types 1.0.1). Unknown
+ * types fall back to probing the union of everything — reads are defensive,
+ * absent properties are simply omitted.
  */
 export const TYPE_PROPS: Record<string, readonly string[]> = {
   CONTAINER: TRANSFORM_PROPS,
@@ -122,7 +122,7 @@ export const TYPE_PROPS: Record<string, readonly string[]> = {
     "outerRoundness",
   ],
   PATH: ["pathData"],
-  // Untyped runtime surface: text layers exist despite the typings.
+  // Text layers were a runtime-only surface under 0.0.2; 1.0.1 types them.
   // fontSize may be animatable; if the host serves it as a plain number the
   // serializer records it via the plain channel instead.
   TEXT_LAYER: [...TRANSFORM_PROPS, "fontSize"],

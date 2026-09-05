@@ -46,17 +46,19 @@ function makeDemoScene() {
   scene.createShapeLayer = () => scene.addLayer(makeNode("Shape Layer", {}, nextId));
   scene.createTextLayer = () =>
     scene.addLayer(makeNode("Text Layer", { type: "TEXT_LAYER" }, nextId));
+  // Models the verification-SUCCESS path: the new scene layer takes whatever
+  // the selection points at. The REAL host does NOT do this — it creates an
+  // EMPTY scene layer and ignores the selection (docs/runtime-api.md quirk 8);
+  // that shape is covered by "removes the empty shell and falls back" in
+  // sandbox/playback.test.ts. Here it lets "Nest & break" demonstrate the nest
+  // it is a demo OF instead of degrading into the rebuild fallback.
   scene.createSceneLayer = () => {
-    const empty = scene.addLayer(makeNode("Scene", { type: "SCENE_INSTANCE" }, nextId));
-    empty.scene = { layers: [] as Any[] };
-    return empty;
-  };
-  scene.createSceneInstance = (nodes: Any[]) => {
+    const nodes: Any[] = [...((globalThis as Any).creator?.selection?.nodes ?? [])];
     for (const node of nodes) {
       const at = scene.layers.indexOf(node);
       if (at >= 0) scene.layers.splice(at, 1);
     }
-    const instance = scene.addLayer(makeNode("Nested Scene", { type: "SCENE_INSTANCE" }, nextId));
+    const instance = scene.addLayer(makeNode("Scene", { type: "SCENE_INSTANCE" }, nextId));
     instance.scene = { layers: nodes };
     instance.__setSceneContents(nodes);
     return instance;

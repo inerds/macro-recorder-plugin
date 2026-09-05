@@ -442,22 +442,31 @@ function createLayerFromSpec(
 }
 
 /**
- * Nests `layers` into a new scene layer, discovering the working call at
- * runtime and VERIFYING each guess (the typings promise createSceneInstance,
- * which doesn't exist; a live trace showed createSceneLayer() creates EMPTY).
- * Order of attempts:
- *   1. scene.createSceneInstance(layers) — the typed name, if it ever ships.
- *   2. scene.createSceneLayer(layers) — maybe it takes the layers.
- *   3. scene.createSceneLayer() + layer.shiftTo(created) / shiftTo({to}) —
- *      the untyped move method observed on every node.
- * A guess only counts if the created layer actually contains content (or the
- * top-level list shrank accordingly); an empty shell is removed.
+ * Nests `layers` into a new scene layer — as far as the host allows, which is
+ * not far.
+ *
+ * There is no API that moves an existing layer into a scene layer (confirmed
+ * limitation, docs/limitations.md). The typed `createSceneLayer(opts?)`
+ * creates an EMPTY scene layer and does NOT consume the selection
+ * (docs/runtime-api.md quirk 8, live-verified). Earlier revisions tried three
+ * more guesses, all removed now that creator-api-types 1.0.1 settles them:
+ *   - `scene.createSceneInstance(layers)` — never existed at runtime, and is
+ *     gone from the typings too.
+ *   - `createSceneLayer(layers)` — the parameter is SceneLayerCreateOptions
+ *     (a source scene plus name/position/timing), not a layer list.
+ *   - `layer.shiftTo(created)` / `shiftTo({ to })` — a genuine HAZARD, not
+ *     just a dud. `shiftTo(frame: number)` is a TIME shift: it moves the
+ *     layer's startFrame, endFrame, timelineOffset and every keyframe
+ *     together. Those calls threw only because a node (or a `{to}` object) is
+ *     not a number. With a coercible argument the host would silently RETIME
+ *     the user's layer while pretending to nest it.
+ *
+ * So: point the selection at the layers, make one call, and VERIFY. A layer
+ * only counts as nested when it actually holds content (or the top-level list
+ * shrank accordingly); an unverified empty shell is removed and `undefined`
+ * sent back, which puts the caller on its rebuild-from-the-recording path.
  */
-function nestIntoNewScene(
-  scene: AnyProxy,
-  layers: AnyProxy[],
-  notes: string[],
-): AnyProxy | undefined {
+function nestIntoNewScene(scene: AnyProxy, layers: AnyProxy[]): AnyProxy | undefined {
   const contentOf = (created: AnyProxy): AnyProxy[] => {
     const content = tryRead(() => created.scene?.layers);
     return Array.isArray(content) ? content : [];
@@ -465,19 +474,12 @@ function nestIntoNewScene(
   const verified = (created: AnyProxy, topBefore: number): boolean =>
     contentOf(created).length > 0 || sceneLayers().length <= topBefore - layers.length + 1;
 
-  const instanceFactory = tryRead(() => (scene as AnyProxy).createSceneInstance);
-  if (typeof instanceFactory === "function") {
-    const topBefore = sceneLayers().length;
-    const created = tryRead(() => instanceFactory.call(scene, layers));
-    if (created && verified(created, topBefore)) return created;
-  }
-
   const layerFactory = tryRead(() => (scene as AnyProxy).createSceneLayer);
   if (typeof layerFactory !== "function") return undefined;
 
   const describe = (label: string, value: AnyProxy) => {
-    // Debug breadcrumb: the host call semantics are undocumented; every
-    // attempt reports what actually came back so traces pin the contract.
+    // Debug breadcrumb: the host call semantics are undocumented; the attempt
+    // reports what actually came back so traces pin the contract.
     // This is diagnostics, not a user-facing note — it goes to the trace.
     const kind =
       value === undefined
@@ -490,58 +492,22 @@ function nestIntoNewScene(
     );
   };
 
-  // Attempt A: createSceneLayer(layers) — maybe it takes them.
-  {
-    const topBefore = sceneLayers().length;
-    const created = tryRead(() => layerFactory.call(scene, layers));
-    describe("createSceneLayer(layers)", created);
-    if (created && verified(created, topBefore)) return created;
-    if (created) {
-      try {
-        created.remove();
-      } catch {
-        // leave it — attempt B may still supersede
-      }
-    }
+  // Point the selection at our layers first: if the host ever starts
+  // consuming it, this is the call that would pick them up.
+  try {
+    (creator.selection as AnyProxy).nodes = layers;
+  } catch {
+    // selection may not be assignable; the outcome check below decides
   }
-
-  // Attempt B: no-arg createSceneLayer() — observed to consume the current
-  // selection on the real host; point the selection at our layers first.
-  {
+  const topBefore = sceneLayers().length;
+  const created = tryRead(() => layerFactory.call(scene));
+  describe("createSceneLayer()", created);
+  if (created) {
+    if (verified(created, topBefore)) return created;
     try {
-      (creator.selection as AnyProxy).nodes = layers;
+      created.remove();
     } catch {
-      // selection may not be assignable; the outcome check below decides
-    }
-    const topBefore = sceneLayers().length;
-    const created = tryRead(() => layerFactory.call(scene));
-    describe("createSceneLayer()", created);
-    if (created) {
-      if (verified(created, topBefore)) return created;
-      // Attempt C: move the layers in with the untyped shiftTo.
-      let moved = 0;
-      for (const layer of layers) {
-        const shift = tryRead(() => layer.shiftTo);
-        if (typeof shift !== "function") continue;
-        const ok =
-          tryRead(() => {
-            shift.call(layer, created);
-            return true;
-          }) ??
-          tryRead(() => {
-            shift.call(layer, { to: created });
-            return true;
-          });
-        if (ok) moved += 1;
-      }
-      describe(`shiftTo x${moved}`, created);
-      if (contentOf(created).length > 0) return created;
-      notes.push("the host created an empty scene layer and shiftTo didn't move content");
-      try {
-        created.remove();
-      } catch {
-        // leave the shell; the fallback note explains
-      }
+      // leave the shell; the caller's fallback note explains the result
     }
   }
   return undefined;
@@ -679,7 +645,7 @@ function applySceneOp(
       }
     }
     if (resolved.length > 0) {
-      const created = nestIntoNewScene(scene, resolved, notes);
+      const created = nestIntoNewScene(scene, resolved);
       if (created) {
         playback.layerByRecordedId.set(payload.spec.nodeId, created);
         if (payload.spec.nodeName) {
@@ -698,7 +664,9 @@ function applySceneOp(
         return;
       }
     }
-    notes.push("couldn't nest the layers — rebuilding the scene layer from the recording");
+    notes.push(
+      "couldn't move the layers into a new scene layer — rebuilt it from the recording instead",
+    );
     createLayerFromSpec(scene, payload.spec as NodeSnapshot, notes);
     return;
   }

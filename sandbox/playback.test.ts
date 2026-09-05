@@ -20,24 +20,6 @@ function makeSceneRoot(nextId: (p: string) => string) {
     scene.layers.push(layer);
     return layer;
   };
-  scene.createSceneInstance = (nodes: Any[]) => {
-    for (const node of nodes) {
-      const at = scene.layers.indexOf(node);
-      if (at >= 0) scene.layers.splice(at, 1);
-    }
-    const instance: Any = {
-      id: `inst-${scene.layers.length}`,
-      name: "Nested Scene",
-      type: "SCENE_LAYER",
-      scene: { layers: nodes },
-      remove() {
-        const at = scene.layers.indexOf(instance);
-        if (at >= 0) scene.layers.splice(at, 1);
-      },
-    };
-    scene.layers.push(instance);
-    return instance;
-  };
   scene.createSceneLayer = () => {
     // mirrors the real host: creates an EMPTY scene layer (live-verified)
     const instance: Any = {
@@ -54,15 +36,59 @@ function makeSceneRoot(nextId: (p: string) => string) {
     scene.layers.push(instance);
     return instance;
   };
-  scene.giveShiftTo = (layer: Any) => {
-    layer.shiftTo = (dest: Any) => {
-      const at = scene.layers.indexOf(layer);
+  return scene;
+}
+
+/**
+ * Opt-in stub: `createSceneLayer()` consumes `creator.selection.nodes` into
+ * the new layer. This models the VERIFICATION-SUCCESS path only — the real
+ * host does NOT do this (docs/runtime-api.md quirk 8: it creates an empty
+ * scene layer and ignores the selection), which is why `makeSceneRoot` keeps
+ * the empty shell and "removes the empty shell and falls back" covers the
+ * real shape.
+ */
+function consumeSelectionOnCreate(scene: Any) {
+  scene.createSceneLayer = () => {
+    const selected: Any[] = [...((globalThis as Any).creator?.selection?.nodes ?? [])];
+    for (const node of selected) {
+      const at = scene.layers.indexOf(node);
       if (at >= 0) scene.layers.splice(at, 1);
-      dest.scene.layers.push(layer);
+    }
+    const instance: Any = {
+      id: `scene-layer-${scene.layers.length}`,
+      name: "Scene",
+      type: "SCENE_LAYER",
+      scene: { layers: selected },
+      props: {},
+      remove() {
+        const at = scene.layers.indexOf(instance);
+        if (at >= 0) scene.layers.splice(at, 1);
+      },
     };
-    return layer;
+    scene.layers.push(instance);
+    return instance;
   };
   return scene;
+}
+
+/** Builds an ALREADY-nested scene layer directly, with no host call. */
+function nestExisting(scene: Any, nodes: Any[], name: string) {
+  for (const node of nodes) {
+    const at = scene.layers.indexOf(node);
+    if (at >= 0) scene.layers.splice(at, 1);
+  }
+  const instance: Any = {
+    id: `inst-${scene.layers.length}`,
+    name,
+    type: "SCENE_LAYER",
+    scene: { layers: nodes },
+    remove() {
+      const at = scene.layers.indexOf(instance);
+      if (at >= 0) scene.layers.splice(at, 1);
+    },
+  };
+  scene.layers.push(instance);
+  return instance;
 }
 
 function stubCreator(scene: Any, selection: Any[]) {
@@ -394,9 +420,9 @@ describe("layer resolution across renames", () => {
 });
 
 describe("nest-layers replay", () => {
-  it("nests the resolved layers via createSceneInstance", () => {
+  it("nests the resolved layers and resolves inside-edits by order", () => {
     const ids = makeIds();
-    const scene = makeSceneRoot(ids);
+    const scene = consumeSelectionOnCreate(makeSceneRoot(ids));
     const a = scene.addLayer(makeNode("Ellipse 1", {}, ids));
     const b = scene.addLayer(makeNode("Rectangle 1", {}, ids));
     scene.addLayer(makeNode("Keep", {}, ids));
@@ -411,17 +437,33 @@ describe("nest-layers replay", () => {
             { id: String(b.id), name: "Rectangle 1" },
           ],
           spec: {
-            nodeId: "NEW", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 5",
+            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 5",
             props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
           },
         }),
+        // recorded on the SECOND nested layer — must map by ORDER
+        step({
+          op: "set-static",
+          path: ["shapes", 1, "rotation"],
+          before: 0,
+          after: -30,
+          shapeHint: "POLYGON",
+          layer: { id: "NEST", name: "Nested Scene 5" },
+        }),
       ] as Any,
     });
-    const result = playbackStep({ index: 0 });
-    expect(result.failures).toEqual([]);
-    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layers"]);
+    const r0 = playbackStep({ index: 0 });
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layers"]);
     expect(scene.layers.map((l: Any) => l.name)).toEqual(["Keep", "Nested Scene 5"]);
     expect(scene.layers[1].scene.layers).toEqual([a, b]);
+
+    const r1 = playbackStep({ index: 1 });
+    expect(r1.failures).toEqual([]);
+    // order-based: applied to the SECOND nested layer even though the
+    // recorded hint said POLYGON and Rectangle 1 isn't one
+    expect(b.rotation.staticValue).toBe(-30);
+    expect(a.rotation.staticValue).toBe(0);
   });
 
   it("rebuilds a SCENE-type add-layer spec with createSceneLayer, not createShapeLayer", () => {
@@ -514,7 +556,7 @@ describe("nest-layers same-scene idempotency", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
     const a = scene.addLayer(makeNode("Rectangle 1", {}, ids));
-    const nested = scene.createSceneInstance([a]);
+    const nested = nestExisting(scene, [a], "Nested Scene 6");
     stubCreator(scene, []);
 
     playbackBegin({
@@ -539,9 +581,9 @@ describe("nest-layers same-scene idempotency", () => {
 describe("nest-layers re-executes when sources are present", () => {
   it("nests again even though the recorded result also exists", () => {
     const ids = makeIds();
-    const scene = makeSceneRoot(ids);
+    const scene = consumeSelectionOnCreate(makeSceneRoot(ids));
     const a = scene.addLayer(makeNode("Ellipse 1", {}, ids));
-    const prior = scene.createSceneInstance([scene.addLayer(makeNode("old", {}, ids))]);
+    const prior = nestExisting(scene, [scene.addLayer(makeNode("old", {}, ids))], "Nested Scene 1");
     stubCreator(scene, []);
 
     playbackBegin({
@@ -567,7 +609,7 @@ describe("nest-layers re-executes when sources are present", () => {
 describe("nest-layers follows the selection (tool semantics)", () => {
   it("nests the SELECTED layers, not the recorded sources", () => {
     const ids = makeIds();
-    const scene = makeSceneRoot(ids);
+    const scene = consumeSelectionOnCreate(makeSceneRoot(ids));
     scene.addLayer(makeNode("Ellipse 1", {}, ids)); // recorded source, untouched
     const x = scene.addLayer(makeNode("New A", { fills: [{ r: 0, g: 0, b: 0 }] }, ids));
     const y = scene.addLayer(makeNode("New B", {}, ids));
@@ -605,55 +647,13 @@ describe("nest-layers follows the selection (tool semantics)", () => {
   });
 });
 
-describe("nest via createSceneLayer + shiftTo (real-host shape)", () => {
-  it("creates the scene layer and moves the selected layers in, in order", () => {
+describe("nest on the real host's shape (createSceneLayer creates EMPTY)", () => {
+  it("removes the empty shell and falls back when the host won't take the layers", () => {
     const ids = makeIds();
+    // makeSceneRoot's createSceneLayer IS the real host's shape: it creates an
+    // empty scene layer and ignores the selection (runtime quirk 8).
     const scene = makeSceneRoot(ids);
-    delete scene.createSceneInstance; // real host has no such method
-    const x = scene.giveShiftTo(scene.addLayer(makeNode("New A", { fills: [{ r: 0, g: 0, b: 0 }] }, ids)));
-    const y = scene.giveShiftTo(scene.addLayer(makeNode("New B", {}, ids)));
-    stubCreator(scene, [x, y]);
-
-    playbackBegin({
-      steps: [
-        step({
-          op: "nest-layers",
-          layers: [{ id: "R1", name: "Ellipse 1" }, { id: "R2", name: "Polygon 1" }],
-          spec: {
-            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 2",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
-          },
-        }),
-        // recorded on the SECOND nested layer — must map by ORDER
-        step({
-          op: "set-static",
-          path: ["shapes", 1, "rotation"],
-          before: 0,
-          after: -30,
-          shapeHint: "POLYGON",
-          layer: { id: "NEST", name: "Nested Scene 2" },
-        }),
-      ] as Any,
-    });
-    const r0 = playbackStep({ index: 0 });
-    expect(r0.failures).toEqual([]);
-    const instance = scene.layers.find((l: Any) => l.type === "SCENE_LAYER");
-    expect(instance.scene.layers.map((l: Any) => l.name)).toEqual(["New A", "New B"]);
-    expect(instance.name).toBe("Nested Scene 2");
-
-    const r1 = playbackStep({ index: 1 });
-    expect(r1.failures).toEqual([]);
-    // order-based: applied to the SECOND layer (New B) even though the
-    // recorded hint said POLYGON and New B isn't one
-    expect(y.rotation.staticValue).toBe(-30);
-    expect(x.rotation.staticValue).toBe(0);
-  });
-
-  it("removes the empty shell and falls back when nothing can move layers", () => {
-    const ids = makeIds();
-    const scene = makeSceneRoot(ids);
-    delete scene.createSceneInstance;
-    const x = scene.addLayer(makeNode("New A", {}, ids)); // no shiftTo
+    const x = scene.addLayer(makeNode("New A", {}, ids));
     stubCreator(scene, [x]);
 
     playbackBegin({
@@ -669,7 +669,13 @@ describe("nest via createSceneLayer + shiftTo (real-host shape)", () => {
       ] as Any,
     });
     const r0 = playbackStep({ index: 0 });
-    expect((r0.notes ?? []).some((n: Any) => n.message.includes("rebuilding the scene layer"))).toBe(true);
+    expect(
+      (r0.notes ?? []).some((n: Any) =>
+        n.message.includes("couldn't move the layers into a new scene layer"),
+      ),
+    ).toBe(true);
+    // the shell was cleaned up: only the rebuilt layer remains
+    expect(scene.layers.filter((l: Any) => l.type === "SCENE_LAYER")).toHaveLength(1);
   });
 });
 

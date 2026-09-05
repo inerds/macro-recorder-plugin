@@ -43,8 +43,8 @@ export type StepPayload =
   | { op: "remove-shape"; path: Path; shapeType?: string; layer?: LayerRef }
   /**
    * Surviving shapes changed order. `order[newPos]` = the shape's previous
-   * index among survivors; replayed with the host's untyped moveBefore/
-   * moveAfter methods.
+   * index among survivors; replayed with the host's moveBefore/moveAfter
+   * (runtime-discovered here, typed since creator-api-types 1.0.1).
    */
   | { op: "reorder-shapes"; path: Path; order: number[]; layer?: LayerRef }
   /** Scene-level structure (whole-scene recording). */
@@ -63,8 +63,9 @@ export type StepPayload =
   /** A scene instance was broken into its content layers. Replay calls the
    *  instance's break(); `fallback` rebuilds the results if it can't. */
   | { op: "break-scene"; layer: LayerRef; fallback: NodeSnapshot[] }
-  /** Layers were nested into a new scene instance. Replay resolves the
-   *  layers and calls createSceneInstance(them); spec is the fallback. */
+  /** Layers were nested into a new scene layer. Replay resolves the layers,
+   *  points the selection at them, calls createSceneLayer() and verifies the
+   *  result; spec rebuilds the layer when the host won't move them. */
   | { op: "nest-layers"; layers: LayerRef[]; spec: NodeSnapshot }
   /** Scene layers were reordered. `order[newPos]` is the layer's previous
    *  index; `layers` (rev .52+) names those same layers IN THE NEW ORDER so

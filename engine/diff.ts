@@ -256,8 +256,8 @@ function diffShapes(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, out:
     }
   }
 
-  // Reorder of surviving shapes — replayable via the host's untyped
-  // moveBefore/moveAfter (runtime-discovered; the typings omit them). The
+  // Reorder of surviving shapes — replayable via the host's moveBefore/
+  // moveAfter (runtime-discovered here; typed since 1.0.1). The
   // permutation is expressed over survivors: by the time it replays, the
   // step sequence has already applied this tick's removals, and additions
   // land after it at the end of the list.

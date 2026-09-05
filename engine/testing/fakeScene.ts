@@ -4,8 +4,13 @@
  * This is the only test double for the live-proxy surface that
  * sandbox/serialize.ts and sandbox/applier.ts talk to. It deliberately mirrors
  * the real API's awkward parts — notably that writing `staticValue` while
- * keyframes exist does nothing (plugin-api.d.ts:17-18). A friendlier fake
- * would hide the exact class of bug this harness exists to catch.
+ * keyframes exist does nothing (creator-api-types 1.0.1
+ * creator-api-ref.d.ts:20-21, docs/runtime-api.md quirk 4). A friendlier fake
+ * would hide the exact class of bug this harness exists to catch, so it never
+ * models a method the real host lacks: removal of a fill, stroke or mask is
+ * the ENTRY's own remove(), never a container removeFill/removeStroke/
+ * removeMask — those were a 0.0.2 typings promise, absent at runtime and gone
+ * from 1.0.1.
  *
  * Pure data only: no DOM, so it compiles under tsconfig.sandbox.json too.
  */
@@ -247,8 +252,8 @@ const PLAIN_DEFAULTS: Record<string, Json> = {
 };
 
 /**
- * The real host's BlendMode is a LOWERCASE string union
- * (plugin-api.d.ts's `BlendMode` type). Assigning anything outside this set —
+ * The real host's BlendMode is a LOWERCASE string union (the `BlendMode` type
+ * in creator-api-types 1.0.1). Assigning anything outside this set —
  * including the differently-cased "NORMAL" — throws "✗ Invalid input" on a
  * live host (trace 2026-08-26T08-15-55-277_playback-Style-stamp.json, rev
  * .51). Validating it here is what lets a demo-macro / test-fixture casing
@@ -400,10 +405,6 @@ export function makeNode(
       node.fills.push(paint);
       return paint;
     },
-    removeFill(index: number) {
-      if (node.fills[index] === undefined) throw new Error(`no fill at ${index}`);
-      node.fills.splice(index, 1);
-    },
     createFill(spec: Any) {
       return node.addFill(spec);
     },
@@ -421,10 +422,6 @@ export function makeNode(
       };
       node.strokes.push(stroke);
       return stroke;
-    },
-    removeStroke(index: number) {
-      if (node.strokes[index] === undefined) throw new Error(`no stroke at ${index}`);
-      node.strokes.splice(index, 1);
     },
     createStroke(spec: Any) {
       return node.addStroke(spec);
@@ -461,10 +458,6 @@ export function makeNode(
       };
       node.masks.push(mask);
       return mask;
-    },
-    removeMask(index: number) {
-      if (node.masks[index] === undefined) throw new Error(`no mask at ${index}`);
-      node.masks.splice(index, 1);
     },
     /** Test controls — not part of the real API surface. */
     __control: {
