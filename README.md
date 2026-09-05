@@ -37,8 +37,8 @@ Document map:
 - [`docs/design-system.md`](docs/design-system.md) — the panel's skin, deck, and
   rack rules.
 - [`docs/runtime-api.md`](docs/runtime-api.md) — the host API's real runtime
-  surface. Read it before you extend the engine; the published typings are wrong
-  in both directions.
+  surface. Read it before you extend the engine; the published typings still
+  diverge from the runtime in the places that file lists.
 - [`docs/limitations.md`](docs/limitations.md) — confirmed host limits, with
   evidence.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, the checks a change must pass,
@@ -147,7 +147,7 @@ engine/         The pure engine both sides use: protocol, snapshots, differ, lab
 ui/             The React panel: state machine, gateways, components, styles, dev strip.
 dev/harness/    Host-emulation pages for the dev server only. Never part of the build.
 scripts/        The trace server, the QuickJS smoke test, and the release bundler.
-vendor/         Tarballs of Creator packages that are not on npm, with a README.
+vendor/         The vendored @lottiefiles/vite-plugin-creator tarball, with a README.
 docs/           User guide, architecture, design system, runtime API, limitations,
                 contributing guides, release notes per version, and the history log.
 .github/        CI (type-check, tests, QuickJS smoke, build) and the tag-driven Release workflow.

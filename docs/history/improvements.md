@@ -12,6 +12,14 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-06 — Registry typings
+
+| Issue | Fix |
+|---|---|
+| **The sandbox built against a vendored `@lottiefiles/creator-plugin-types` 0.0.2 tarball** that LottieFiles never published to the registry. It undersold the runtime (no reorder methods, no `getValueAt`, no text layer, no `roundness`) and oversold it (`createSceneInstance`, `addFill`/`removeFill`, `MoveOptions`), so the engine carried guess-chains for members that never existed. | The registry package `@lottiefiles/creator-api-types` 1.0.1 replaces it. `tsconfig.sandbox.json` now sets `"types": ["creator-api-types"]` with a `./node_modules/@lottiefiles` type root, and `runtime-api.md`, `limitations.md`, `architecture.md` and `design-system.md` are re-baselined onto what 1.0.1 still gets wrong. |
+
+---
+
 ## 2026-09-04 — Repository restructure
 
 | Issue | Fix |

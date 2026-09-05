@@ -31,7 +31,7 @@ Reuse the existing helpers rather than adding new ones.
 `engine/testing/fakeScene.ts` is shared with `dev/harness/host-harness.html`. It
 mirrors the real API's awkward parts on purpose:
 - `staticValue` writes are **silently discarded when keyframes exist**
-  (`plugin-api.d.ts:17-18`).
+  (runtime quirk 4 in `docs/runtime-api.md`).
 - `getKeyframeAt(frame)` matches the real `Animatable`.
 - `makeNode` exposes every `CANDIDATE_PROPS` entry.
 - `node.__control.setGone()` / `.failProp(name)` and

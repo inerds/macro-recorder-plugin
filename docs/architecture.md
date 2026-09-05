@@ -4,9 +4,9 @@ This document holds the invariants that give the code its shape: why the three
 TypeScript projects are separate, what the QuickJS sandbox can and cannot do,
 where the host proxies stop, and how the recording engine and the panel fit
 together. Read it before you extend the engine. Read
-[`runtime-api.md`](runtime-api.md) with it: the published typings are wrong in
-both directions, and every workaround anchors to a live-verified quirk listed
-there.
+[`runtime-api.md`](runtime-api.md) with it: the published typings still
+diverge from the runtime in the places that file lists, and every workaround
+anchors to a live-verified quirk listed there.
 
 The panel and the sandbox are one loop. The panel polls the sandbox every
 500ms over a small RPC protocol. The sandbox snapshots the active scene, diffs
@@ -26,9 +26,10 @@ correctness boundary, not organization:
 
 - `tsconfig.ui.json` — `["ui", "engine"]`, DOM libs, `vite/client` types.
 - `tsconfig.sandbox.json` — `["sandbox", "engine"]`, **no DOM lib**, and
-  `typeRoots` pointing at `@lottiefiles/creator-plugin-types` so the `creator`
-  global resolves. Also sets `noUncheckedIndexedAccess`, which the UI config
-  does not.
+  `"types": ["creator-api-types"]` with `typeRoots` at `./node_modules/@types`
+  and `./node_modules/@lottiefiles`, so the `creator` global resolves from
+  `@lottiefiles/creator-api-types`. Also sets `noUncheckedIndexedAccess`,
+  which the UI config does not.
 - `tsconfig.node.json` — build tooling.
 
 So `engine/` compiles under both and must not reference `window`, `document`, or
@@ -70,11 +71,11 @@ README states this; the consequences for how you write code:
 exactly: `vm.callFunction` with zero `executePendingJobs` after. If you add an
 RPC method that must answer synchronously, add a check there.
 
-## Untyped host API surface (found via runtime introspection)
+## Host API surface (found via runtime introspection)
 
-The real `Animatable` proxies expose two methods the published typings omit:
-`clearKeyframes()` (the missing bulk animated→static) and `getValueAt(frame)`.
-Safe to feature-detect (`typeof prop.clearKeyframes === "function"`), never
+The real `Animatable` proxies expose `clearKeyframes()` (the bulk
+animated→static call) and `getValueAt(frame)`. 0.0.2 omitted both, and 1.0.1
+types them. Safe to feature-detect (`typeof prop.clearKeyframes === "function"`), never
 assume. Conversely, per-fill opacity does NOT exist anywhere on the paint
 surface (paint = `color`/`type`/`remove` only, colors are `{r,g,b}`) — do not
 re-attempt to record it; it is a documented platform limit.
@@ -90,7 +91,8 @@ unit-testable without a Creator mock. Preserve this: new engine logic belongs in
 `engine/testing/fakeScene.ts` is the test double for that proxy surface, shared
 by `dev/harness/host-harness.html` and vitest. It reproduces the real API's traps on
 purpose — most importantly that the host silently discards an assignment to
-`staticValue` when keyframes exist (`plugin-api.d.ts:17-18`). Never make the
+`staticValue` when keyframes exist (runtime quirk 4 in
+[`runtime-api.md`](runtime-api.md)). Never make the
 fake more permissive than the real host; that would hide the bugs it exists to
 catch.
 
@@ -102,9 +104,9 @@ absent property is a normal outcome, never an error.
 
 ## Engine v3 — whole-scene recording (architecture as of 2026-08-22)
 
-`runtime-api.md` is required reading: the published typings are wrong in both
-directions, and every workaround in the engine anchors to a live-verified
-quirk listed there. Introspect before extending (record.start's debug probe
+`runtime-api.md` is required reading: the published typings still diverge from
+the runtime in the places it lists, and every workaround in the engine anchors
+to a live-verified quirk listed there. Introspect before extending (record.start's debug probe
 dumps node/scene surfaces into traces).
 
 ```

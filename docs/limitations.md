@@ -15,8 +15,8 @@ the user sees instead, and any path that could lift it.
 **What does not work:** the capture offer's "Add selected", which pulls only
 the keyframes that the user selected on the timeline into a recording.
 
-**Why (evidence):** the typings declare the surface (`SelectionAPI.keyframes`
-and the event `selection:keyframes`), and the surface IS live —
+**Why (evidence):** 1.0.1 types the surface (`SelectionAPI.keyframes` and the
+event `selection:keyframes`), and the surface IS live —
 `introspectSelection` probes show a real own-property array, with no throw.
 But it read `array(0)` at every probe, and `selectedCount` stayed 0 on every
 tick across five debug sessions at revs .42/.43/.44 (traces
@@ -113,6 +113,10 @@ Recordings capture nothing, and no API sets the value on a target.
   values are strictly `{r,g,b}` — no alpha channel.
 - A drag of the fill-opacity slider during a recording produced **10/10 empty
   polling ticks** — zero observable change through the API.
+- The typings agree with the proxy. 1.0.1 types `SolidPaint` as
+  `{type, color, remove}` and `GradientPaint` as
+  `{start, end, stops, remove}`. `opacity` appears only on `ColorStops`
+  entries, `Mask`, `LayerMixin`, and `Group`, so the limit stands.
 - The user confirmed that it still does not work on engine rev 2026-08-22.12.
 
 **What the user sees:** the recorder captures nothing for the edit, and no
@@ -139,9 +143,9 @@ UI is invisible to the plugin. Recordings capture nothing, and the plugin
 cannot read the value back to replay it.
 
 **Why (evidence, 2026-08-22/23, engine rev 2026-08-22.39):**
-- The `Rectangle` typing lists `roundness` only as a *creation option*
-  (`RectangleOptions.roundness`, `plugin-api-ref.d.ts:1276`), not as a
-  property of a live rectangle.
+- 1.0.1 types `Rectangle.roundness` as `Animatable<number>`, and the live
+  proxy matches it. The typings are not the problem: the value itself is
+  dead.
 - Runtime introspection (trace `2026-08-21T21-53-02-401_record.json`,
   `shapeIntrospection`) shows that the live rectangle proxy DOES expose
   `roundness` as a full Animatable (`addKeyframes, clearKeyframes,
@@ -176,9 +180,9 @@ plugin. Recordings capture the keyframes' frames, values, and easing, but not
 the curve, and replays produce straight-line motion between them.
 
 **Why (evidence, 2026-08-22, engine rev 2026-08-22.38):**
-- The typings' `Keyframe<T>` interface has `id`, `frame`, `value`, `easing`,
-  and `remove`. `inTangent` and `outTangent` appear only in a doc example
-  (`plugin-api-ref.d.ts:496-497`).
+- 1.0.1's `Keyframe<T>` interface has `id`, `frame`, `value`, `easing`, and
+  `remove` — no tangent fields. `inTan` and `outTan` exist in 1.0.1 only on
+  `PathPoint`, which is path geometry, not motion.
 - Runtime introspection of a live **position** keyframe proxy across the full
   prototype chain (trace `2026-08-21T21-53-02-401_record.json`,
   `debug.keyframeIntrospection` on the first keyframe tick) found exactly
@@ -218,24 +222,33 @@ no code change.
 a selection can be unable to actually move the layers into the created scene.
 Early replays produced an empty nested scene.
 
-**Why (evidence, 2026-08-22):**
-- The typings promise `Scene.createSceneInstance(layers)`. Runtime
-  introspection shows **no such method exists** (the scene exposes
-  `createSceneLayer`, `createShapeLayer`, `createImageLayer`,
-  `createTextLayer`, `export`, `toJSON`, …).
+**Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06):**
+- 0.0.2 promised `Scene.createSceneInstance(layers)`. Runtime introspection
+  shows **no such method exists** (the scene exposes `createSceneLayer`,
+  `createShapeLayer`, `createImageLayer`, `createTextLayer`, `export`,
+  `toJSON`, …), and 1.0.1 no longer declares it.
+- 1.0.1 types `shiftTo(frame: number)` as a shift of the layer's timeline
+  window. That explains both throws below: a node and a `{to}` object are not
+  numbers.
+- 1.0.1 offers `createSceneLayer({scene})` and `creator.createScene()`.
+  Neither moves an existing layer into a scene.
 - `createSceneLayer()` **creates an empty scene layer** and does not consume
   the selection. This is live-verified: replay traces of Macro 31/32 produced
   empty shells, and the user confirmed it visually.
 - Creator's own UI nest action clearly has a path, but Creator does not expose
   it under any typed name.
 
-**Current engine behavior (rev 2026-08-22.33):** the engine runs a verified
-guess-chain — `createSceneInstance(layers)` → `createSceneLayer(layers)` →
-`createSceneLayer()` plus a per-layer `shiftTo(created)` (the untyped move
-method present on every node). The engine checks each attempt against whether
-the created scene actually contains the layers. If no rung works, the engine
-removes the empty shell, and the macro falls back to a rebuild of the recorded
-scene layer, with notes.
+**Current engine behavior (rev 2026-09-06.1):** `nestIntoNewScene`
+(`sandbox/playback.ts`) sets `creator.selection.nodes` to the layers, calls
+`scene.createSceneLayer()`, and verifies the result — the created layer must
+contain the layers, or the top-level layer list must have shrunk. If neither
+holds, the engine removes the empty shell and returns undefined, so the macro
+falls back to a rebuild of the recorded scene layer with the note "couldn't
+move the layers into a new scene layer — rebuilt it from the recording
+instead". The dead rungs are gone: `createSceneInstance` never existed, `createSceneLayer(layers)`
+is typed as an options object, and the per-layer `shiftTo(created)` attempt is
+removed because `shiftTo` takes a frame — a node argument could coerce and
+retime the layer instead of throwing.
 
 **Status: CONFIRMED (instrumented trace, 2026-08-22, rev .34).** Breadcrumbs
 from a live replay: `createSceneLayer(layers)` returned undefined;
@@ -243,9 +256,8 @@ from a live replay: `createSceneLayer(layers)` returned undefined;
 selection, even when the engine set the selection programmatically;
 `layer.shiftTo(created)` and `shiftTo({to})` both throw (0 of 2 layers moved).
 No API route exists to move existing layers into a scene. **Upstream ask for
-LottieFiles:** ship `createSceneInstance(layers)` as the typings already
-promise, or let `createSceneLayer` accept layers, or give `shiftTo` a
-scene-layer destination.
+LottieFiles:** give Creator an API that moves existing layers into a scene, or
+let `createSceneLayer` accept layers.
 
 **What replay does meanwhile:** nest steps fall back to a rebuild of the
 recorded scene layer from spec. The engine cannot rebuild layer-typed content
@@ -257,8 +269,8 @@ nest.
 ## Effects, ungroup — no API surface
 
 No effect types, no effects list, and no ungroup operation exist anywhere in
-the plugin API. They are absent from the published typings and from the
-runtime surface that introspection found. Edits that use them are invisible to
+the plugin API. They are absent from 1.0.1 as well, and from the runtime
+surface that introspection found. Edits that use them are invisible to
 the recorder.
 
 ---
@@ -311,11 +323,11 @@ deletions, and layer reordering. See "Engine v3" in `history/improvements.md`.
 ---
 
 *Revised, no longer limitations:* shape **reorder**. Runtime introspection
-found the untyped `moveBefore`, `moveAfter`, `bringToFront`, and `sendToBack`
-methods, and reorder replay now builds on them (rev 2026-08-22.14; the fake's
+found `moveBefore`, `moveAfter`, `bringToFront`, and `sendToBack`, which 0.0.2
+omitted, and reorder replay now builds on them (rev 2026-08-22.14; the fake's
 model of their placement semantics is unverified against the real host until a
-reorder trace confirms it). The untyped runtime surface also includes
-`toJSON()` on nodes, shapes, and scenes; `clearKeyframes()` and
-`getValueAt()` on animatables; `createTrimPath` and `trimPaths`; and
-scene-level `export`, `createTextLayer`, and `createImageLayer` — the
-published typings substantially undersell the real API.
+reorder trace confirms it). The runtime surface also includes `toJSON()` on
+nodes, shapes, and scenes; `clearKeyframes()` and `getValueAt()` on
+animatables; `createTrimPath` and `trimPaths`; and scene-level `export`,
+`createTextLayer`, and `createImageLayer`. 0.0.2 substantially undersold the
+real API. 1.0.1 types all of those members except `toJSON()` and `export()`.

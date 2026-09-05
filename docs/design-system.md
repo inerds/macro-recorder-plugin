@@ -27,8 +27,9 @@ load-bearing:
 - Creator's interface theme touches exactly ONE pixel surface: the
   `.host-frame` gutter. The relay is the official ThemeProvider sync
   pattern (ui-library docs): `sandbox/theme.ts` reads `creator.ui.theme` and
-  subscribes to `change:theme` (both feature-detected — absent from typings
-  AND from our live introspection, runtime-api.md item 10), forwarding
+  subscribes to `change:theme` (both typed in 1.0.1 but absent from our live
+  introspection, so both stay feature-detected — runtime-api.md item 10),
+  forwarding
   `{ type: "change:theme", tokens, themeName }` on boot, on `hello`, and on
   every change. Three consumers, resolution chain kept identical in all:
   the index.html head script (pre-React paint of `--host-frame-bg` on
