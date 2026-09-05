@@ -114,6 +114,22 @@ Claude Code and let the triage agents read them. The workflow, the rules that
 keep traces honest, and the engine-revision fences are in
 [`docs/contributing/triage.md`](docs/contributing/triage.md).
 
+## Agent skills
+
+`.claude/` holds the agents and skills this repository uses. Two of those
+skills, `creator-plugin-development` and `creator-plugins-ui`, are installed
+copies from
+[`LottieFiles/creator-plugin-skills`](https://github.com/LottieFiles/creator-plugin-skills),
+not files this repository authors. Re-install them with the same command the
+project used the first time:
+
+```bash
+npx skills add LottieFiles/creator-plugin-skills --skill '*' -a claude-code --copy -y
+```
+
+`CLAUDE.md` states the precedence rule for a conflict between those skills
+and this repository's own runtime findings — see its "Host skills" section.
+
 ## Cut a release
 
 1. Bump `version` in `package.json`.
