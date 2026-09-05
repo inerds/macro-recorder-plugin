@@ -1,0 +1,56 @@
+name: Bug report
+description: A recording or a playback did the wrong thing.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you report, check `docs/limitations.md`. A confirmed host limit is not a bug in the plugin.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: The version label on the deck, or the release zip name.
+      placeholder: 0.6.0
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Inside LottieFiles Creator
+        - The standalone panel (`pnpm dev`)
+        - The local host harness
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you recorded, what you selected, and which playback mode you used.
+      placeholder: |
+        1. Select a shape layer.
+        2. Record: move it 100px right, then stop.
+        3. Select two other layers and replay with Stagger.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Include any note the panel showed.
+    validations:
+      required: true
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace bundle
+      description: |
+        If you ran a dev session, attach the bundle from `traces/`, or paste its `env.sandboxRev` and the step list. See `docs/contributing/triage.md`.

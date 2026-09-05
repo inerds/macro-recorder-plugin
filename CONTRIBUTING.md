@@ -5,6 +5,13 @@ other Creator plugin developers. This document tells you how to set the project
 up, which checks a change must pass, where each kind of change belongs, and how
 a release is cut.
 
+## Before you start
+
+- Read `CODE_OF_CONDUCT.md`. It applies to issues, pull requests, and reviews.
+- Report a security problem through `SECURITY.md`, not through a public issue.
+- Open an issue before a large change, so the design is agreed before the
+  code is written.
+
 ## Prerequisites
 
 - Node.js 22 or later.

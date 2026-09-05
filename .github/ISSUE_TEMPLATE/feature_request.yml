@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a new step type, a playback mode, or a panel change.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you want to do
+      description: Describe the editing task in Creator, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What the plugin could do
+    validations:
+      required: true
+  - type: textarea
+    id: host
+    attributes:
+      label: Host API notes
+      description: If you know which host API the change needs, say so. `docs/runtime-api.md` lists what the host exposes.
