@@ -634,15 +634,23 @@ function applySceneOp(
         }`,
       );
     }
-    if (resolved.length === 0) {
-      const already = resolveLayer({ id: payload.spec.nodeId });
-      if (already) {
-        playback.layerByRecordedId.set(payload.spec.nodeId, already);
-        notes.push(
-          `${payload.spec.nodeName ?? "the nested scene"} already exists (its layers are inside) — using it`,
-        );
-        return;
-      }
+    // The nest from the recording may still be live (same-scene replay).
+    // Without sources it is simply adopted. With sources the host is asked
+    // first — but the real host cannot move layers into a scene layer
+    // (docs/limitations.md), and rebuilding a second, empty "Nested Scene 1"
+    // next to the real one is worse than using the real one: trace
+    // 2026-09-05T16-43-18 replayed with one unrelated layer selected and
+    // left an orphaned duplicate behind.
+    const already = resolveLayer({ id: payload.spec.nodeId });
+    const adopt = (): void => {
+      playback.layerByRecordedId.set(payload.spec.nodeId, already);
+      notes.push(
+        `${payload.spec.nodeName ?? "the nested scene"} already exists (its layers are inside) — using it`,
+      );
+    };
+    if (resolved.length === 0 && already) {
+      adopt();
+      return;
     }
     if (resolved.length > 0) {
       const created = nestIntoNewScene(scene, resolved);
@@ -664,10 +672,16 @@ function applySceneOp(
         return;
       }
     }
+    if (already) {
+      notes.push("couldn't move the layers into a new scene layer");
+      adopt();
+      return;
+    }
     notes.push(
       "couldn't move the layers into a new scene layer — rebuilt it from the recording instead",
     );
-    createLayerFromSpec(scene, payload.spec as NodeSnapshot, notes);
+    const rebuilt = createLayerFromSpec(scene, payload.spec as NodeSnapshot, notes);
+    if (rebuilt) playback.layerByRecordedId.set(payload.spec.nodeId, rebuilt);
     return;
   }
 

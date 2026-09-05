@@ -13,8 +13,8 @@ export interface RecordingSession {
   debug: boolean;
   /** Debug: the keyframe-surface probe has already run this session. */
   keyframeProbed?: boolean;
-  /** Any tick emitted a step this session — gates recordStop's
-   *  "recorded nothing" whole-session debug fallback. */
+  /** Any tick or keyframe capture emitted a step this session — gates
+   *  recordStop's "recorded nothing" whole-session debug fallback. */
   stepped?: boolean;
 }
 

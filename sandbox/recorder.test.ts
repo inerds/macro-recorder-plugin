@@ -90,6 +90,44 @@ describe("recordStop's whole-session debug fallback", () => {
     expect(result.debug?.prev).toEqual(result.debug?.next);
     expect(result.debug?.prev.layers[0]?.props.position?.static).toEqual({ x: 0, y: 0 });
   });
+
+  // Traces 2026-09-04T03-51-20-511_record.json and
+  // 2026-09-04T03-47-27-725_record.json (sandboxRev 2026-08-26.52): a
+  // debug session whose only steps came from record.captureKeyframes
+  // (scope "all") still gets the "recorded nothing" fallback, because
+  // recordCaptureKeyframes returns real MacroSteps but never sets
+  // recording.stepped (only collectDelta does). recordStop then staples the
+  // whole-session snapshot pair onto an empty final delta, and the trace
+  // claims the session dropped its diff even though captureKeyframes
+  // reported real steps.
+  it("does NOT attach the whole-session snapshot pair after record.captureKeyframes(scope 'all') returned steps (bug: recordCaptureKeyframes never sets recording.stepped)", async () => {
+    const nextId = makeIds();
+    const layer = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    layer.position.addKeyframes([
+      { frame: 0, value: { x: 0, y: 0 } },
+      { frame: 30, value: { x: 9, y: 9 } },
+    ]);
+    const scene = makeSceneRoot(nextId, [layer]);
+    stubCreator(scene);
+
+    const { recordCaptureKeyframes } = await import("./recorder");
+
+    recordStart({ debug: true });
+
+    const { steps } = recordCaptureKeyframes({ layerId: String(layer.id), scope: "all" });
+    expect(steps.length).toBeGreaterThan(0);
+
+    // No further edits happen — record.stop's own internal collectDelta()
+    // sees a quiet scene and produces zero steps, which is the condition the
+    // buggy fallback keys off.
+    const result = recordStop();
+
+    expect(result.steps).toEqual([]);
+    // This is the bug under test: the session recorded real keyframe-capture
+    // steps, so the "recorded nothing" fallback must not fire. Currently it
+    // does, because recordCaptureKeyframes never marks recording.stepped.
+    expect(result.debug).toBeUndefined();
+  });
 });
 
 describe("selection:keyframes event fallback", () => {

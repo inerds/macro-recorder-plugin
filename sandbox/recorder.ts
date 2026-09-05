@@ -626,6 +626,10 @@ export function recordCaptureKeyframes(params: {
   if (params.scope === "selected" && payloads.length === 0) {
     throw new Error(RPC_ERRORS.noSelectedKeyframes);
   }
+  // Captured steps are session steps too: recordStop's "recorded nothing"
+  // fallback must stay quiet after them (traces 2026-09-04T03-47-27 and
+  // 03-51-20 stapled a whole-session pair onto capture-only sessions).
+  if (payloads.length > 0) recording.stepped = true;
   return { steps: payloads.map(buildStep) };
 }
 

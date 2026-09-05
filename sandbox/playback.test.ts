@@ -677,6 +677,48 @@ describe("nest on the real host's shape (createSceneLayer creates EMPTY)", () =>
     // the shell was cleaned up: only the rebuilt layer remains
     expect(scene.layers.filter((l: Any) => l.type === "SCENE_LAYER")).toHaveLength(1);
   });
+
+  // Trace 2026-09-05T16-43-18-739_playback-Macro-2.json (sandboxRev 2026-09-06.1).
+  // Live scene before replay: [Rectangle 1 (Y7LSWt_LBl), Nested Scene 1 (WegPMSGo-7)],
+  // selection = [Rectangle 1] (unrelated to the macro's own nest). The real
+  // host's createSceneLayer() ignores that selection and produces an empty
+  // shell (quirk 8), which gets verified away and falls back to
+  // createLayerFromSpec — but the nested scene from the recording ALSO
+  // already exists under its recorded id, so that fallback duplicates it
+  // instead of adopting it. `resolved.length > 0` (a selection is present)
+  // currently skips the "already exists" check entirely, no matter whose
+  // layers are selected.
+  it("adopts the already-existing nested scene even when an unrelated layer is selected, instead of duplicating it", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const x = scene.addLayer(makeNode("Rectangle 1", {}, ids));
+    const rectForNest = scene.addLayer(makeNode("Rectangle 2", {}, ids));
+    const nested = nestExisting(scene, [rectForNest], "Nested Scene 1");
+    nested.id = "NEST";
+    stubCreator(scene, [x]); // selection is unrelated to the recorded nest
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "nest-layers",
+          layers: [{ id: "REC1", name: "Rectangle 2" }],
+          spec: {
+            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 1",
+            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+          },
+        }),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+    expect(r0.failures).toEqual([]);
+    // exactly one SCENE_LAYER should remain — the pre-existing nest, not a
+    // duplicate rebuilt from the spec.
+    const instances = scene.layers.filter((l: Any) => l.type === "SCENE_LAYER");
+    expect(instances).toHaveLength(1);
+    expect(instances[0]).toBe(nested);
+    // wording may be tuned; the substance is "found the existing nest, used it"
+    expect((r0.notes ?? []).some((n: Any) => n.message.includes("already exists"))).toBe(true);
+  });
 });
 
 describe("apply at playhead + stagger", () => {

@@ -396,6 +396,8 @@ likely to meet these:
   keyframes.
 - **Nesting selected layers into a scene** cannot be replayed, because no API
   route moves existing layers into a scene. The step reports itself honestly.
+  In the scene the macro was recorded in, the step uses the nested scene that
+  already exists instead of building an empty copy next to it.
 - Layer-reorder replay is live-verified: the macro records which layers it
   reordered, and replay checks them before it moves anything. Mask creation on
   replay is fixed in this build, and a live session has not re-verified it

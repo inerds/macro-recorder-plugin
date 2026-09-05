@@ -6,6 +6,9 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- Replaying a nest-layers step in the scene it was recorded in no longer
+  leaves a second, empty copy of the nested scene behind when something else
+  is selected. The step uses the nested scene that already exists and says so.
 - A macro step that nests layers now says plainly when Creator could not move
   the layers into a new scene layer, and that the nested scene was rebuilt
   from the recording instead.

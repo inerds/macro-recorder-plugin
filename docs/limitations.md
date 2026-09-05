@@ -238,14 +238,16 @@ Early replays produced an empty nested scene.
 - Creator's own UI nest action clearly has a path, but Creator does not expose
   it under any typed name.
 
-**Current engine behavior (rev 2026-09-06.1):** `nestIntoNewScene`
+**Current engine behavior (rev 2026-09-06.2):** `nestIntoNewScene`
 (`sandbox/playback.ts`) sets `creator.selection.nodes` to the layers, calls
 `scene.createSceneLayer()`, and verifies the result — the created layer must
 contain the layers, or the top-level layer list must have shrunk. If neither
-holds, the engine removes the empty shell and returns undefined, so the macro
-falls back to a rebuild of the recorded scene layer with the note "couldn't
-move the layers into a new scene layer — rebuilt it from the recording
-instead". The dead rungs are gone: `createSceneInstance` never existed, `createSceneLayer(layers)`
+holds, the engine removes the empty shell and returns undefined. The macro
+then adopts the nested scene from the recording when it is still live in the
+scene (same-scene replay), with the note "already exists (its layers are
+inside) — using it"; only when no such nest exists does it fall back to a
+rebuild of the recorded scene layer, with the note "couldn't move the layers
+into a new scene layer — rebuilt it from the recording instead". The dead rungs are gone: `createSceneInstance` never existed, `createSceneLayer(layers)`
 is typed as an options object, and the per-layer `shiftTo(created)` attempt is
 removed because `shiftTo` takes a frame — a node argument could coerce and
 retime the layer instead of throwing.
