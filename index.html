@@ -7,23 +7,37 @@
     <script>
       // Pre-React theme catch (the official ThemeProvider sync pattern):
       // the sandbox relays Creator's theme as { type: "change:theme",
-      // tokens, themeName }; painting --host-frame-bg on <html> here means
-      // the gutter never flashes the dark CSS fallback in a light-theme
-      // Creator while the bundle loads. KEEP the resolution chain in sync
-      // with ui/theme/useHostBackground.ts.
+      // tokens, themeName, isLight }; painting --host-frame-bg on <html>
+      // here means the gutter never flashes the dark CSS fallback in a
+      // light-theme Creator while the bundle loads. KEEP the resolution
+      // chain in sync with ui/theme/useHostBackground.ts.
       addEventListener("message", function (event) {
+        // Only the host frame speaks for the theme. Any other window — a
+        // sibling iframe, an opener, an embedded ad on the host page — is
+        // just an untrusted stranger able to repaint our chrome.
+        if (event.source !== window.parent) return;
         var data = event.data && (event.data.pluginMessage || event.data);
         if (!data || data.type !== "change:theme") return;
         var tokens = data.tokens || {};
         var bg =
           tokens["--background"] || tokens["background"] ||
           tokens["--base"] || tokens["base"] ||
-          (typeof data.themeName === "string" && /light/i.test(data.themeName)
-            ? "hsl(0 0% 100%)"
-            : typeof data.themeName === "string" && /dark/i.test(data.themeName)
-              ? "hsl(198 16.7% 11.8%)"
-              : null);
-        if (bg) document.documentElement.style.setProperty("--host-frame-bg", bg);
+          (typeof data.isLight === "boolean"
+            ? data.isLight
+              ? "hsl(0 0% 100%)"
+              : "hsl(198 16.7% 11.8%)"
+            : typeof data.themeName === "string" && /light/i.test(data.themeName)
+              ? "hsl(0 0% 100%)"
+              : typeof data.themeName === "string" && /dark/i.test(data.themeName)
+                ? "hsl(198 16.7% 11.8%)"
+                : null);
+        if (!bg) return;
+        // A pushed token is a string from another window: hand it to the
+        // parser before it reaches a style declaration.
+        if (typeof CSS !== "undefined" && CSS && typeof CSS.supports === "function") {
+          if (!CSS.supports("background-color", bg)) return;
+        }
+        document.documentElement.style.setProperty("--host-frame-bg", bg);
       });
     </script>
   </head>

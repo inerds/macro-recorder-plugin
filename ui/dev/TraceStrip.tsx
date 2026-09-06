@@ -1,3 +1,4 @@
+import { cn } from "@lottiefiles/creator-plugins-ui";
 import { useEffect, useState } from "react";
 
 import { trace, type TraceStatus } from "./trace";
@@ -39,9 +40,10 @@ export function TraceStrip({ kind }: { kind: "rpc" | "mock" }) {
   return (
     <div className="flex items-center gap-2 text-10 text-muted-foreground">
       <span
-        className={`inline-block size-1.5 rounded-full ${
-          status.lastError ? "bg-destructive" : "bg-[color:var(--lamp-amber)]"
-        }`}
+        className={cn(
+          "inline-block size-1.5 rounded-full",
+          status.lastError ? "bg-destructive" : "bg-[color:var(--lamp-amber)]",
+        )}
         aria-hidden
       />
       <span className="instrument">{kind === "rpc" ? "engine" : "mock"}</span>

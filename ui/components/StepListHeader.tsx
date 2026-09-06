@@ -1,3 +1,5 @@
+import { cn } from "@lottiefiles/creator-plugins-ui";
+
 import { sharedLayerName } from "../../engine/labels";
 import type { MacroStep } from "../types";
 import { SimplifyButton } from "./SimplifyButton";
@@ -38,7 +40,7 @@ export function StepListHeader({
   const count = `Steps (${steps.length})`;
   const heading = layer ? `${count} on ${layer}` : count;
   return (
-    <div className={`mb-1.5 flex flex-col gap-0.5 px-2 ${className}`}>
+    <div className={cn("mb-1.5 flex flex-col gap-0.5 px-2", className)}>
       <div className="flex items-center justify-between gap-2">
         <p
           className="instrument min-w-0 flex-1 truncate"

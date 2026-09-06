@@ -29,6 +29,12 @@ export interface GatewaysBundle extends Gateways {
 const HANDSHAKE_ATTEMPT_MS = 150;
 const HANDSHAKE_ATTEMPTS = 4;
 
+/** Background re-handshake: brisk while the sandbox is probably still
+ *  booting, then a slow heartbeat that costs one postMessage per tick. */
+const REHANDSHAKE_FAST_MS = 1_000;
+const REHANDSHAKE_FAST_WINDOW_MS = 20_000;
+const REHANDSHAKE_SLOW_MS = 5_000;
+
 async function handshake(
   rpc: RpcClient,
 ): Promise<{ connected: boolean; staleEngine?: { sandboxRev: string; uiRev: string } }> {
@@ -55,6 +61,52 @@ async function handshake(
 }
 
 /**
+ * Keep asking for `hello` after the fallback to mocks, and reboot onto the
+ * real engine the moment the sandbox answers.
+ *
+ * The `sandbox-ready` notify below cannot cover this inside Creator: the
+ * sandbox posts it at plugin-eval time, when the iframe does not exist yet,
+ * so the host drops it — the only host that ever delivers it is one that
+ * re-evaluates plugin.js under a live iframe. A UI that lost the ~600 ms
+ * race (a cold sandbox, a slow first paint) otherwise sits in demo mode for
+ * the whole session with nothing but a manual plugin reload to get out.
+ *
+ * Only a UI inside a frame retries. A standalone tab (`pnpm dev` at :5173,
+ * sandbox-test.html) has no host above it and its mocks are the point, so
+ * polling there would be a timer that can never succeed. There is no
+ * "use the mocks" dev-strip setting to honour — mock mode is only ever
+ * reached by this handshake failing.
+ */
+function retryHandshake(rpc: RpcClient): void {
+  if (window.self === window.top) return;
+  const startedAt = Date.now();
+  let stopped = false;
+  const tick = () => {
+    if (stopped) return;
+    rpc.call("hello", {}, HANDSHAKE_ATTEMPT_MS).then(
+      () => {
+        // Same recovery as `sandbox-ready`: the gateway choice is made once,
+        // before the first render, so a reload is what swaps it.
+        stopped = true;
+        window.location.reload();
+      },
+      () => {
+        if (stopped) return;
+        const elapsed = Date.now() - startedAt;
+        const delay =
+          elapsed < REHANDSHAKE_FAST_WINDOW_MS ? REHANDSHAKE_FAST_MS : REHANDSHAKE_SLOW_MS;
+        window.setTimeout(tick, delay);
+      },
+    );
+  };
+  window.setTimeout(tick, REHANDSHAKE_FAST_MS);
+  // Nothing to reload once the page is going away.
+  window.addEventListener("pagehide", () => {
+    stopped = true;
+  });
+}
+
+/**
  * Single seam between the UI and the engine. Inside Creator the plugin
  * sandbox answers the handshake → real RPC gateways; standalone (browser
  * tab, sandbox-test.html) it times out → mocks + DebugStrip.
@@ -78,6 +130,7 @@ export async function createGateways(): Promise<GatewaysBundle> {
   rpc.onNotify((event) => {
     if (event === "sandbox-ready") window.location.reload();
   });
+  retryHandshake(rpc);
 
   const mockRecorder = new MockRecorderGateway();
   const mockPlayback = new MockPlaybackGateway();

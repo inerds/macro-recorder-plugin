@@ -1,4 +1,4 @@
-import { Button, Input } from "@lottiefiles/creator-plugins-ui";
+import { Button, cn, Input } from "@lottiefiles/creator-plugins-ui";
 import { Check, ChevronRight, Play, Square } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
@@ -129,14 +129,15 @@ export function MacroRow({
 
   return (
     <li
-      className={`rack-row ${expanded ? "rack-row-open" : ""} ${justPlayed ? "success-flash" : ""}`}
+      className={cn("rack-row", expanded && "rack-row-open", justPlayed && "success-flash")}
       data-testid="macro-row"
     >
       {renaming ? (
         <div
-          className={`flex items-center gap-1 px-1.5 py-1 ${
-            expanded ? "border-b border-dotted border-border" : ""
-          }`}
+          className={cn(
+            "flex items-center gap-1 px-1.5 py-1",
+            expanded && "border-b border-dotted border-border",
+          )}
         >
           {/* The row keeps its place in the rack while it is renamed — the
               number is the row's address, not a decoration of its name. */}
@@ -180,9 +181,10 @@ export function MacroRow({
         </div>
       ) : (
         <div
-          className={`flex items-center gap-1 px-1.5 py-1 ${
-            expanded ? "border-b border-dotted border-border" : ""
-          }`}
+          className={cn(
+            "flex items-center gap-1 px-1.5 py-1",
+            expanded && "border-b border-dotted border-border",
+          )}
         >
           {/* Outside the disclosure on purpose: the button's accessible name
               is the macro, not a catalogue number. */}
@@ -198,9 +200,10 @@ export function MacroRow({
             onClick={onToggleExpand}
           >
             <ChevronRight
-              className={`me-0.5 size-3 shrink-0 text-muted-foreground/70 transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
-                expanded ? "rotate-90" : ""
-              }`}
+              className={cn(
+                "me-0.5 size-3 shrink-0 text-muted-foreground/70 transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+                expanded && "rotate-90",
+              )}
               strokeWidth={2.5}
               aria-hidden
             />
@@ -252,9 +255,10 @@ export function MacroRow({
           >
             {isPlayingThis ? (
               <Square
-                className={`size-3 fill-current ${
-                  errorPaused ? "" : "text-[color:var(--ink-red-text)]"
-                }`}
+                className={cn(
+                  "size-3 fill-current",
+                  !errorPaused && "text-[color:var(--ink-red-text)]",
+                )}
                 strokeWidth={2.5}
               />
             ) : (

@@ -1,4 +1,5 @@
 import {
+  cn,
   ThemeProvider,
   ToastProvider,
   useToast,
@@ -91,7 +92,10 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
       : undefined;
 
   return (
-    <ThemeProvider tokens={VINTAGE_TOKENS}>
+    // The panel wears ONE skin and never flips, so the provider is told what
+    // that skin is called: `useTheme().themeName` is the only way anything
+    // downstream can name it, and an unnamed provider reports `undefined`.
+    <ThemeProvider tokens={VINTAGE_TOKENS} themeName="vintage">
       {/* The plate sits on Creator's own chrome — see .host-frame in index.css. */}
       <div
         className="host-frame"
@@ -173,9 +177,10 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
             // whole row of chrome that footer cost. Its other job, clearing
             // the bottom-centre toast, moves to this <main> directly.
             <main
-              className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
-                toasts.length > 0 ? "pb-12" : ""
-              }`}
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+                toasts.length > 0 && "pb-12",
+              )}
             >
               <MacroList
                 playing={state.mode === "playing" ? state.playing : null}

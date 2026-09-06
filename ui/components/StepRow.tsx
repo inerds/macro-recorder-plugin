@@ -1,3 +1,4 @@
+import { cn } from "@lottiefiles/creator-plugins-ui";
 import {
   Check,
   Circle,
@@ -156,15 +157,16 @@ export function StepRow({
 
   return (
     <li
-      className={`group relative flex min-h-[26px] items-center gap-1.5 px-2 text-12 ${
+      className={cn(
+        "group relative flex min-h-[26px] items-center gap-1.5 px-2 text-12",
         // A failed step is marked, not current: it keeps the row's own ground
         // and swaps the inset bar to the small-text red.
         status === "failed"
           ? "bg-inherit text-foreground shadow-[inset_2px_0_0_var(--ink-red-text)]"
           : active
             ? "bg-accent text-accent-foreground shadow-[inset_2px_0_0_var(--primary)]"
-            : "bg-inherit text-foreground"
-      }`}
+            : "bg-inherit text-foreground",
+      )}
       aria-current={active ? "step" : undefined}
       data-status={status}
       data-testid="step-row"
@@ -187,9 +189,10 @@ export function StepRow({
         )}
       </span>
       <Icon
-        className={`size-3.5 shrink-0 ${
-          disabled ? "text-muted-foreground/70" : "text-muted-foreground"
-        }`}
+        className={cn(
+          "size-3.5 shrink-0",
+          disabled ? "text-muted-foreground/70" : "text-muted-foreground",
+        )}
         // 2px, not 2.5 — the icon carries the 12px regular label's weight.
         strokeWidth={2}
         aria-hidden
@@ -234,9 +237,11 @@ export function StepRow({
         </span>
       ) : (
         <span
-          className={`flex min-w-0 flex-1 items-baseline ${
-            disabled ? "text-muted-foreground line-through" : ""
-          } ${laneAtRest ? "pe-14" : ""}`}
+          className={cn(
+            "flex min-w-0 flex-1 items-baseline",
+            disabled && "text-muted-foreground line-through",
+            laneAtRest && "pe-14",
+          )}
           title={step.label}
         >
           {/* The row shows the PROPERTY and the RESULT. The value it
@@ -279,13 +284,14 @@ export function StepRow({
       {/* Absent entirely in the recording feed, where there is nothing to
           reveal. */}
       {!editing && hasActions && (
-        <span className={`${LANE_CLASS} ${laneAtRest ? LANE_SHOWN : LANE_HIDDEN}`}>
+        <span className={cn(LANE_CLASS, laneAtRest ? LANE_SHOWN : LANE_HIDDEN)}>
           {onToggleParam && editable && (
             <button
               type="button"
-              className={`${ACTION_CLASS} ${
-                param ? "w-6 pointer-events-auto opacity-100 text-foreground" : ""
-              }`}
+              className={cn(
+                ACTION_CLASS,
+                param && "w-6 pointer-events-auto opacity-100 text-foreground",
+              )}
               aria-pressed={param === true}
               aria-label={`Ask for step ${index + 1}'s value on every play`}
               title={`Ask for step ${index + 1}'s value on every play`}
@@ -315,9 +321,10 @@ export function StepRow({
           {onToggle && (
             <button
               type="button"
-              className={`${ACTION_CLASS} ${
-                disabled ? "w-6 pointer-events-auto opacity-100" : ""
-              }`}
+              className={cn(
+                ACTION_CLASS,
+                disabled && "w-6 pointer-events-auto opacity-100",
+              )}
               aria-pressed={disabled}
               aria-label={`Skip step ${index + 1} during playback`}
               title={`Skip step ${index + 1} during playback`}

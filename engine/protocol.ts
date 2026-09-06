@@ -104,7 +104,14 @@ export interface PlaybackStepDebug {
 export interface RpcContracts {
   hello: {
     params: Record<string, never>;
-    result: { protocolVersion: number; rev?: string };
+    result: {
+      protocolVersion: number;
+      rev?: string;
+      /** Bytes this plugin's clientStorage holds, when the host can say —
+       *  `creator.clientStorage.usedQuota` is feature-detected, so a host
+       *  without it simply omits this. No UI reads it yet. */
+      usedQuota?: number;
+    };
   };
   "store.list": { params: Record<string, never>; result: Macro[] };
   "store.save": { params: { macro: Macro }; result: null };

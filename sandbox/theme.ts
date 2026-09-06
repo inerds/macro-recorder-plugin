@@ -12,22 +12,26 @@
  * predates the surface never sends the message and the UI keeps its dark
  * fallback. Absence is a normal outcome, not an error.
  *
- * `ThemeTokens` also carries `isLight`, which no UI consumer reads today; the
- * posted message keeps its established shape.
+ * `ThemeTokens` also carries `isLight` — the host's own answer to the only
+ * question the UI asks of the theme (which way does the gutter go?). It is
+ * relayed alongside the tokens so the UI never has to read "dark" out of a
+ * theme NAME when the host already knows.
  */
 
 interface HostTheme {
   tokens?: Record<string, string>;
   themeName?: string;
+  isLight?: boolean;
 }
 
 function asHostTheme(value: unknown): HostTheme | null {
   if (!value || typeof value !== "object") return null;
-  const { tokens, themeName } = value as HostTheme;
+  const { tokens, themeName, isLight } = value as HostTheme;
   const out: HostTheme = {};
   if (tokens && typeof tokens === "object") out.tokens = tokens;
   if (typeof themeName === "string") out.themeName = themeName;
-  return out.tokens || out.themeName ? out : null;
+  if (typeof isLight === "boolean") out.isLight = isLight;
+  return out.tokens || out.themeName || out.isLight !== undefined ? out : null;
 }
 
 function post(theme: HostTheme): void {
@@ -36,6 +40,7 @@ function post(theme: HostTheme): void {
       type: "change:theme",
       tokens: theme.tokens,
       themeName: theme.themeName,
+      isLight: theme.isLight,
     });
   } catch {
     // iframe not up yet — the hello-handshake resend covers the normal boot

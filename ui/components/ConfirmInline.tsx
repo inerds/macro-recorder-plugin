@@ -1,5 +1,5 @@
 import { Button } from "@lottiefiles/creator-plugins-ui";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef } from "react";
 
 export interface ConfirmInlineProps {
   message: string;
@@ -22,6 +22,31 @@ export function ConfirmInline({
   destructive = true,
 }: ConfirmInlineProps) {
   const messageId = useId();
+  const groupRef = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+
+  // This prompt appears in place and takes focus (the Cancel key autofocuses),
+  // so it also has to give focus back: when it goes away, whatever the user
+  // was on before it opened gets the caret again instead of the document.
+  useEffect(() => {
+    const active = document.activeElement;
+    returnFocus.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    return () => {
+      const group = groupRef.current;
+      // StrictMode double-invokes mount effects, and that cleanup runs while
+      // the prompt is still on screen — a real unmount has already detached
+      // it. Restoring on the first would just undo the autoFocus.
+      if (!group || group.isConnected) return;
+      const previous = returnFocus.current;
+      if (!previous || !previous.isConnected) return;
+      // Restore only if this prompt still owned focus: either it is still
+      // inside the group, or the browser dropped it to <body> when the
+      // focused key was removed. Focus that moved on elsewhere is left alone.
+      const focused = document.activeElement;
+      if (focused && focused !== document.body && !group.contains(focused)) return;
+      previous.focus();
+    };
+  }, []);
 
   // Escape cancels from anywhere while this is up — the keypress rarely
   // happens inside the two buttons.
@@ -35,6 +60,7 @@ export function ConfirmInline({
 
   return (
     <div
+      ref={groupRef}
       className="inline-enter flex flex-col gap-2 rounded-[10px] border border-border bg-muted p-2 shadow-[0_1px_2px_-1px_rgba(42,38,35,0.12),0_2px_6px_-2px_rgba(42,38,35,0.16)]"
       role="group"
       aria-labelledby={messageId}

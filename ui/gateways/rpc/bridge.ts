@@ -40,6 +40,11 @@ export class RpcClient {
   }
 
   private onMessage = (event: MessageEvent) => {
+    // Every request goes out to `parent`, so every answer must come back from
+    // it. Any other window — a sibling iframe, an opener, anything embedded
+    // beside us on the host page — can otherwise resolve our pending calls
+    // with a forged result, and the RPC layer has no other authentication.
+    if (event.source !== window.parent) return;
     const message: unknown = (event.data as { pluginMessage?: unknown } | null)?.pluginMessage;
     if (!isRpcMessage(message)) return;
     if (message.t === "notify") {
