@@ -393,12 +393,17 @@ function staticOf(snap: { static?: Json } | undefined, fallback: Json = null): J
   return snap?.static ?? fallback;
 }
 
-/** PaintSnapshot -> the plain spec Creator's addFill/createFill accepts. */
+/**
+ * PaintSnapshot -> the plain spec Creator's createFill accepts.
+ *
+ * `opacity` is deliberately NOT emitted. No paint carries it
+ * (docs/limitations.md) — a recording can only ever have recovered one from
+ * the raw document — and 1.0.1's PaintOptions has no such key, so passing it
+ * makes the host reject the whole create with "✗ Invalid input".
+ */
 function paintSpec(spec: PaintSnapshot): Record<string, Json> {
   if (spec.kind === "solid") {
-    const out: Record<string, Json> = { type: "SOLID", color: staticOf(spec.color) };
-    if (spec.opacity) out.opacity = staticOf(spec.opacity, 100);
-    return out;
+    return { type: "SOLID", color: staticOf(spec.color) };
   }
   if (spec.kind === "gradient") {
     const out: Record<string, Json> = {
@@ -409,11 +414,12 @@ function paintSpec(spec: PaintSnapshot): Record<string, Json> {
     if (spec.end) out.end = staticOf(spec.end);
     if (spec.highlightAngle) out.highlightAngle = staticOf(spec.highlightAngle);
     if (spec.highlightLength) out.highlightLength = staticOf(spec.highlightLength);
-    if (spec.opacity) out.opacity = staticOf(spec.opacity, 100);
     return out;
   }
   throw new Error("this fill can't be re-created (unknown kind)");
 }
+
+const SINGULAR_MARKERS: Record<string, string> = { fills: "fill", strokes: "stroke" };
 
 /**
  * Removes an entry from fills/strokes/masks. Removal lives on the ENTRY, not
@@ -424,11 +430,29 @@ function paintSpec(spec: PaintSnapshot): Record<string, Json> {
  * too, so there is nothing left to probe for.
  *
  * The list is re-read afterwards: a remove() that quietly does nothing must
- * report a miss, never a silent success.
+ * report a miss, never a silent success. A text layer keeps its ONE fill and
+ * ONE stroke as singular accessors instead of lists, so those are addressed
+ * through `SINGULAR_MARKERS`.
  */
 function removeListEntry(container: AnyProxy, marker: string, index: number): boolean {
   const list = tryRead(() => container[marker]);
-  const entry = Array.isArray(list) ? list[index] : undefined;
+  if (!Array.isArray(list)) {
+    // Text layers keep ONE fill and ONE stroke, as singular accessors rather
+    // than lists (1.0.1 TextLayer, runtime-api quirk 9). The engine models
+    // them as a one-item list, so only index 0 can address them.
+    const singular = SINGULAR_MARKERS[marker];
+    if (singular === undefined || index !== 0) return false;
+    const only = tryRead(() => container[singular]);
+    if (!only || typeof only.remove !== "function") return false;
+    try {
+      only.remove();
+    } catch {
+      return false;
+    }
+    const after = tryRead(() => container[singular]);
+    return after === undefined || after === null;
+  }
+  const entry = list[index];
   if (entry && typeof entry.remove === "function") {
     try {
       const before = list.length;
@@ -442,24 +466,21 @@ function removeListEntry(container: AnyProxy, marker: string, index: number): bo
   return false;
 }
 
+/**
+ * Creation goes through `createFill` alone. The container-level `addFill` that
+ * the 0.0.2 typings promised never existed at runtime and is gone from 1.0.1
+ * (docs/runtime-api.md, "Removed from the typings"), so probing for it only
+ * ever misled. A text layer's `createFill` updates its single fill in place.
+ */
 function addPaintTo(container: AnyProxy, spec: PaintSnapshot): void {
-  const plain = paintSpec(spec);
-  if (typeof container.addFill === "function") {
-    container.addFill(plain);
-    return;
+  if (typeof container.createFill !== "function") {
+    throw new Error("this layer can't take fills");
   }
-  if (typeof container.createFill === "function") {
-    container.createFill(plain);
-    return;
-  }
-  throw new Error("this layer can't take fills");
+  container.createFill(paintSpec(spec));
 }
 
 function canCreatePaint(container: AnyProxy): boolean {
-  return (
-    typeof tryRead(() => container?.addFill) === "function" ||
-    typeof tryRead(() => container?.createFill) === "function"
-  );
+  return typeof tryRead(() => container?.createFill) === "function";
 }
 
 /** One spec component written onto an existing paint prop's staticValue. */
@@ -588,9 +609,7 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: string[
   }
   for (const stroke of spec.strokes) {
     try {
-      if (typeof node.addStroke === "function") {
-        node.addStroke({ width: staticOf(stroke.width, 1), fill: paintSpec(stroke.fill) });
-      } else if (typeof node.createStroke === "function") {
+      if (typeof node.createStroke === "function") {
         node.createStroke({ width: staticOf(stroke.width, 1), fill: paintSpec(stroke.fill) });
       }
     } catch {
@@ -650,24 +669,22 @@ export function createShapeFrom(parent: AnyProxy, spec: NodeSnapshot, notes: str
       notes.push("group had no re-creatable shapes — skipped");
       return;
     }
-    const group = parent.createGroup(created);
-    if (spec.nodeName) {
-      try {
-        group.name = spec.nodeName;
-      } catch {
-        // cosmetic
-      }
+    // 1.0.1 takes GroupOptions, not a bare array: `createGroup(created)` left
+    // `opts.shapes` undefined, so the host built an EMPTY group and the shapes
+    // stayed loose on the layer.
+    const group = parent.createGroup({ shapes: created });
+    if (!group) {
+      notes.push("this layer couldn't create the group — its shapes stayed loose");
+      return;
     }
-    for (const [name, snap] of Object.entries(spec.props)) {
-      seedAnimatable(tryRead(() => group[name]), snap);
+    const inside = tryRead(() => group.shapes);
+    if (!Array.isArray(inside) || inside.length === 0) {
+      notes.push("the group was created empty — its shapes stayed on this layer");
     }
-    for (const fill of spec.fills) {
-      try {
-        addPaintTo(group, fill);
-      } catch {
-        notes.push("created group couldn't take a recorded fill");
-      }
-    }
+    // The group's own name, props, fills, strokes, masks and trims all land
+    // through the ordinary node path. Its shapes are already in place above,
+    // so they are withheld here — re-creating them would duplicate them.
+    applyNodeSpec(group, { ...spec, shapes: [] }, notes);
     return;
   }
   const factoryName = SHAPE_FACTORIES[spec.nodeType];
@@ -916,13 +933,10 @@ export function applyStep(
           ? resolvePath(target, payload.path.slice(0, -2), undefined, notes)
           : target;
       const spec = { width: payload.spec.width, fill: paintSpec(payload.spec.fill) };
-      if (typeof container.addStroke === "function") {
-        container.addStroke(spec);
-      } else if (typeof container.createStroke === "function") {
-        container.createStroke(spec);
-      } else {
+      if (typeof container.createStroke !== "function") {
         throw new Error("this layer can't take strokes");
       }
+      container.createStroke(spec);
       return { notes };
     }
 
@@ -1229,10 +1243,7 @@ function convertFillToGradient(
   const container = resolved.container;
   const list = tryRead(() => container?.fills);
   if (!Array.isArray(list)) return undefined; // singular fill — adapt instead
-  const canAdd =
-    typeof tryRead(() => container.addFill) === "function" ||
-    typeof tryRead(() => container.createFill) === "function";
-  if (!canAdd) return undefined;
+  if (typeof tryRead(() => container.createFill) !== "function") return undefined;
   const spec: PaintSnapshot = {
     kind: "gradient",
     stops: { animated: false, static: Array.isArray(stopsValue) ? stopsValue : [] },
@@ -1240,9 +1251,7 @@ function convertFillToGradient(
   const removed = removeListEntry(container, "fills", resolved.index);
   let created: AnyProxy;
   try {
-    const byAdd = tryRead(() => container.addFill);
-    created =
-      typeof byAdd === "function" ? byAdd.call(container, paintSpec(spec)) : container.createFill(paintSpec(spec));
+    created = container.createFill(paintSpec(spec));
   } catch {
     notes.push("couldn't convert this layer's solid fill to a gradient");
     return undefined;
@@ -1430,6 +1439,27 @@ function applyPaintKeyframesFallback(
 export function readBaseline(target: AnyProxy, path: Path): Json | undefined {
   try {
     const prop = resolvePath(target, path);
+    // An animated property's staticValue is a stale leftover — the value the
+    // user sees is the one on the timeline. Relative playback measures the
+    // target against what it shows at the playhead, so read that when the
+    // property has keyframes (1.0.1 Animatable.getValueAt, live-verified).
+    if (hasKeyframes(prop) && typeof prop.getValueAt === "function") {
+      let frame: unknown;
+      try {
+        frame = (globalThis as AnyProxy).creator?.timeline?.currentFrame;
+      } catch {
+        frame = undefined;
+      }
+      try {
+        const at =
+          typeof frame === "number" && Number.isFinite(frame)
+            ? prop.getValueAt(frame)
+            : prop.getValueAt();
+        if (at !== undefined) return toJson(at);
+      } catch {
+        // fall back to the static value below
+      }
+    }
     return toJson(prop.staticValue);
   } catch {
     return undefined;

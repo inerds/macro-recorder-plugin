@@ -58,7 +58,7 @@ function makeDemoScene() {
       const at = scene.layers.indexOf(node);
       if (at >= 0) scene.layers.splice(at, 1);
     }
-    const instance = scene.addLayer(makeNode("Scene", { type: "SCENE_INSTANCE" }, nextId));
+    const instance = scene.addLayer(makeNode("Scene", { type: "SCENE_LAYER" }, nextId));
     instance.scene = { layers: nodes };
     instance.__setSceneContents(nodes);
     return instance;
@@ -71,11 +71,11 @@ function makeDemoScene() {
       nextId,
     ),
   );
-  hero.createRectangle({ size: { x: 160, y: 160 } });
+  hero.createRectangle({ size: { width: 160, height: 160 } });
   const orbit = scene.addLayer(
     makeNode(DEMO_LAYERS.orbit.name!, { props: { position: { x: 820, y: 300 } } }, nextId),
   );
-  orbit.createEllipse({ size: { x: 48, y: 48 } });
+  orbit.createEllipse({ size: { width: 48, height: 48 } });
   // named with its PRE-rename name on purpose: "Storyboard shuffle" is
   // recorded after the rename and must resolve through priorName
   const caption = scene.addLayer(
@@ -230,7 +230,10 @@ describe("what each demo macro actually does", () => {
     expect(title.type).toBe("TEXT_LAYER");
     expect(title.text).toBe("Ship it, then polish.");
     expect(title.fontSize).toBe(88);
-    expect(title.fills[0].color.staticValue).toEqual({ r: 255, g: 210, b: 92 });
+    // 1.0.1 TextLayer keeps ONE fill, as a singular accessor rather than a
+    // list (runtime-api quirk 9) — the engine models it as a one-item list.
+    expect(title.fills).toBeUndefined();
+    expect(title.fill.color.staticValue).toEqual({ r: 255, g: 210, b: 92 });
     expect(title.opacity.keyframes.map((k: Any) => k.frame)).toEqual([0, 20]);
   });
 
