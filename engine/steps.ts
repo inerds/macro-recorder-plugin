@@ -71,9 +71,12 @@ export type StepPayload =
   /** A scene instance was broken into its content layers. Replay calls the
    *  instance's break(); `fallback` rebuilds the results if it can't. */
   | { op: "break-scene"; layer: LayerRef; fallback: NodeSnapshot[] }
-  /** Layers were nested into a new scene layer. Replay resolves the layers,
-   *  points the selection at them, calls createSceneLayer() and verifies the
-   *  result; spec rebuilds the layer when the host won't move them. */
+  /** Layers were nested into a new scene layer. Creator has no API that moves
+   *  a layer into one, so replay REBUILDS a copy of each source inside the new
+   *  scene, verifies the copies by reading them back, and only then removes
+   *  the originals. The sources are the selection when there is one, the
+   *  recorded `layers` otherwise; `spec` reproduces the whole nest, content
+   *  included, when neither can be found. */
   | { op: "nest-layers"; layers: LayerRef[]; spec: NodeSnapshot }
   /** Scene layers were reordered. `order[newPos]` is the layer's previous
    *  index; `layers` (rev .52+) names those same layers IN THE NEW ORDER so

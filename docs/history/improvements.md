@@ -12,6 +12,19 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-07 — Nest by rebuild
+
+| Issue | Fix |
+|---|---|
+| **A nest step reported a success while the scene did not change.** Replay used the selected layers, `createSceneLayer()` returned an empty shell (`[nest] createSceneLayer() -> object, content=0, top=55`), verification failed, and the engine adopted the still-live recorded nest with the note "already exists (its layers are inside) — using it". Traces `2026-09-06T17-13-00-849_record.json`, `2026-09-06T17-13-19-190_playback-Macro-5.json`, and `2026-09-06T17-13-38-332_playback-Macro-5.json` (rev `2026-09-06.4`), with 26 layers selected and then 1. | Adoption is now the empty-selection path alone. A selection always rebuilds, and the notes say what happened: "nested the 3 selected layers (rebuilt inside the new scene — Creator can't move them)" or "couldn't rebuild your 3 selected layers inside a new scene — left them where they are" (ENGINE_REV `2026-09-07.1`). |
+| Creator exposes no API that moves a layer into a scene, so a nest step could only ever leave the layers where they were. | `nestByRebuild` (`sandbox/playback.ts`) rebuilds instead: it serializes each source with `serializeNode`, builds a copy inside the shell's own scene (route 1: `shell.scene.createShapeLayer` / `createTextLayer` / `createSceneLayer`), else creates the scene first with `creator.createScene()` and places it with `createSceneLayer({ scene })` (route 2). It verifies the copies by reads, moves the shell to the first source's slot, and removes the rebuilt originals. A miss removes the shell and leaves the originals. An `IMAGE_LAYER` source keeps its own skip note. |
+| `createLayerFromSpec` knew the shape primitives alone, so a rebuilt scene layer came back as an empty shell and every layer-typed child noted a skip. | It recurses for `SCENE_LAYER` specs: it applies the spec without `shapes` to the created layer, and then builds each layer child into `created.scene`. A shell with no factory notes "this scene layer has no scene to build into — its N layers were skipped". |
+| `engine/testing/fakeScene.ts` gave a scene layer no inner scene, so no test could exercise a rebuild. | A `SCENE_LAYER` node carries `makeInnerScene`: `layers`, `isNestableScene`, the three layer factories, `remove()`, and the same option-key validation as the other factories. The root's `createSceneLayer()` stays empty and selection-blind (quirk 8), so the fake is no more permissive than the host. `makeFakeScene(nextId)` replaces three hand-rolled roots. |
+| A nest step's scene summary told nothing about the new scene's content, and a scene of more than 25 layers dropped the entries that mattered from the probe. | Every scene-layer entry carries `inner: <count>`, and the nest step pins its spec id, its source ids, and the shell past the 25-entry cap. |
+| The `nest-layers` step read the raw step-time selection, so a selected shape became a nest source. | The step filters the selection through `isLayerNode`, as `playbackBegin` does. |
+
+---
+
 ## 2026-09-06 — Registry typings and the API review
 
 | Issue | Fix |

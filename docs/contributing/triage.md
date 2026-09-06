@@ -57,7 +57,18 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   selection and reports one `skipped — macros replay onto layers` note; and
   recording emits `set-scene` steps for the scene settings, a mask's `mode`,
   and a gradient's `gradientType`. A trace before those revs is silent about
-  each of them.
+  each of them. One fence at rev `2026-09-07.1`: a `nest-layers` step
+  rebuilds the layers inside the new scene, so its scene-summary entries
+  carry `inner: <count>` for a scene layer, and the probe pins the spec id,
+  the source ids, and the shell past the 25-entry cap. The notes are new
+  there too — `nested the 3 selected layers (rebuilt inside the new scene —
+  Creator can't move them)`, `an image layer can't be rebuilt inside the new
+  scene — left it where it was`, `couldn't rebuild your 3 selected layers
+  inside a new scene — left them where they are`, and `couldn't find the
+  layers to nest — rebuilt Nested Scene 5 from the recording instead`. A
+  `[nest] shell.scene.createShapeLayer` breadcrumb is the FIRST live evidence
+  for the inner-scene factories: report it, because `runtime-api.md` still
+  lists them as pending.
 
 ## The dev strip
 

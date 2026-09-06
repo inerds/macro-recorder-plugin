@@ -19,7 +19,7 @@ import { resolvePaint,
 } from "./applier";
 // (instance-content edits resolve strictly by index — user decision: layer
 // order, not shape-type matching, maps recorded content onto nested content)
-import { valueToJson } from "./serialize";
+import { serializeNode, valueToJson } from "./serialize";
 import { session } from "./session";
 
 type AnyProxy = any;
@@ -29,6 +29,13 @@ type AnyProxy = any;
  * to the debug payload. Never notes: the user can't act on them.
  */
 const breadcrumbs: string[] = [];
+
+/**
+ * Layer ids the current step's scene summary must report whatever the cap
+ * says. A nest step touches a handful of layers in a scene that can hold
+ * hundreds, and those are exactly the ones a trace needs to see.
+ */
+const pinned = new Set<string>();
 
 function tryRead<T>(fn: () => T): T | undefined {
   try {
@@ -335,19 +342,27 @@ const SCENE_SUMMARY_CAP = 25;
  * after. An ordered {id, name, type} list makes every one of them auditable.
  * Every read is guarded: a scene op often runs while nodes are being created
  * or destroyed, and any getter can throw.
+ *
+ * A scene layer also reports `inner`, the number of layers inside it — the
+ * one number that tells a nest from an empty shell. Layers the step itself
+ * touched are PINNED: they are reported even past the cap, because a 26-layer
+ * scene would otherwise hide the very layer the step created (traces
+ * 2026-09-07T01-13-19, 26 layers selected).
  */
 function sceneSummary(label: string): TargetProbe {
   const layers = sceneLayers();
   const entries: Json[] = [];
   for (const layer of layers) {
-    if (entries.length >= SCENE_SUMMARY_CAP) break;
-    const entry: Record<string, Json> = {};
     const id = tryRead(() => String(layer.id));
+    if (entries.length >= SCENE_SUMMARY_CAP && !(id !== undefined && pinned.has(id))) continue;
+    const entry: Record<string, Json> = {};
     if (id !== undefined) entry.id = id;
     const name = tryRead(() => toJson(layer.name));
     if (name !== undefined && name !== null) entry.name = name;
     const type = tryRead(() => String(layer.type));
     if (type !== undefined) entry.type = type;
+    const inside = tryRead(() => (layer as AnyProxy).scene?.layers);
+    if (Array.isArray(inside)) entry.inner = inside.length;
     entries.push(entry);
   }
   const probe: TargetProbe = {
@@ -381,6 +396,15 @@ function sceneSettingProbe(key: string, label: string): TargetProbe {
 // ---------------------------------------------------------------------------
 // Scene-mode layer resolution & scene ops
 // ---------------------------------------------------------------------------
+
+/** The current selection, defensively — the host may refuse the read. */
+function selectedNodes(): AnyProxy[] {
+  try {
+    return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
+  } catch {
+    return [];
+  }
+}
 
 function sceneLayers(): AnyProxy[] {
   const layers = tryRead(() => creator.activeScene?.layers);
@@ -441,7 +465,7 @@ function layerLabel(ref: LayerRef | undefined): string {
  * createShapeLayer produced the wrong kind of layer entirely ("create scene
  * is not working").
  */
-function createLayerFromSpec(
+export function createLayerFromSpec(
   scene: AnyProxy,
   spec: NodeSnapshot,
   notes: NoteList,
@@ -471,80 +495,321 @@ function createLayerFromSpec(
     return undefined;
   }
   const created = factory.call(scene);
+  // A scene layer's children are LAYERS, not shapes, so they cannot travel
+  // through applyNodeSpec's shape channel — that is what made every rebuilt
+  // nest an empty shell (docs/limitations.md, sub-finding of the 08-32-08
+  // replay). Build them with this same function, one level down, inside the
+  // new layer's own scene.
+  if (spec.nodeType.startsWith("SCENE")) {
+    applyNodeSpec(created, { ...spec, shapes: [] }, notes);
+    buildIntoSceneLayer(created, spec.shapes as NodeSnapshot[], notes);
+    return created;
+  }
   applyNodeSpec(created, spec, notes);
   return created;
 }
 
 /**
- * Nests `layers` into a new scene layer — as far as the host allows, which is
- * not far.
+ * Builds `children` as layers inside `sceneLayer`'s own scene.
+ *
+ * The inner scene and its factories are typed on 1.0.1 but not yet
+ * live-verified (docs/runtime-api.md), so the factory is feature-detected and
+ * a host without it gets a note instead of a silent empty nest.
+ */
+function buildIntoSceneLayer(
+  sceneLayer: AnyProxy,
+  children: NodeSnapshot[],
+  notes: NoteList,
+): AnyProxy[] {
+  if (children.length === 0) return [];
+  const inner = tryRead(() => sceneLayer.scene);
+  if (typeof tryRead(() => inner?.createShapeLayer) !== "function") {
+    notes.push(
+      `this scene layer has no scene to build into — its ${children.length} ${
+        children.length === 1 ? "layer was" : "layers were"
+      } skipped`,
+    );
+    return [];
+  }
+  const built: AnyProxy[] = [];
+  for (const child of children) {
+    const layer = createLayerFromSpec(inner, child, notes);
+    if (layer) built.push(layer);
+  }
+  return built;
+}
+
+/** What a successful `nestByRebuild` produced. */
+interface NestOutcome {
+  /** The new scene layer. */
+  shell: AnyProxy;
+  /** The host consumed the selection itself — nothing was copied or removed. */
+  moved: boolean;
+  /** Source index -> the layer that now stands for it inside the nest. */
+  nested: Map<number, AnyProxy>;
+  /** Sources that could not be rebuilt (image layers) and stayed put. */
+  skipped: number;
+}
+
+/** The layers inside a scene layer's own scene, or an empty list. */
+function innerLayers(sceneLayer: AnyProxy): AnyProxy[] {
+  const content = tryRead(() => sceneLayer?.scene?.layers);
+  return Array.isArray(content) ? [...content] : [];
+}
+
+/**
+ * Debug breadcrumb for one undocumented host call: these semantics are typed
+ * but not live-verified, so the attempt reports what actually came back and
+ * the trace pins the contract. Diagnostics, never a user-facing note.
+ */
+function describeNestCall(label: string, value: AnyProxy): void {
+  const kind =
+    value === undefined
+      ? "undefined"
+      : value === null
+        ? "null"
+        : typeof (value as { then?: unknown })?.then === "function"
+          ? "promise"
+          : typeof value;
+  breadcrumbs.push(
+    `[nest] ${label} -> ${kind}, content=${innerLayers(value).length}, top=${sceneLayers().length}`,
+  );
+}
+
+/** Keeps a live node in the scene summary past the cap, when it has an id. */
+function pinNode(node: AnyProxy): void {
+  const id = tryRead(() => String(node.id));
+  if (id !== undefined) pinned.add(id);
+}
+
+function removeQuietly(node: AnyProxy): void {
+  try {
+    node?.remove();
+  } catch {
+    // nothing else to try; the caller's note explains the result
+  }
+}
+
+/**
+ * Nests `sources` by REBUILDING them inside a new scene layer.
  *
  * There is no API that moves an existing layer into a scene layer (confirmed
- * limitation, docs/limitations.md). The typed `createSceneLayer(opts?)`
- * creates an EMPTY scene layer and does NOT consume the selection
- * (docs/runtime-api.md quirk 8, live-verified). Earlier revisions tried three
- * more guesses, all removed now that creator-api-types 1.0.1 settles them:
- *   - `scene.createSceneInstance(layers)` — never existed at runtime, and is
- *     gone from the typings too.
- *   - `createSceneLayer(layers)` — the parameter is SceneLayerCreateOptions
- *     (a source scene plus name/position/timing), not a layer list.
- *   - `layer.shiftTo(created)` / `shiftTo({ to })` — a genuine HAZARD, not
- *     just a dud. `shiftTo(frame: number)` is a TIME shift: it moves the
- *     layer's startFrame, endFrame, timelineOffset and every keyframe
- *     together. Those calls threw only because a node (or a `{to}` object) is
- *     not a number. With a coercible argument the host would silently RETIME
- *     the user's layer while pretending to nest it.
+ * limitation, docs/limitations.md): `createSceneLayer()` creates an EMPTY
+ * scene layer and does not consume the selection (docs/runtime-api.md quirk 8,
+ * live-verified), and the three older guesses — `createSceneInstance(layers)`,
+ * `createSceneLayer(layers)`, `shiftTo(node)` — are settled by 1.0.1 as
+ * non-existent, mistyped, or (for `shiftTo(frame: number)`) a HAZARD that
+ * would silently retime the user's layer.
  *
- * So: point the selection at the layers, make one call, and VERIFY. A layer
- * only counts as nested when it actually holds content (or the top-level list
- * shrank accordingly); an unverified empty shell is removed and `undefined`
- * sent back, which puts the caller on its rebuild-from-the-recording path.
+ * What IS available is the documented way to fill a nestable scene: build the
+ * layers inside it with the ordinary factories. So this reads each source with
+ * `serializeNode`, creates the shell, rebuilds a copy of each source inside
+ * it, verifies the copies by reading them back, and only then removes the
+ * originals. Any failure removes what it created and returns undefined, with
+ * the originals untouched.
+ *
+ * Two routes to a scene to build into, in this order:
+ *   1. the shell's own `scene` (1.0.1 `SceneLayer.scene: Scene`);
+ *   2. `creator.createScene()` plus `createSceneLayer({ scene })`.
+ * Both are feature-detected: 1.0.1 types them, no trace confirms them yet.
  */
-function nestIntoNewScene(scene: AnyProxy, layers: AnyProxy[]): AnyProxy | undefined {
-  const contentOf = (created: AnyProxy): AnyProxy[] => {
-    const content = tryRead(() => created.scene?.layers);
-    return Array.isArray(content) ? content : [];
-  };
-  const verified = (created: AnyProxy, topBefore: number): boolean =>
-    contentOf(created).length > 0 || sceneLayers().length <= topBefore - layers.length + 1;
-
+function nestByRebuild(
+  scene: AnyProxy,
+  sources: AnyProxy[],
+  spec: NodeSnapshot,
+  notes: NoteList,
+): NestOutcome | undefined {
   const layerFactory = tryRead(() => (scene as AnyProxy).createSceneLayer);
   if (typeof layerFactory !== "function") return undefined;
 
-  const describe = (label: string, value: AnyProxy) => {
-    // Debug breadcrumb: the host call semantics are undocumented; the attempt
-    // reports what actually came back so traces pin the contract.
-    // This is diagnostics, not a user-facing note — it goes to the trace.
-    const kind =
-      value === undefined
-        ? "undefined"
-        : typeof value?.then === "function"
-          ? "promise"
-          : typeof value;
-    breadcrumbs.push(
-      `[nest] ${label} -> ${kind}, content=${contentOf(value).length}, top=${sceneLayers().length}`,
+  // 1. Read the sources BEFORE anything changes. An image layer's content is
+  //    an asset the recording never captured, so no factory can rebuild it.
+  const buildable: { index: number; node: AnyProxy; snapshot: NodeSnapshot }[] = [];
+  let skipped = 0;
+  sources.forEach((node, index) => {
+    const snapshot = tryRead(() => serializeNode(node));
+    if (!snapshot || snapshot.nodeType === "IMAGE_LAYER") {
+      skipped += 1;
+      notes.push(
+        snapshot
+          ? "an image layer can't be rebuilt inside the new scene — left it where it was"
+          : `couldn't read ${tryRead(() => String(node.name)) ?? "a layer"} — left it where it was`,
+      );
+      return;
+    }
+    buildable.push({ index, node, snapshot });
+  });
+  // Nothing rebuildable means nothing to nest: do not leave an empty shell
+  // behind and call it a nest.
+  if (buildable.length === 0) return undefined;
+
+  // 2. Point the selection at the sources first: a host that ever starts
+  //    consuming it does the whole job for us, and this is the call.
+  try {
+    (creator.selection as AnyProxy).nodes = sources;
+  } catch {
+    // selection may not be assignable; the reads below decide the outcome
+  }
+  let shell = tryRead(() => layerFactory.call(scene));
+  describeNestCall("createSceneLayer()", shell);
+  if (!shell) return undefined;
+  pinNode(shell);
+
+  // The spec's TRANSFORM is deliberately withheld: it belongs to the nest the
+  // recording made, over different layers, and applying it here would move the
+  // user's content. Only the name and the plain flags carry over. (The
+  // spec-rebuild path in `createLayerFromSpec` applies everything, because
+  // there the spec IS the layer being reproduced.)
+  const dressShell = () =>
+    applyNodeSpec(
+      shell,
+      { ...spec, props: {}, fills: [], strokes: [], masks: [], trims: [], shapes: [] },
+      notes,
     );
+
+  const moved = innerLayers(shell);
+  if (moved.length > 0) {
+    // The host moved them. Nothing to rebuild, nothing to remove.
+    dressShell();
+    const nested = new Map<number, AnyProxy>();
+    moved.forEach((layer, i) => nested.set(i, layer));
+    return { shell, moved: true, nested, skipped: 0 };
+  }
+
+  // 3. Route 1: the shell's own scene.
+  let inner = tryRead(() => shell.scene);
+  let ownScene: AnyProxy | undefined;
+  describeNestCall("shell.scene.createShapeLayer", tryRead(() => inner?.createShapeLayer));
+  if (typeof tryRead(() => inner?.createShapeLayer) !== "function") {
+    // 4. Route 2: a scene of our own, attached through the create options.
+    removeQuietly(shell);
+    const opts: Record<string, Json> = {};
+    if (spec.nodeName) opts.name = spec.nodeName;
+    for (const key of ["size", "framerate", "duration"] as const) {
+      const value = tryRead(() => toJson((scene as AnyProxy)[key]));
+      if (value !== undefined && value !== null) opts[key] = value;
+    }
+    const factory = tryRead(() => (creator as AnyProxy).createScene);
+    if (typeof factory !== "function") return undefined;
+    ownScene = tryRead(() => factory.call(creator, opts));
+    describeNestCall("creator.createScene()", ownScene);
+    if (
+      !ownScene ||
+      typeof tryRead(() => ownScene!.createShapeLayer) !== "function" ||
+      tryRead(() => ownScene!.isNestableScene) === false
+    ) {
+      removeQuietly(ownScene);
+      return undefined;
+    }
+    shell = tryRead(() => layerFactory.call(scene, { scene: ownScene }));
+    describeNestCall("createSceneLayer({ scene })", shell);
+    if (!shell || tryRead(() => shell.scene) !== ownScene) {
+      removeQuietly(shell);
+      removeQuietly(ownScene);
+      return undefined;
+    }
+    pinNode(shell);
+    inner = ownScene;
+  }
+
+  const abandon = (): undefined => {
+    removeQuietly(shell);
+    if (ownScene) removeQuietly(ownScene);
+    return undefined;
   };
 
-  // Point the selection at our layers first: if the host ever starts
-  // consuming it, this is the call that would pick them up.
-  try {
-    (creator.selection as AnyProxy).nodes = layers;
-  } catch {
-    // selection may not be assignable; the outcome check below decides
+  // 5. Rebuild each source inside the new scene.
+  const copies: AnyProxy[] = [];
+  for (const entry of buildable) {
+    const copy = createLayerFromSpec(inner, entry.snapshot, notes);
+    if (!copy) return abandon();
+    copies.push(copy);
   }
-  const topBefore = sceneLayers().length;
-  const created = tryRead(() => layerFactory.call(scene));
-  describe("createSceneLayer()", created);
-  if (created) {
-    if (verified(created, topBefore)) return created;
+
+  // 6. Verify by READS, the same rule the rest of playback follows: a nest
+  //    that cannot be read back did not happen.
+  const inside = tryRead(() => inner?.layers);
+  if (!Array.isArray(inside) || inside.length < copies.length) return abandon();
+  // Membership by id first: a live host may hand out a fresh proxy on every
+  // read, so object identity is the fallback, not the rule.
+  const insideIds = new Set(
+    inside.map((layer: AnyProxy) => tryRead(() => String(layer.id))).filter(Boolean),
+  );
+  for (let i = 0; i < copies.length; i++) {
+    const snapshot = buildable[i]!.snapshot;
+    const copy = copies[i]!;
+    const copyId = tryRead(() => String(copy.id));
+    const present = copyId !== undefined ? insideIds.has(copyId) : inside.includes(copy);
+    if (!present) return abandon();
+    const shapes = tryRead(() => copy.shapes);
+    if (Array.isArray(shapes) && shapes.length !== snapshot.shapes.length) return abandon();
+    const text = snapshot.plain?.text;
+    if (typeof text === "string" && tryRead(() => copy.text) !== text) return abandon();
+  }
+
+  // 7. The nest takes the first source's slot, carries the recorded name and
+  //    flags, and the originals go.
+  const anchor = sources[0];
+  const moveBefore = tryRead(() => shell.moveBefore);
+  let placed = false;
+  if (typeof moveBefore === "function" && anchor !== undefined) {
     try {
-      created.remove();
-    } catch {
-      // leave the shell; the caller's fallback note explains the result
+      moveBefore.call(shell, anchor);
+      placed = true;
+    } catch (error) {
+      breadcrumbs.push(
+        `[nest] shell.moveBefore threw -> ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
-  return undefined;
+  if (!placed) notes.info("the new scene landed at the end of the layer list");
+  dressShell();
+
+  const nested = new Map<number, AnyProxy>();
+  buildable.forEach((entry, i) => {
+    nested.set(entry.index, copies[i]!);
+    const name = tryRead(() => String(entry.node.name)) ?? "a layer";
+    try {
+      entry.node.remove();
+    } catch {
+      notes.push(`couldn't remove ${name} after rebuilding it — you now have both`);
+    }
+  });
+  return { shell, moved: false, nested, skipped };
+}
+
+/**
+ * What the user is told a nest did.
+ *
+ * The parenthesis is not decoration: a rebuilt layer is a new layer with a new
+ * id, so a user who later looks for "the same layer" has to know that Creator
+ * would not move it and the plugin made a copy.
+ */
+function nestedNote(total: number, outcome: NestOutcome, fromSelection: boolean): string {
+  const built = total - outcome.skipped;
+  const suffix = outcome.moved ? "" : " (rebuilt inside the new scene — Creator can't move them)";
+  if (outcome.skipped > 0) {
+    const all = total === 1 ? "layer" : "layers";
+    return fromSelection
+      ? `nested ${built} of the ${total} selected ${all}${suffix}`
+      : `nested ${built} of ${total} ${all}${suffix}`;
+  }
+  const plural = built === 1 ? "layer" : "layers";
+  return fromSelection
+    ? `nested the ${built} selected ${plural}${suffix}`
+    : `nested ${built} ${plural}${suffix}`;
+}
+
+/** What the user is told when nothing could be rebuilt. The originals stayed. */
+function nestFailureNote(total: number, fromSelection: boolean): string {
+  if (fromSelection) {
+    return total === 1
+      ? "couldn't rebuild your selected layer inside a new scene — left it where it is"
+      : `couldn't rebuild your ${total} selected layers inside a new scene — left them where they are`;
+  }
+  return total === 1
+    ? "couldn't rebuild the layer inside a new scene — left it where it is"
+    : `couldn't rebuild the ${total} layers inside a new scene — left them where they are`;
 }
 
 /** Scene settings as a note says them — the API's camelCase is not English. */
@@ -711,76 +976,54 @@ function applySceneOp(
   if (payload.op === "nest-layers") {
     const playback = session.playback!;
     // The macro is a tool: with a selection, nest the SELECTED layers —
-    // that's what "run this on those two layers" means. Without one, replay
-    // still means DO IT: nest the recorded sources when they can be found at
-    // the top level, and only adopt the existing result when they can't
-    // (same-scene replay — they already live inside the nest).
-    const selection = ((): AnyProxy[] => {
-      try {
-        return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
-      } catch {
-        return [];
-      }
-    })();
-    const resolved =
+    // that's what "run this on those two layers" means. Shapes are dropped
+    // for the same reason `playbackBegin` drops them from its targets: a
+    // macro nests LAYERS. Without a selection, replay still means DO IT —
+    // nest the recorded sources when they can be found at the top level, and
+    // only adopt the existing result when they can't (same-scene replay: they
+    // already live inside the nest).
+    const selection = selectedNodes().filter((node) => isLayerNode(node));
+    const sources =
       selection.length > 0
         ? selection
         : payload.layers
             .map((ref) => resolveLayer(ref))
             .filter((layer): layer is AnyProxy => layer !== undefined);
-    if (selection.length > 0) {
-      notes.info(
-        `nesting the ${selection.length} selected ${
-          selection.length === 1 ? "layer" : "layers"
-        }`,
-      );
-    }
+    // Everything this step touches stays in the scene summary past the cap.
+    pinned.add(payload.spec.nodeId);
+    for (const ref of payload.layers) pinned.add(ref.id);
+    for (const node of sources) pinNode(node);
+
+    const nestName = payload.spec.nodeName ?? "the nested scene";
     // The nest from the recording may still be live (same-scene replay).
-    // Without sources it is simply adopted. With sources the host is asked
-    // first — but the real host cannot move layers into a scene layer
-    // (docs/limitations.md), and rebuilding a second, empty "Nested Scene 1"
-    // next to the real one is worse than using the real one: trace
-    // 2026-09-05T16-43-18 replayed with one unrelated layer selected and
-    // left an orphaned duplicate behind.
     const already = resolveLayer({ id: payload.spec.nodeId });
-    const adopt = (): void => {
-      playback.layerByRecordedId.set(payload.spec.nodeId, already);
-      notes.info(
-        `${payload.spec.nodeName ?? "the nested scene"} already exists (its layers are inside) — using it`,
-      );
-    };
-    if (resolved.length === 0 && already) {
-      adopt();
-      return;
-    }
-    if (resolved.length > 0) {
-      const created = nestIntoNewScene(scene, resolved);
-      if (created) {
-        playback.layerByRecordedId.set(payload.spec.nodeId, created);
-        if (payload.spec.nodeName) {
-          try {
-            created.name = payload.spec.nodeName;
-          } catch {
-            // cosmetic
-          }
-        }
-        const nested = resolved.length === 1 ? "layer" : "layers";
-        notes.info(
-          selection.length > 0
-            ? `nested the ${resolved.length} selected ${nested}`
-            : `nested ${resolved.length} ${nested}`,
-        );
+
+    if (sources.length > 0) {
+      const outcome = nestByRebuild(scene, sources, payload.spec as NodeSnapshot, notes);
+      if (outcome) {
+        playback.layerByRecordedId.set(payload.spec.nodeId, outcome.shell);
+        // A copy is a NEW layer with a new id, so every later step recorded
+        // against a source has to be pointed at the copy that replaced it.
+        payload.layers.forEach((ref, i) => {
+          const copy = outcome.nested.get(i);
+          if (copy) playback.layerByRecordedId.set(ref.id, copy);
+        });
+        notes.info(nestedNote(sources.length, outcome, selection.length > 0));
         return;
       }
-    }
-    if (already) {
-      notes.push("couldn't move the layers into a new scene layer");
-      adopt();
+      notes.push(nestFailureNote(sources.length, selection.length > 0));
+      // A live recorded nest still resolves the later steps. Silently: the
+      // note above already said the nest itself did not happen.
+      if (already) playback.layerByRecordedId.set(payload.spec.nodeId, already);
       return;
     }
-    notes.push(
-      "couldn't move the layers into a new scene layer — rebuilt it from the recording instead",
-    );
+
+    if (already) {
+      playback.layerByRecordedId.set(payload.spec.nodeId, already);
+      notes.info(`${nestName} already exists — using it`);
+      return;
+    }
+    notes.push(`couldn't find the layers to nest — rebuilt ${nestName} from the recording instead`);
     const rebuilt = createLayerFromSpec(scene, payload.spec as NodeSnapshot, notes);
     if (rebuilt) playback.layerByRecordedId.set(payload.spec.nodeId, rebuilt);
     return;
@@ -935,13 +1178,7 @@ export function playbackBegin(params: {
   iteration?: number;
   debug?: boolean;
 }): { total: number; targetCount: number; frameOffset?: number } {
-  const rawSelection = ((): AnyProxy[] => {
-    try {
-      return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
-    } catch {
-      return [];
-    }
-  })();
+  const rawSelection = selectedNodes();
   // A macro's steps are recorded against LAYERS and address them by layer
   // paths, so a selected shape is not a target — applied to one, every step
   // resolves against the wrong node or fails. Drop them, say so once, and let
@@ -1095,6 +1332,7 @@ export function playbackStep(params: { index: number }): {
   const failures: { target: string; message: string }[] = [];
   const notes: { target: string; message: string; kind: NoteKind }[] = [];
   breadcrumbs.length = 0;
+  pinned.clear();
   let before: TargetProbe[] = [];
   let after: TargetProbe[] = [];
 

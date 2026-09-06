@@ -12,7 +12,15 @@ import type { Json } from "../engine/json";
 import { makeGradientFill, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { diffSnapshots } from "../engine/diff";
 import type { StepPayload } from "../engine/steps";
-import { applyStep, delayLayer, NoteList, readBaseline, type ApplyContext } from "./applier";
+import {
+  applyNodeSpec,
+  applyStep,
+  delayLayer,
+  NoteList,
+  readBaseline,
+  type ApplyContext,
+} from "./applier";
+import { serializeNode } from "./serialize";
 
 const exact: ApplyContext = { origins: {}, baselines: {} };
 
@@ -2064,5 +2072,66 @@ describe("readBaseline on an animated property", () => {
     (globalThis as Any).creator = { timeline: { currentFrame: 30 } };
 
     expect(readBaseline(target, ["position"])).toEqual({ x: 5, y: 5 });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* serialize -> applyNodeSpec round trip                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Nesting by rebuild is only honest if a copy is the layer again. The pair
+ * that carries it is `serializeNode` -> `applyNodeSpec`, so this pins the
+ * round trip on a layer that uses every channel: transform, plain flags,
+ * paints, a keyframed property, a mask and a child shape.
+ *
+ * Ids are stripped on both sides: a copy is a new node with a new id, and a
+ * keyframe id is engine-assigned and recycled (see `keyframeAt` in
+ * applier.ts), so neither is identity here.
+ */
+function stripIds(snapshot: Json): Json {
+  if (Array.isArray(snapshot)) return snapshot.map(stripIds);
+  if (snapshot !== null && typeof snapshot === "object") {
+    const out: Record<string, Json> = {};
+    for (const [key, value] of Object.entries(snapshot as Record<string, Json>)) {
+      if (key === "nodeId" || key === "id") continue;
+      out[key] = stripIds(value);
+    }
+    return out;
+  }
+  return snapshot;
+}
+
+describe("a live layer round-trips through serializeNode and applyNodeSpec", () => {
+  it("rebuilds an equal layer, with no notes", () => {
+    const ids = makeIds();
+    const source = makeNode(
+      "Ellipse 1",
+      {
+        type: "SHAPE_LAYER",
+        props: { position: { x: 120, y: 40 }, opacity: 80 },
+        fills: [{ r: 9, g: 182, b: 225 }],
+      },
+      ids,
+    );
+    source.createEllipse({ size: { width: 40, height: 40 } });
+    source.createStroke({ width: 6, fill: { type: "SOLID", color: { r: 1, g: 2, b: 3 } } });
+    source.createMask({ mode: "subtract", opacity: 40 });
+    source.visible = false;
+    source.startFrame = 12;
+    source.rotation.addKeyframes([
+      { frame: 10, value: 0 },
+      { frame: 30, value: 90 },
+    ]);
+
+    const spec = serializeNode(source);
+    const copy = makeNode("blank", { type: "SHAPE_LAYER" }, ids);
+    const notes = new NoteList();
+    applyNodeSpec(copy, spec, notes);
+
+    expect(notes.messages).toEqual([]);
+    expect(stripIds(serializeNode(copy) as unknown as Json)).toEqual(
+      stripIds(spec as unknown as Json),
+    );
   });
 });

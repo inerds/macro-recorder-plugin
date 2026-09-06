@@ -214,18 +214,32 @@ starts to record and replay curves with no code change.
 
 ## Nesting layers programmatically — CONFIRMED
 
-> **Re-confirmed live 2026-08-26 (rev .52, traces 08-15-14 / 08-30-20 /
-> 08-32-08):** all three guess-chain routes still move 0 layers, and the
-> breadcrumbs are now in the traces. Sub-finding from the 08-32-08 replay: the
-> honest rebuild fallback is also structurally incapable of restoring the
-> scene layer's CONTENT. The child recursion in `createLayerFromSpec` knows
-> only shape primitives (`SHAPE_FACTORIES`: rectangle, ellipse, polygon, star,
-> path), so LAYER-typed children note "can't re-create a shape layer —
-> skipped", and the fallback can only ever produce an empty shell. To lift
-> that half, the host needs a way to create layers INSIDE a scene layer's
-> content, which is the same upstream ask. Same-scene replays are unaffected:
-> the recorded id resolves to the original nested scene (adoption), as the
-> 08-32-08 transform step shows.
+**Lifted in part (2026-09-07, rev `2026-09-07.1`).** Replay now rebuilds the
+layers inside the new scene, so the user-facing half of this limit is gone.
+`nestByRebuild` (`sandbox/playback.ts`) serializes each source with
+`serializeNode`, then builds a copy of each snapshot inside the shell's own
+scene. Route 1 uses the shell's own factories —
+`shell.scene.createShapeLayer`, `createTextLayer`, and `createSceneLayer`.
+Route 2 runs only when route 1 is absent: it creates the scene first with
+`creator.createScene({ name, size, framerate, duration })`, then places it
+with `scene.createSceneLayer({ scene })`. `createLayerFromSpec` recurses into
+layer-typed children, so the 2026-08-26 sub-finding no longer holds: that
+replay (rev .52, traces 08-15-14 / 08-30-20 / 08-32-08) showed the rebuild
+could only ever produce an empty shell, because the child recursion knew the
+shape primitives in `SHAPE_FACTORIES` alone.
+
+Four things stay:
+
+- The copies are copies. Each one gets a new id, so later steps that name a
+  recorded source resolve to the copy by index, not by identity.
+- An image layer cannot be rebuilt: the recording holds no image asset. It
+  stays where it is, with the note "an image layer can't be rebuilt inside the
+  new scene — left it where it was".
+- Undo is many steps. One rebuild is a scene layer, one layer per copy, and
+  one removal per original.
+- The inner-scene factories are typed in 1.0.1 and not live-verified. The
+  17-13 traces prove only that the shell carries a `scene` whose `layers` is
+  an array. See `runtime-api.md`.
 
 **What does not work:** replay of a "nest layers into a new scene" macro onto
 a selection can be unable to actually move the layers into the created scene.
@@ -246,23 +260,46 @@ Early replays produced an empty nested scene.
   empty shells, and the user confirmed it visually.
 - Creator's own UI nest action clearly has a path, but Creator does not expose
   it under any typed name.
+- Adoption could report a false success. Traces
+  `2026-09-06T17-13-00-849_record.json`,
+  `2026-09-06T17-13-19-190_playback-Macro-5.json`, and
+  `2026-09-06T17-13-38-332_playback-Macro-5.json` (rev `2026-09-06.4`) hold
+  one correct recording and two replays, with 26 layers selected and then 1.
+  Replay did use the selected layers. `createSceneLayer()` still returned an
+  empty shell (`[nest] createSceneLayer() -> object, content=0, top=55`), so
+  verification failed. The engine then adopted the still-live recorded nest,
+  and the note read like success. The scene did not change.
 
-**Current engine behavior (rev 2026-09-06.2):** the sources are the current
-selection when there is one — the macro is a tool, so "run this on those two
-layers" means those layers — and the recorded layers otherwise.
-`nestIntoNewScene` (`sandbox/playback.ts`) sets `creator.selection.nodes` to
-the sources, calls `scene.createSceneLayer()`, and verifies the result — the
-created layer must contain the layers, or the top-level layer list must have
-shrunk. If neither holds, the engine removes the empty shell and returns
-undefined. The macro then adopts the nested scene from the recording when it
-is still live in the scene (same-scene replay), with the note "already exists
-(its layers are inside) — using it"; only when no such nest exists does it
-fall back to a rebuild of the recorded scene layer, with the note "couldn't
-move the layers into a new scene layer — rebuilt it from the recording
-instead". The dead rungs are gone: `createSceneInstance` never existed,
-`createSceneLayer(layers)` is typed as an options object, and the per-layer
-`shiftTo(created)` attempt is removed because `shiftTo` takes a frame — a node
-argument could coerce and retime the layer instead of throwing.
+**Current engine behavior (rev `2026-09-07.1`):** the step filters the live
+selection through `isLayerNode` first, and then follows this table:
+
+| Selection (layers only) | Recorded sources found | Recorded nest live | Action |
+|---|---|---|---|
+| Not empty | Ignored | Any | Rebuild-nest the selected layers — a new nest every time |
+| Empty | Yes | Any | Rebuild-nest the recorded sources |
+| Empty | No | Yes | Adopt it, with a note |
+| Empty | No | No | Rebuild the recorded spec, now with its content |
+
+The adoption note names the scene: "Nested Scene 5 already exists (its layers
+are inside) — using it".
+
+`nestByRebuild` runs in this order:
+
+1. Serialize each source, and hold the `IMAGE_LAYER` sources back.
+2. Set the selection, and call `scene.createSceneLayer()`.
+3. Return at once if the shell's inner `layers` is not empty: the host moved
+   them, and no rebuild is necessary.
+4. Build each copy through route 1, or through route 2 when the shell carries
+   no factory.
+5. Verify by reads: the copy count, `inner.layers`, and the shape count or
+   the text of each copy.
+6. Move the shell with `shell.moveBefore(sources[0])`, apply the spec's name
+   and plain flags, and remove each rebuilt source.
+
+Any miss in step 5 removes the shell, and the route-2 scene with it. The
+originals stay where they are, and the step reports one skip note. Every host
+call is a `tryRead` with a `[nest] …` breadcrumb, so a trace shows which route
+ran.
 
 **Status: CONFIRMED (instrumented trace, 2026-08-22, rev .34).** Breadcrumbs
 from a live replay: `createSceneLayer(layers)` returned undefined;
@@ -271,18 +308,21 @@ selection, even when the engine set the selection programmatically;
 `layer.shiftTo(created)` and `shiftTo({to})` both throw (0 of 2 layers moved).
 No API route exists to move existing layers into a scene. **Upstream ask for
 LottieFiles:** give Creator an API that moves existing layers into a scene, or
-let `createSceneLayer` accept layers. One half of the limit may be reachable
-without that ask: `creator.createScene(opts)` builds a scene, that scene's own
-`createShapeLayer` / `createTextLayer` can fill it, and
-`scene.createSceneLayer({ scene })` places it — a typed route to rebuild
-nested CONTENT, though still not one that moves the recorded layers. Both
-members are typed in 1.0.1 and the plugin has never called them, so the route
-is pending a live check.
+let `createSceneLayer` accept layers. The status covers the move API alone:
+the engine reaches the other half without the ask, because a scene's own
+`createShapeLayer` / `createTextLayer` fills it and
+`scene.createSceneLayer({ scene })` places it. That route rebuilds nested
+CONTENT; it still does not move the recorded layers. It ships in rev
+`2026-09-07.1` — see the lift paragraph above.
 
-**What replay does meanwhile:** nest steps fall back to a rebuild of the
-recorded scene layer from spec. The engine cannot rebuild layer-typed content
-either, and it notes that honestly. Same-scene replays adopt the original
-nest.
+**What replay does meanwhile:** a nest step rebuilds the layers inside the new
+scene and removes the originals. A success reads "nested the 3 selected layers
+(rebuilt inside the new scene — Creator can't move them)". A failure reads
+"couldn't rebuild your 3 selected layers inside a new scene — left them where
+they are". With nothing selected and no recorded source left, replay rebuilds
+the recorded scene layer from its spec, with its content, and notes "couldn't
+find the layers to nest — rebuilt Nested Scene 5 from the recording instead".
+A same-scene replay with nothing selected adopts the original nest.
 
 ---
 

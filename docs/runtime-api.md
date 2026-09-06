@@ -135,6 +135,25 @@ one yet. Every call stays feature-detected, and each one has a fallback:
   `createGroup(created)`, which left `opts.shapes` undefined and built an
   EMPTY group on the real host. It calls `createGroup({ shapes: created })`
   since rev `2026-09-06.2`.
+- `SceneLayer.scene` and its layer factories — `createShapeLayer`,
+  `createTextLayer`, and `createSceneLayer`. `sandbox/playback.ts#nestByRebuild`
+  builds each copy of a nested layer with them (route 1). The shell's
+  `scene.layers` IS live-verified: traces
+  `2026-09-06T17-13-19-190_playback-Macro-5.json` and
+  `2026-09-06T17-13-38-332_playback-Macro-5.json` read it as an empty array
+  (`content=0`). The factories on it are not verified. The fallback is route 2
+  below; with neither route the step notes a skip and leaves the layers alone.
+- `creator.createScene(opts)` and `Scene.createSceneLayer({ scene })` — route 2
+  of the same function. It copies `name`, `size`, `framerate`, and `duration`
+  from the active scene, omits every undefined key, and then requires the
+  shell to reference the scene it passed. The fallback removes both the scene
+  and the shell, and the step notes a skip.
+- `Scene.isNestableScene` — read on the scene route 2 creates.
+  `nestByRebuild` accepts any value except `false`, so a host that omits the
+  member takes the route.
+- `Scene.remove()` — the cleanup path of route 2. `nestByRebuild` calls it on
+  a scene it created and could not attach. A throw is a `[nest] …` breadcrumb
+  alone: the step reports its skip either way.
 - `creator.clientStorage.usedQuota()` — typed as a METHOD returning
   `Promise<number>`. `sandbox/store.ts` accepts either the method or a
   number-valued property, caches the last reading, and reports it in the
@@ -232,7 +251,8 @@ Other documents cite these items by number, so keep the numbering stable:
 7. **Duplicate detection must ignore the layer's own transform.** Creator
    offsets ⌘D copies, and the copies inherit live rotation.
 8. **`createSceneLayer()` creates an EMPTY scene layer** and does not consume
-   the selection.
+   the selection. Since rev `2026-09-07.1` the engine rebuilds the selected
+   layers inside the shell's own scene, and then removes the originals.
 9. Fill and stroke on text layers are **singular objects**, not lists — the
    engine models them as one-item lists.
 10. Host events: our introspection found only

@@ -38,6 +38,16 @@
  * getter-based host objects whose fields are invisible to `Object.keys`, so a
  * generic `toJson` sees `{}` and only a structural read recovers them.
  *
+ * A SCENE_LAYER carries a real inner scene (`makeInnerScene`). That is NOT a
+ * relaxation of the rule above: 1.0.1 types `SceneLayer.scene` as a `Scene`
+ * with `layers`, `isNestableScene` and the three layer factories, and the live
+ * shell a real `createSceneLayer()` returns already has `scene.layers` as an
+ * array (trace 2026-09-07T01-13-19). The engine feature-detects every one of
+ * those factories before it calls them, so a host that lacks them takes the
+ * skip path, which the tests drive by deleting the member. What stays
+ * host-faithful is the ROOT scene's `createSceneLayer()`: it creates an EMPTY
+ * scene layer and never consumes the selection (quirk 8).
+ *
  * Pure data only: no DOM, so it compiles under tsconfig.sandbox.json too.
  */
 import type { Json } from "../json";
@@ -592,18 +602,20 @@ export function makeNode(
       }
       gone = true;
     },
-    /** SCENE_LAYER only: contents spill into the parent list, self removed. */
+    /**
+     * SCENE_LAYER only: seats `contents` inside the layer's own scene, which
+     * is where `break()` (installed below) reads them from.
+     */
     __setSceneContents(contents: Any[]) {
-      (node as Any).__sceneContents = contents;
-      (node as Any).break = () => {
-        const list = node.parent?.shapes ?? node.parent?.layers;
-        if (!Array.isArray(list)) throw new Error("no parent to break into");
-        const at = list.indexOf(node);
-        for (const content of (node as Any).__sceneContents) {
-          content.parent = node.parent;
-        }
-        list.splice(at >= 0 ? at : list.length, 1, ...(node as Any).__sceneContents);
-      };
+      const inner = (node as Any).scene;
+      if (inner && Array.isArray(inner.layers)) {
+        // copy first: `contents` may BE `inner.layers`
+        const next = [...contents];
+        inner.layers.length = 0;
+        inner.layers.push(...next);
+        return;
+      }
+      (node as Any).scene = { layers: [...contents] };
     },
     /** Deep copy inserted after self in the owner list, like the host. */
     clone() {
@@ -670,6 +682,23 @@ export function makeNode(
     },
   };
   const nodeId = nextId("node");
+
+  // --- SceneLayer: a source scene plus break() -----------------------------
+  // 1.0.1 `SceneLayer` is `{ type, scene, break }` on top of LayerMixin. The
+  // scene is where the layer's content lives; `break()` spills that content
+  // into the parent list and removes the layer, which is what the host's own
+  // break does.
+  if (nodeType === "SCENE_LAYER") {
+    node.scene = makeInnerScene(name, nextId);
+    node.break = () => {
+      const list = node.parent?.shapes ?? node.parent?.layers;
+      if (!Array.isArray(list)) throw new Error("no parent to break into");
+      const contents: Any[] = Array.isArray(node.scene?.layers) ? [...node.scene.layers] : [];
+      const at = list.indexOf(node);
+      for (const content of contents) content.parent = node.parent;
+      list.splice(at >= 0 ? at : list.length, 1, ...contents);
+    };
+  }
 
   // --- ShapeContainerMixin: shape layers and groups only -------------------
   if (isShapeContainer) {
@@ -889,6 +918,128 @@ export function makeNode(
   void PLAIN_PROPS; // keep registry import used; flags above mirror it
 
   return node;
+}
+
+// ---------------------------------------------------------------------------
+// Scenes
+// ---------------------------------------------------------------------------
+
+/** 1.0.1 `LayerCreateOptions`, plus what each layer factory adds to it. */
+const LAYER_CREATE_KEYS = ["name", "position", "opacity", "startFrame", "endFrame"];
+const TEXT_LAYER_CREATE_KEYS = [
+  ...LAYER_CREATE_KEYS,
+  "text",
+  "fontFamily",
+  "fontStyle",
+  "fontSize",
+  "fill",
+  "stroke",
+  "alignment",
+];
+const SCENE_LAYER_CREATE_KEYS = [...LAYER_CREATE_KEYS, "scene"];
+
+export interface FakeSceneOptions {
+  /** 1.0.1 `Scene.isNestableScene` — false blocks use as a source scene. */
+  nestable?: boolean;
+  /** Called by `remove()` (BaseAssetMixin), so a test can watch cleanup. */
+  onRemove?: () => void;
+}
+
+/**
+ * A 1.0.1 `Scene`: a layer list, `isNestableScene`, the three layer factories
+ * and `remove()`. It models BOTH ends of the nesting work — the active scene
+ * the plugin runs against, and the source scene a SCENE_LAYER references.
+ *
+ * Scene SETTINGS (size / framerate / duration / backgroundColor) are
+ * deliberately absent: the set-scene path must stay testable against a host
+ * that does not carry a member, and a test that wants them adds them.
+ */
+export function makeInnerScene(
+  name: string,
+  nextId: (prefix: string) => string = makeIds(),
+  options: FakeSceneOptions = {},
+): Any {
+  let removed = false;
+  const scene: Any = {
+    id: nextId("scene"),
+    type: "SCENE",
+    name,
+    isNestableScene: options.nestable !== false,
+    layers: [] as Any[],
+    /** BaseAssetMixin.remove — "scenes that are not nestable cannot be removed". */
+    remove() {
+      if (scene.isNestableScene === false) throw new Error("✗ Invalid input");
+      removed = true;
+      scene.layers.length = 0;
+      options.onRemove?.();
+    },
+    /** Test control — not part of the real API surface. */
+    get __removed() {
+      return removed;
+    },
+  };
+
+  /** Seats a layer at the end of the list, with the parent link a node needs. */
+  const seat = (layer: Any): Any => {
+    layer.parent = { shapes: scene.layers, layers: scene.layers, type: "SCENE" };
+    scene.layers.push(layer);
+    return layer;
+  };
+  /** Test helper (no host equivalent): put an existing node in this scene. */
+  scene.addLayer = seat;
+
+  const applyOptions = (layer: Any, opts: Record<string, Any>) => {
+    for (const [key, value] of Object.entries(opts)) {
+      if (key === "scene") continue;
+      if (key === "position" || key === "opacity") {
+        const prop = layer[key];
+        if (prop) prop.staticValue = value as Json;
+        continue;
+      }
+      if (key === "fill") {
+        layer.createFill(value);
+        continue;
+      }
+      if (key === "stroke") {
+        layer.createStroke(value);
+        continue;
+      }
+      layer[key] = value;
+    }
+  };
+
+  const factory =
+    (type: string, allowed: readonly string[], label: string) =>
+    (opts: Any = {}) => {
+      if (!isPlainObject(opts)) invalidInput();
+      onlyKeys(fields(opts), allowed);
+      const layer = makeNode(`${label} ${scene.layers.length + 1}`, { type }, nextId);
+      seat(layer);
+      // A scene layer takes its source scene from the options when one is
+      // given (1.0.1 SceneLayerCreateOptions.scene); otherwise it keeps the
+      // empty scene of its own that makeNode gave it.
+      if (type === "SCENE_LAYER" && fields(opts).scene !== undefined) {
+        layer.scene = fields(opts).scene;
+      }
+      applyOptions(layer, fields(opts));
+      return layer;
+    };
+
+  scene.createShapeLayer = factory("SHAPE_LAYER", LAYER_CREATE_KEYS, "Shape Layer");
+  scene.createTextLayer = factory("TEXT_LAYER", TEXT_LAYER_CREATE_KEYS, "Text Layer");
+  scene.createSceneLayer = factory("SCENE_LAYER", SCENE_LAYER_CREATE_KEYS, "Scene");
+  return scene;
+}
+
+/**
+ * The active scene the sandbox drives: one `makeInnerScene`, which is exactly
+ * what the host hands back from `creator.activeScene`. Its
+ * `createSceneLayer()` is the LIVE host's — an EMPTY scene layer that ignores
+ * the selection (quirk 8) — so a test that wants the host to consume the
+ * selection has to say so.
+ */
+export function makeFakeScene(nextId: (prefix: string) => string = makeIds()): Any {
+  return makeInnerScene("Main Scene", nextId);
 }
 
 /** The four-node scene the host harness exposes as window.harness.nodes. */

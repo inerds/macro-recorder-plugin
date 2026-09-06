@@ -127,7 +127,12 @@ a group, `mode` on a trim path, `opacity` on a paint, a bare array to
 live host's `✗ Invalid input`). Its header comment holds the full list. Never
 make the fake more permissive than the real host; that would hide the bugs it
 exists to catch — the 2026-09-06 pass that tightened it exposed five real
-applier bugs at once.
+applier bugs at once. A `SCENE_LAYER` node carries a real inner scene
+(`makeInnerScene`: `layers`, `isNestableScene`, the three layer factories, and
+`remove()`), which stays inside that rule: 1.0.1 types the inner scene and its
+factories, the live shell carries `scene.layers`, and the engine
+feature-detects each factory. The root scene's own `createSceneLayer()` stays
+empty and selection-blind, as runtime quirk 8 describes.
 
 Every proxy reader is defensive, because proxies vary by node type and any
 getter can throw — `serialize.ts` wraps every read in `tryRead` and simply
@@ -237,14 +242,19 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
 - **Replay means DO IT**: nest/add ops re-execute; adoption of an existing
   layer (id-only match) is the fallback for same-scene replays where the
   action already happened (prevents duplicate/empty-shell rebuilds). The
-  `nest-layers` chain runs in this order: take the sources (the current
+  `nest-layers` chain runs in this order (rev `2026-09-07.1`): filter the
+  step-time selection through `isLayerNode`, take the sources (that
   selection, else the recorded layers), set `creator.selection.nodes` to
-  them, call `scene.createSceneLayer()` ONCE, and verify the result really
-  holds the layers; on refusal adopt the recorded nest when it is still live;
-  rebuild it from the recording only when there is nothing to adopt. The
-  older rungs are gone — `createSceneInstance` never existed,
-  `createSceneLayer(layers)` returns undefined, and `shiftTo` takes a frame
-  (`limitations.md`).
+  them, and call `scene.createSceneLayer()` ONCE. A shell that comes back
+  holding the layers ends the chain — the host moved them. Otherwise
+  `nestByRebuild` rebuilds each source inside the shell's own scene from its
+  `serializeNode` snapshot, verifies the copies by reads, moves the shell to
+  the first source's slot, and removes the rebuilt originals. A verification
+  miss removes the shell and leaves the originals untouched. Only an empty
+  selection adopts the recorded nest when it is still live, or rebuilds it
+  from the recording when there is nothing to adopt. The older rungs are gone
+  — `createSceneInstance` never existed, `createSceneLayer(layers)` returns
+  undefined, and `shiftTo` takes a frame (`limitations.md`).
   `createLayerFromSpec` picks the factory by recorded type — `SCENE*` →
   `createSceneLayer`, `TEXT_LAYER` → `createTextLayer` (feature-detected;
   absent → note + skip, never a shape shell), else `createShapeLayer`. A
@@ -416,17 +426,23 @@ declares the same URL.
   #13/#20), so a host-swallowed absolute write is indistinguishable from a
   coincidental value match in probes. No trace shows it firing; watch for it.
 
-- Nesting-from-selection: CONFIRMED platform limitation (see `limitations.md`
-  for the breadcrumb evidence and the upstream ask). The guess-chain is gone
-  since rev `2026-09-06.1`: 1.0.1 settled what the dead rungs were, so replay
-  makes ONE verified `createSceneLayer()` call and reports the outcome. A host
-  that starts moving the selection into the created layer passes that
-  verification and lights the feature up with no code change.
+- Nesting-from-selection: the MOVE API stays a CONFIRMED platform limitation
+  (see `limitations.md` for the breadcrumb evidence and the upstream ask).
+  The guess-chain is gone since rev `2026-09-06.1`: 1.0.1 settled what the
+  dead rungs were, so replay makes ONE verified `createSceneLayer()` call and
+  reports the outcome. A host that starts moving the selection into the
+  created layer passes that verification and skips the rebuild with no code
+  change. Since rev `2026-09-07.1` a refusal rebuilds the layers inside the
+  new scene instead of reporting a false success — the three 2026-09-06T17-13
+  traces showed adoption reading like a nest that never happened. The route
+  runs on typed, not yet live-verified members (`runtime-api.md`).
 - Baselined on `@lottiefiles/creator-api-types` 1.0.1 (2026-09-06). The typed
   surfaces this branch starts to use — `creator.utils.isLayer`, the `Scene`
-  settings writes, `getValueAt` baselines, `createGroup(GroupOptions)`, and
-  `clientStorage.usedQuota` — are all feature-detected and none is
-  live-verified. `runtime-api.md` lists them under "Typed in 1.0.1, live
+  settings writes, `getValueAt` baselines, `createGroup(GroupOptions)`,
+  `clientStorage.usedQuota`, and the nest rebuild's members (the inner
+  scene's factories, `creator.createScene`, `createSceneLayer({ scene })`,
+  `isNestableScene`, and `Scene.remove()`) — are all feature-detected and
+  none is live-verified. `runtime-api.md` lists them under "Typed in 1.0.1, live
   verification pending"; move each one when a trace confirms it.
 - Never live-verified yet: the interface-theme relay (`sandbox/theme.ts` —
   `creator.ui.theme` / `change:theme` per the ui-library docs,

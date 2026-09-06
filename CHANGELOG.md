@@ -33,13 +33,15 @@ one row per fix — is `docs/history/improvements.md`.
   so — macros replay onto layers.
 - Switching scenes while you record now adds a step that says so. The
   recorder stays on the scene you started in, and the step never replays.
-- Replaying a nest-layers step in the scene it was recorded in no longer
-  leaves a second, empty copy of the nested scene behind when something else
-  is selected. The step uses the nested scene that already exists and says so.
-- A macro step that nests layers now says plainly when Creator could not move
-  the layers into a new scene layer, and that the nested scene was rebuilt
-  from the recording instead. Nesting also no longer risks retiming the layers
-  it could not move.
+- Nesting layers now really nests them. Creator gives no plugin a way to move
+  a layer into a scene, so the plugin rebuilds each selected layer inside the
+  new scene, puts the new scene where the first layer was, and removes the
+  originals: "nested the 3 selected layers (rebuilt inside the new scene —
+  Creator can't move them)". An image layer stays where it is, with its own
+  note. Undo takes one step per rebuilt layer. The step used to report a
+  success while nothing moved, and in the scene it was recorded in it no
+  longer leaves a second empty copy of the nested scene behind. Nesting also
+  no longer risks retiming the layers it could not move.
 - A macro that adds an image layer now says it cannot re-create the layer,
   because a recording holds no image asset.
 - A group the replay re-creates now holds its shapes. It used to arrive empty,

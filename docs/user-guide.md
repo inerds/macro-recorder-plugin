@@ -234,6 +234,20 @@ plugin reports *can't re-create an image layer — the recording has no image
 asset — skipped*. Every other edit to that image layer replays normally when
 the layer is already there.
 
+**A nest step rebuilds the layers.** Creator gives no plugin a way to move a
+layer into a scene, so the plugin rebuilds instead. It copies each selected
+layer into the new scene, places the new scene where the first selected layer
+was, and removes the originals. A run says *nested the 3 selected layers
+(rebuilt inside the new scene — Creator can't move them)*. An image layer
+cannot be copied, so it stays where it is: *an image layer can't be rebuilt
+inside the new scene — left it where it was*, and the count drops to *nested 2
+of the 3 selected layers*. If the rebuild fails, nothing moves: *couldn't
+rebuild your 3 selected layers inside a new scene — left them where they are*.
+With nothing selected and the recorded layers gone, the plugin rebuilds the
+nested scene from the recording: *couldn't find the layers to nest — rebuilt
+Nested Scene 5 from the recording instead*. The copies are new layers, so undo
+takes several steps.
+
 **Scene settings apply to the scene.** A step that recorded the size,
 background, frame rate, duration, or name goes to the active scene once per
 play, whatever you have selected. Playback names the setting it wrote, and it
@@ -433,10 +447,13 @@ likely to meet these:
   keeps no token.
 - **Effects and ungroup** have no plugin API at all, so the recorder never
   sees those edits.
-- **Nesting selected layers into a scene** cannot be replayed, because no API
-  route moves existing layers into a scene. The step reports itself honestly.
-  In the scene the macro was recorded in, the step uses the nested scene that
-  already exists instead of building an empty copy next to it.
+- **Nesting selected layers into a scene** rebuilds them, because no API route
+  moves existing layers into a scene. The plugin copies each selected layer
+  into the new scene, and then removes the original. The copies are new
+  layers, so undo takes one step per copy and one per removal. An image layer
+  stays where it is, with a note. With nothing selected in the scene the macro
+  was recorded in, the step uses the nested scene that already exists instead
+  of building a copy next to it.
 - **A new image layer** cannot be re-created on replay: a recording holds the
   layer, not the image asset behind it. The step says so and skips.
 - **Macros replay onto layers**, so a shape in the selection is skipped with a

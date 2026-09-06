@@ -18,7 +18,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { describePlaybackMode } from "../engine/playbackMode";
-import { makeIds, makeNode } from "../engine/testing/fakeScene";
+import { makeFakeScene, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { enabledSteps } from "../ui/gateways/types";
 import { buildDemoMacros, DEMO_LAYERS } from "../ui/dev/demoMacros";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
@@ -36,33 +36,10 @@ type Any = any;
  */
 function makeDemoScene() {
   const nextId = makeIds();
-  const scene: Any = { id: nextId("scene"), name: "Main Scene", layers: [] as Any[] };
-
-  scene.addLayer = (layer: Any) => {
-    layer.parent = { shapes: scene.layers, layers: scene.layers, type: "SCENE" };
-    scene.layers.push(layer);
-    return layer;
-  };
-  scene.createShapeLayer = () => scene.addLayer(makeNode("Shape Layer", {}, nextId));
-  scene.createTextLayer = () =>
-    scene.addLayer(makeNode("Text Layer", { type: "TEXT_LAYER" }, nextId));
-  // Models the verification-SUCCESS path: the new scene layer takes whatever
-  // the selection points at. The REAL host does NOT do this — it creates an
-  // EMPTY scene layer and ignores the selection (docs/runtime-api.md quirk 8);
-  // that shape is covered by "removes the empty shell and falls back" in
-  // sandbox/playback.test.ts. Here it lets "Nest & break" demonstrate the nest
-  // it is a demo OF instead of degrading into the rebuild fallback.
-  scene.createSceneLayer = () => {
-    const nodes: Any[] = [...((globalThis as Any).creator?.selection?.nodes ?? [])];
-    for (const node of nodes) {
-      const at = scene.layers.indexOf(node);
-      if (at >= 0) scene.layers.splice(at, 1);
-    }
-    const instance = scene.addLayer(makeNode("Scene", { type: "SCENE_LAYER" }, nextId));
-    instance.scene = { layers: nodes };
-    instance.__setSceneContents(nodes);
-    return instance;
-  };
+  // The REAL host's active scene, quirk 8 included: `createSceneLayer()`
+  // creates an EMPTY scene layer and ignores the selection, so "Nest & break"
+  // runs through the rebuild route here, exactly as it does in Creator.
+  const scene: Any = makeFakeScene(nextId);
 
   const hero = scene.addLayer(
     makeNode(
@@ -209,16 +186,30 @@ describe("what each demo macro actually does", () => {
     expect(scene.layers.map((layer: Any) => layer.name)).toEqual(["Hero Square", "Orbit Dot"]);
   });
 
-  it("Nest & break nests two layers, moves the nest and breaks it open", () => {
+  it("Nest & break rebuilds two layers inside the nest, then breaks it open", () => {
     const macro = macros.find((m) => m.name === "Nest & break")!;
-    const { scene, failures } = replay(macro);
+    const { scene, hero, orbit, failures, notes } = replay(macro);
     expect(failures).toEqual([]);
-    // broken back open: the two layers are top-level again, the nest is gone
+    // Creator cannot move a layer into a scene layer, so the nest was filled
+    // with REBUILT copies and the originals were removed — and the note says
+    // so rather than claiming a move.
+    expect(notes).toContain(
+      "nested 2 layers (rebuilt inside the new scene — Creator can't move them)",
+    );
+    // broken back open: two layers are top-level again, the nest is gone, and
+    // the nest took the first source's slot on the way in
     expect(scene.layers.map((layer: Any) => layer.name)).toEqual([
-      DEMO_LAYERS.caption.priorName,
       "Hero Square",
       "Orbit Dot",
+      DEMO_LAYERS.caption.priorName,
     ]);
+    expect(scene.layers.some((layer: Any) => layer.type === "SCENE_LAYER")).toBe(false);
+    // the spilled layers are the copies — the originals were removed
+    expect(scene.layers.includes(hero)).toBe(false);
+    expect(scene.layers.includes(orbit)).toBe(false);
+    // and the copies carry what the originals had
+    expect(scene.layers[0].fills[0].color.staticValue).toEqual({ r: 200, g: 200, b: 200 });
+    expect(scene.layers[0].shapes).toHaveLength(1);
   });
 
   it("Type reveal builds a real text layer, not a shape shell", () => {
