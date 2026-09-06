@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { Json } from "./json";
 import type { MacroStep } from "./macro";
-import { joinLabelParts, labelOf, labelPartsOf, sharedLayerName } from "./labels";
+import {
+  joinLabelParts,
+  labelOf,
+  labelPartsOf,
+  propDisplayName,
+  sharedLayerName,
+} from "./labels";
 import type { AnimatableSnapshot, KfSnap, PaintSnapshot, Path } from "./snapshot";
 import { buildStep, kindOf, type StepPayload } from "./steps";
 
@@ -463,5 +469,84 @@ describe("labelPartsOf", () => {
     for (const payload of payloads) {
       expect(joinLabelParts(labelPartsOf(payload))).toBe(labelOf(payload));
     }
+  });
+});
+
+describe("labelOf — scene settings", () => {
+  it("says a size change in pixels, not as an object dump", () => {
+    expect(
+      labelOf({
+        op: "set-scene",
+        key: "size",
+        before: { width: 1920, height: 1080 },
+        after: { width: 1080, height: 1080 },
+      }),
+    ).toBe("Scene · size 1920×1080 → 1080×1080");
+  });
+
+  it("names the units for framerate and duration, and transparency for a null background", () => {
+    expect(labelOf({ op: "set-scene", key: "framerate", before: 30, after: 60 })).toBe(
+      "Scene · framerate 30fps → 60fps",
+    );
+    expect(labelOf({ op: "set-scene", key: "duration", before: 5, after: 7.5 })).toBe(
+      "Scene · duration 5s → 7.5s",
+    );
+    expect(
+      labelOf({
+        op: "set-scene",
+        key: "backgroundColor",
+        before: { r: 255, g: 255, b: 255 },
+        after: null,
+      }),
+    ).toBe("Scene · background #FFFFFF → transparent");
+  });
+
+  it("splits at the arrow seam like every other label", () => {
+    const payload: StepPayload = {
+      op: "set-scene",
+      key: "size",
+      before: { width: 1920, height: 1080 },
+      after: { width: 1080, height: 1080 },
+    };
+    expect(labelPartsOf(payload)).toEqual({
+      path: "Scene · size",
+      before: "1920×1080",
+      after: "1080×1080",
+    });
+    expect(joinLabelParts(labelPartsOf(payload))).toBe(labelOf(payload));
+  });
+
+  it("rides the layer icon lane — no new StepKind reaches the UI's icon map", () => {
+    expect(kindOf({ op: "set-scene", key: "framerate", before: 30, after: 60 })).toBe("layer");
+  });
+});
+
+describe("labelOf — a flag on a mask names the mask", () => {
+  it("says 'Mask · mode', not 'Layer · mode'", () => {
+    expect(
+      labelOf({ op: "set-plain", path: ["masks", 0, "mode"], before: "add", after: "subtract" }),
+    ).toBe("Mask · mode add → subtract");
+    expect(
+      labelOf({ op: "set-plain", path: ["masks", 1, "mode"], before: "add", after: "intersect" }),
+    ).toBe("Mask 2 · mode add → intersect");
+    // ...and it rides the mask icon lane, not the layer one.
+    expect(
+      kindOf({ op: "set-plain", path: ["masks", 0, "mode"], before: "add", after: "subtract" }),
+    ).toBe("mask");
+    expect(kindOf({ op: "set-plain", path: ["visible"], before: true, after: false })).toBe("layer");
+  });
+});
+
+describe("propDisplayName", () => {
+  it("says a layer's timeline window the way Creator says it", () => {
+    // Notes and step labels read these words to the user, so "startFrame"
+    // never reaches a note (docs/contributing/writing-style.md).
+    expect(propDisplayName("startFrame")).toBe("in point");
+    expect(propDisplayName("endFrame")).toBe("out point");
+    expect(propDisplayName("timelineOffset")).toBe("timeline offset");
+  });
+
+  it("passes an unmapped name through unchanged", () => {
+    expect(propDisplayName("opacity")).toBe("opacity");
   });
 });

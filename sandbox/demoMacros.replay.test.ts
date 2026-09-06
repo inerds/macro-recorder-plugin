@@ -18,7 +18,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { describePlaybackMode } from "../engine/playbackMode";
-import { makeIds, makeNode } from "../engine/testing/fakeScene";
+import { makeFakeScene, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { enabledSteps } from "../ui/gateways/types";
 import { buildDemoMacros, DEMO_LAYERS } from "../ui/dev/demoMacros";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
@@ -29,38 +29,17 @@ type Any = any;
 
 /**
  * A scene holding the three layers the demo macros are written against,
- * plus the untyped layer factories a scene script needs. Layer ids are the
+ * plus the untyped layer factories a scene rebuild needs. Layer ids are the
  * fake's own, so resolution runs through the recorded NAME (and, for the
  * caption, its `priorName`) exactly as it does on a real host replaying
  * someone else's macro.
  */
 function makeDemoScene() {
   const nextId = makeIds();
-  const scene: Any = { id: nextId("scene"), name: "Main Scene", layers: [] as Any[] };
-
-  scene.addLayer = (layer: Any) => {
-    layer.parent = { shapes: scene.layers, layers: scene.layers, type: "SCENE" };
-    scene.layers.push(layer);
-    return layer;
-  };
-  scene.createShapeLayer = () => scene.addLayer(makeNode("Shape Layer", {}, nextId));
-  scene.createTextLayer = () =>
-    scene.addLayer(makeNode("Text Layer", { type: "TEXT_LAYER" }, nextId));
-  scene.createSceneLayer = () => {
-    const empty = scene.addLayer(makeNode("Scene", { type: "SCENE_INSTANCE" }, nextId));
-    empty.scene = { layers: [] as Any[] };
-    return empty;
-  };
-  scene.createSceneInstance = (nodes: Any[]) => {
-    for (const node of nodes) {
-      const at = scene.layers.indexOf(node);
-      if (at >= 0) scene.layers.splice(at, 1);
-    }
-    const instance = scene.addLayer(makeNode("Nested Scene", { type: "SCENE_INSTANCE" }, nextId));
-    instance.scene = { layers: nodes };
-    instance.__setSceneContents(nodes);
-    return instance;
-  };
+  // The REAL host's active scene, quirk 8 included: `createSceneLayer()`
+  // creates an EMPTY scene layer and ignores the selection, so "Nest & break"
+  // runs through the rebuild route here, exactly as it does in Creator.
+  const scene: Any = makeFakeScene(nextId);
 
   const hero = scene.addLayer(
     makeNode(
@@ -69,11 +48,11 @@ function makeDemoScene() {
       nextId,
     ),
   );
-  hero.createRectangle({ size: { x: 160, y: 160 } });
+  hero.createRectangle({ size: { width: 160, height: 160 } });
   const orbit = scene.addLayer(
     makeNode(DEMO_LAYERS.orbit.name!, { props: { position: { x: 820, y: 300 } } }, nextId),
   );
-  orbit.createEllipse({ size: { x: 48, y: 48 } });
+  orbit.createEllipse({ size: { width: 48, height: 48 } });
   // named with its PRE-rename name on purpose: "Storyboard shuffle" is
   // recorded after the rename and must resolve through priorName
   const caption = scene.addLayer(
@@ -101,7 +80,7 @@ afterEach(() => {
 function replay(macro: (typeof macros)[number]) {
   const steps = enabledSteps(macro);
   const { scene, hero, orbit, caption } = makeDemoScene();
-  // Targets mode is the selection-present case; a scene script must run
+  // Targets mode is the selection-present case; a scene rebuild must run
   // with nothing selected or it would retarget its structural ops.
   const mode = describePlaybackMode(macro).mode;
   stubCreator(scene, mode === "targets" ? [hero] : []);
@@ -207,16 +186,30 @@ describe("what each demo macro actually does", () => {
     expect(scene.layers.map((layer: Any) => layer.name)).toEqual(["Hero Square", "Orbit Dot"]);
   });
 
-  it("Nest & break nests two layers, moves the nest and breaks it open", () => {
+  it("Nest & break rebuilds two layers inside the nest, then breaks it open", () => {
     const macro = macros.find((m) => m.name === "Nest & break")!;
-    const { scene, failures } = replay(macro);
+    const { scene, hero, orbit, failures, notes } = replay(macro);
     expect(failures).toEqual([]);
-    // broken back open: the two layers are top-level again, the nest is gone
+    // Creator cannot move a layer into a scene layer, so the nest was filled
+    // with REBUILT copies and the originals were removed — and the note says
+    // so rather than claiming a move.
+    expect(notes).toContain(
+      "nested 2 layers (rebuilt inside the new scene — Creator can't move them)",
+    );
+    // broken back open: two layers are top-level again, the nest is gone, and
+    // the nest took the first source's slot on the way in
     expect(scene.layers.map((layer: Any) => layer.name)).toEqual([
-      DEMO_LAYERS.caption.priorName,
       "Hero Square",
       "Orbit Dot",
+      DEMO_LAYERS.caption.priorName,
     ]);
+    expect(scene.layers.some((layer: Any) => layer.type === "SCENE_LAYER")).toBe(false);
+    // the spilled layers are the copies — the originals were removed
+    expect(scene.layers.includes(hero)).toBe(false);
+    expect(scene.layers.includes(orbit)).toBe(false);
+    // and the copies carry what the originals had
+    expect(scene.layers[0].fills[0].color.staticValue).toEqual({ r: 200, g: 200, b: 200 });
+    expect(scene.layers[0].shapes).toHaveLength(1);
   });
 
   it("Type reveal builds a real text layer, not a shape shell", () => {
@@ -228,7 +221,10 @@ describe("what each demo macro actually does", () => {
     expect(title.type).toBe("TEXT_LAYER");
     expect(title.text).toBe("Ship it, then polish.");
     expect(title.fontSize).toBe(88);
-    expect(title.fills[0].color.staticValue).toEqual({ r: 255, g: 210, b: 92 });
+    // 1.0.1 TextLayer keeps ONE fill, as a singular accessor rather than a
+    // list (runtime-api quirk 9) — the engine models it as a one-item list.
+    expect(title.fills).toBeUndefined();
+    expect(title.fill.color.staticValue).toEqual({ r: 255, g: 210, b: 92 });
     expect(title.opacity.keyframes.map((k: Any) => k.frame)).toEqual([0, 20]);
   });
 
@@ -255,7 +251,7 @@ describe("what each demo macro actually does", () => {
     expect(macro.steps[1]!.label).toContain("position = ");
   });
 
-  // The real host's BlendMode is a lowercase string union (plugin-api.d.ts) —
+  // The real host's BlendMode is a lowercase string union (the `BlendMode` type in creator-api-types 1.0.1) —
   // assigning "NORMAL" throws "✗ Invalid input" on a live host (trace
   // 2026-08-26T08-15-55-277_playback-Style-stamp.json, rev .51). The applier
   // correctly catches that throw and turns it into a skip note rather than a

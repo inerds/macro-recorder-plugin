@@ -69,6 +69,6 @@ export function playbackModeHint(description: PlaybackModeDescription): string {
     return "Applies to selected layers, or the recorded one";
   }
   return description.layerCount === 1
-    ? "Scene script — finds 1 layer by name"
-    : `Scene script — finds ${description.layerCount} layers by name`;
+    ? "Rebuilds the scene — finds 1 layer by name"
+    : `Rebuilds the scene — finds ${description.layerCount} layers by name`;
 }

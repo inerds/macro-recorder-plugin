@@ -8,7 +8,6 @@ a confirmed finding with a regression test behind it.
 **Trace bundles are large — never read one into the main context.** The triage
 agents exist for that.
 
-
 ## What a trace holds
 
 **Check `env.sandboxRev` first.** Creator evaluates `plugin.js` once at plugin
@@ -18,7 +17,7 @@ trace. See [`engine-rev.md`](engine-rev.md) for the full trap.
 
 Dev sessions write a trace bundle per record/playback run to `traces/` via a
 `POST /__macro-trace` middleware (`scripts/trace-server.ts`, wired in
-`vite.config.ts`). Two rules keep this honest:
+`vite.config.ts`). Three rules keep this honest:
 
 - **Debug payloads are opt-in per session.** The UI sends `debug: true` only
   under `import.meta.env.DEV`; the sandbox attaches snapshot pairs and target
@@ -47,7 +46,42 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   `stagger needs 2 or more` notes, and the `startFrame`/`timelineOffset`
   read-back notes) exist only from that rev — an earlier trace of a
   keyframe-free macro with stagger set is silent because the engine did
-  nothing, not because the writes failed.
+  nothing, not because the writes failed. Two more fences at rev
+  `2026-09-06.2`: keyframe capture now sets `RecordingSession.stepped` too,
+  so a capture-only session no longer gets the whole-session pair stapled on
+  at stop (traces 2026-09-04T03-47-27 and 03-51-20 show that artifact); and
+  a `nest-layers` step adopts a recorded nest that is still live, so the
+  note `already exists (its layers are inside) — using it` replaces the
+  empty duplicate an earlier trace shows (trace 2026-09-05T16-43-18). Two
+  more at rev `2026-09-06.3`: `playbackBegin` drops non-layer nodes from the
+  selection and reports one `skipped — macros replay onto layers` note; and
+  recording emits `set-scene` steps for the scene settings, a mask's `mode`,
+  and a gradient's `gradientType`. A trace before those revs is silent about
+  each of them. Two more at rev `2026-09-06.4`: every note on the
+  `playback.step` result carries a `kind` — `skip` when the step did not
+  fully apply, `info` when an adaptation worked — and the panel counts the
+  skips alone, so a run that only adapted reads `3 steps adjusted`. A note
+  with no `kind` comes from an older sandbox; read it as a skip. The
+  read-back notes speak Creator's words from that rev too: `Creator kept the
+  in point as it was — the change didn't apply` replaces `the host kept
+  startFrame unchanged — the write didn't take`, and the scene-setting note
+  reads `Creator kept the scene size as it was — the change didn't apply`.
+  One fence at rev `2026-09-07.1`: a `nest-layers` step
+  rebuilds the layers inside the new scene, so its scene-summary entries
+  carry `inner: <count>` for a scene layer, and the probe pins the spec id,
+  the source ids, and the shell past the 25-entry cap. The notes are new
+  there too — `nested the 3 selected layers (rebuilt inside the new scene —
+  Creator can't move them)`, `an image layer can't be rebuilt inside the new
+  scene — left it where it was`, `couldn't rebuild your 3 selected layers
+  inside a new scene — left them where they are`, and `couldn't find the
+  layers to nest — rebuilt Nested Scene 5 from the recording instead`.
+  Adoption is the empty-selection path alone from that rev, and its note now
+  reads `Nested Scene 5 already exists — using it`; the
+  `(its layers are inside)` wording belongs to `2026-09-06.2` and
+  `2026-09-06.3` traces alone. A
+  `[nest] shell.scene.createShapeLayer` breadcrumb is the FIRST live evidence
+  for the inner-scene factories: report it, because `runtime-api.md` still
+  lists them as pending.
 
 ## The dev strip
 

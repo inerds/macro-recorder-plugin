@@ -10,7 +10,15 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-09-04.1";
+export const ENGINE_REV = "2026-09-07.1";
+
+/**
+ * What a note says about its step. `skip` means the step did not fully apply;
+ * `info` means it applied, after an adaptation worth reporting. The panel
+ * counts skips only, so a successful adaptation is never reported as a skip.
+ * Absent on a note from an older sandbox — read that as `skip`.
+ */
+export type NoteKind = "info" | "skip";
 
 export type RpcRequest = { t: "req"; id: number; method: RpcMethod; params: unknown };
 export type RpcResponse =
@@ -104,7 +112,14 @@ export interface PlaybackStepDebug {
 export interface RpcContracts {
   hello: {
     params: Record<string, never>;
-    result: { protocolVersion: number; rev?: string };
+    result: {
+      protocolVersion: number;
+      rev?: string;
+      /** Bytes this plugin's clientStorage holds, when the host can say —
+       *  `creator.clientStorage.usedQuota` is feature-detected, so a host
+       *  without it simply omits this. No UI reads it yet. */
+      usedQuota?: number;
+    };
   };
   "store.list": { params: Record<string, never>; result: Macro[] };
   "store.save": { params: { macro: Macro }; result: null };
@@ -180,7 +195,7 @@ export interface RpcContracts {
       index: number;
       failures: { target: string; message: string }[];
       /** Deliberate non-failures: what a target didn't need or couldn't take. */
-      notes?: { target: string; message: string }[];
+      notes?: { target: string; message: string; kind?: NoteKind }[];
       debug?: PlaybackStepDebug;
     };
   };

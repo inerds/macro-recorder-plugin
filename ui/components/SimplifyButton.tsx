@@ -40,7 +40,10 @@ export function SimplifyButton({ steps, onSimplify }: SimplifyButtonProps) {
         data-step-action="simplify"
         data-testid="simplify-button"
       >
-        <Wand2 className="size-3!" strokeWidth={2.5} aria-hidden />
+        {/* 2px, not 2.5: `.key-quiet.key-quiet svg` already sizes this to
+            12px, and a 2.5 stroke at 12px is heavier than the 10px/600
+            legend beside it. No `size-3!` — the skin owns the size. */}
+        <Wand2 strokeWidth={2} aria-hidden />
         Simplify
         {canSimplify && (
           // The verb is quiet and so is the saving: red on this panel means

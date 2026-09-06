@@ -4,65 +4,62 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 
-import { makeIds, makeNode } from "../engine/testing/fakeScene";
+import { makeFakeScene, makeIds, makeInnerScene, makeNode } from "../engine/testing/fakeScene";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
 
 type Any = any;
 
-function makeSceneRoot(nextId: (p: string) => string) {
-  const scene: Any = {
-    id: nextId("scene"),
-    name: "Main Scene",
-    layers: [] as Any[],
-  };
-  scene.addLayer = (layer: Any) => {
-    layer.parent = { shapes: scene.layers, layers: scene.layers, type: "SCENE" };
-    scene.layers.push(layer);
-    return layer;
-  };
-  scene.createSceneInstance = (nodes: Any[]) => {
-    for (const node of nodes) {
+/** The shared root (`makeFakeScene`) under the name these tests grew up with. */
+const makeSceneRoot = makeFakeScene;
+
+/**
+ * Opt-in stub: `createSceneLayer()` consumes `creator.selection.nodes` into
+ * the new layer. This models the HOST-MOVED path only — the real host does
+ * NOT do this (docs/runtime-api.md quirk 8: it creates an empty scene layer
+ * and ignores the selection), which is why `makeFakeScene` keeps the empty
+ * shell and the rebuild tests below cover the real shape.
+ */
+function consumeSelectionOnCreate(scene: Any) {
+  const create = scene.createSceneLayer;
+  scene.createSceneLayer = (opts?: Any) => {
+    const selected: Any[] = [...((globalThis as Any).creator?.selection?.nodes ?? [])];
+    const instance = create(opts);
+    for (const node of selected) {
       const at = scene.layers.indexOf(node);
       if (at >= 0) scene.layers.splice(at, 1);
     }
-    const instance: Any = {
-      id: `inst-${scene.layers.length}`,
-      name: "Nested Scene",
-      type: "SCENE_LAYER",
-      scene: { layers: nodes },
-      remove() {
-        const at = scene.layers.indexOf(instance);
-        if (at >= 0) scene.layers.splice(at, 1);
-      },
-    };
-    scene.layers.push(instance);
+    instance.__setSceneContents(selected);
     return instance;
-  };
-  scene.createSceneLayer = () => {
-    // mirrors the real host: creates an EMPTY scene layer (live-verified)
-    const instance: Any = {
-      id: `scene-layer-${scene.layers.length}`,
-      name: "Scene",
-      type: "SCENE_LAYER",
-      scene: { layers: [] as Any[] },
-      props: {},
-      remove() {
-        const at = scene.layers.indexOf(instance);
-        if (at >= 0) scene.layers.splice(at, 1);
-      },
-    };
-    scene.layers.push(instance);
-    return instance;
-  };
-  scene.giveShiftTo = (layer: Any) => {
-    layer.shiftTo = (dest: Any) => {
-      const at = scene.layers.indexOf(layer);
-      if (at >= 0) scene.layers.splice(at, 1);
-      dest.scene.layers.push(layer);
-    };
-    return layer;
   };
   return scene;
+}
+
+/**
+ * Opt-in stub: the shell's own scene carries NO layer factory, which is the
+ * pessimistic reading of the live evidence (the shell has `scene.layers`, but
+ * the factories on it are typed-only). Route 2 — `creator.createScene` plus
+ * `createSceneLayer({ scene })` — is what has to carry the nest then.
+ */
+function shellWithoutInnerFactories(scene: Any) {
+  const create = scene.createSceneLayer;
+  scene.createSceneLayer = (opts?: Any) => {
+    const shell = create(opts);
+    if (!opts?.scene) delete shell.scene.createShapeLayer;
+    return shell;
+  };
+  return scene;
+}
+
+/** Builds an ALREADY-nested scene layer, the way a prior session left it. */
+function nestExisting(scene: Any, nodes: Any[], name: string) {
+  for (const node of nodes) {
+    const at = scene.layers.indexOf(node);
+    if (at >= 0) scene.layers.splice(at, 1);
+  }
+  const instance = scene.createSceneLayer();
+  instance.name = name;
+  instance.__setSceneContents(nodes);
+  return instance;
 }
 
 function stubCreator(scene: Any, selection: Any[]) {
@@ -154,7 +151,7 @@ describe("retargeted duplication (targets mode)", () => {
     expect(scene.layers[1].name).toBe("star 7"); // scene mode applies recorded name
   });
 
-  it("multi-source macros ignore selection and stay scene scripts", () => {
+  it("multi-source macros ignore selection and stay scene rebuilds", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
     const a = scene.addLayer(makeNode("A", { props: { rotation: 0 } }, ids));
@@ -394,9 +391,9 @@ describe("layer resolution across renames", () => {
 });
 
 describe("nest-layers replay", () => {
-  it("nests the resolved layers via createSceneInstance", () => {
+  it("nests the resolved layers and resolves inside-edits by order", () => {
     const ids = makeIds();
-    const scene = makeSceneRoot(ids);
+    const scene = consumeSelectionOnCreate(makeSceneRoot(ids));
     const a = scene.addLayer(makeNode("Ellipse 1", {}, ids));
     const b = scene.addLayer(makeNode("Rectangle 1", {}, ids));
     scene.addLayer(makeNode("Keep", {}, ids));
@@ -411,17 +408,33 @@ describe("nest-layers replay", () => {
             { id: String(b.id), name: "Rectangle 1" },
           ],
           spec: {
-            nodeId: "NEW", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 5",
+            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 5",
             props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
           },
         }),
+        // recorded on the SECOND nested layer — must map by ORDER
+        step({
+          op: "set-static",
+          path: ["shapes", 1, "rotation"],
+          before: 0,
+          after: -30,
+          shapeHint: "POLYGON",
+          layer: { id: "NEST", name: "Nested Scene 5" },
+        }),
       ] as Any,
     });
-    const result = playbackStep({ index: 0 });
-    expect(result.failures).toEqual([]);
-    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layers"]);
+    const r0 = playbackStep({ index: 0 });
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual(["nested 2 layers"]);
     expect(scene.layers.map((l: Any) => l.name)).toEqual(["Keep", "Nested Scene 5"]);
     expect(scene.layers[1].scene.layers).toEqual([a, b]);
+
+    const r1 = playbackStep({ index: 1 });
+    expect(r1.failures).toEqual([]);
+    // order-based: applied to the SECOND nested layer even though the
+    // recorded hint said POLYGON and Rectangle 1 isn't one
+    expect(b.rotation.staticValue).toBe(-30);
+    expect(a.rotation.staticValue).toBe(0);
   });
 
   it("rebuilds a SCENE-type add-layer spec with createSceneLayer, not createShapeLayer", () => {
@@ -514,7 +527,7 @@ describe("nest-layers same-scene idempotency", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
     const a = scene.addLayer(makeNode("Rectangle 1", {}, ids));
-    const nested = scene.createSceneInstance([a]);
+    const nested = nestExisting(scene, [a], "Nested Scene 6");
     stubCreator(scene, []);
 
     playbackBegin({
@@ -539,9 +552,9 @@ describe("nest-layers same-scene idempotency", () => {
 describe("nest-layers re-executes when sources are present", () => {
   it("nests again even though the recorded result also exists", () => {
     const ids = makeIds();
-    const scene = makeSceneRoot(ids);
+    const scene = consumeSelectionOnCreate(makeSceneRoot(ids));
     const a = scene.addLayer(makeNode("Ellipse 1", {}, ids));
-    const prior = scene.createSceneInstance([scene.addLayer(makeNode("old", {}, ids))]);
+    const prior = nestExisting(scene, [scene.addLayer(makeNode("old", {}, ids))], "Nested Scene 1");
     stubCreator(scene, []);
 
     playbackBegin({
@@ -567,7 +580,7 @@ describe("nest-layers re-executes when sources are present", () => {
 describe("nest-layers follows the selection (tool semantics)", () => {
   it("nests the SELECTED layers, not the recorded sources", () => {
     const ids = makeIds();
-    const scene = makeSceneRoot(ids);
+    const scene = consumeSelectionOnCreate(makeSceneRoot(ids));
     scene.addLayer(makeNode("Ellipse 1", {}, ids)); // recorded source, untouched
     const x = scene.addLayer(makeNode("New A", { fills: [{ r: 0, g: 0, b: 0 }] }, ids));
     const y = scene.addLayer(makeNode("New B", {}, ids));
@@ -605,71 +618,497 @@ describe("nest-layers follows the selection (tool semantics)", () => {
   });
 });
 
-describe("nest via createSceneLayer + shiftTo (real-host shape)", () => {
-  it("creates the scene layer and moves the selected layers in, in order", () => {
+/* ------------------------------------------------------------------ */
+/* nesting by rebuild                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creator has no API that moves a layer into a scene layer (docs/limitations.md),
+ * and `createSceneLayer()` returns an empty shell that ignores the selection
+ * (runtime quirk 8) — traces 2026-09-07T01-13-19 / 01-13-38. So replay REBUILDS
+ * copies of the source layers inside the new scene and removes the originals.
+ * Everything below pins that route, its verification, and its honest failures.
+ */
+const NEST_SPEC = {
+  nodeId: "NEST",
+  nodeType: "SCENE_LAYER",
+  nodeName: "Nested Scene 5",
+  props: {},
+  plain: {},
+  fills: [],
+  strokes: [],
+  masks: [],
+  shapes: [],
+};
+
+function nestStep(layers: Any[], spec: Any = NEST_SPEC) {
+  return step({ op: "nest-layers", layers, spec });
+}
+
+/** A shape layer with a fill, a child shape, a keyframe and a plain flag. */
+function richShape(scene: Any, ids: Any, name: string) {
+  const layer = scene.addLayer(
+    makeNode(
+      name,
+      {
+        type: "SHAPE_LAYER",
+        props: { position: { x: 120, y: 40 } },
+        fills: [{ r: 9, g: 182, b: 225 }],
+      },
+      ids,
+    ),
+  );
+  layer.createEllipse({ size: { width: 40, height: 40 } });
+  layer.visible = false;
+  layer.rotation.addKeyframes([
+    { frame: 10, value: 0 },
+    { frame: 30, value: 90 },
+  ]);
+  return layer;
+}
+
+describe("nest-layers rebuilds the sources inside the new scene", () => {
+  it("copies a selected shape layer and text layer in, then removes the originals", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
-    delete scene.createSceneInstance; // real host has no such method
-    const x = scene.giveShiftTo(scene.addLayer(makeNode("New A", { fills: [{ r: 0, g: 0, b: 0 }] }, ids)));
-    const y = scene.giveShiftTo(scene.addLayer(makeNode("New B", {}, ids)));
-    stubCreator(scene, [x, y]);
+    scene.addLayer(makeNode("Keep", { type: "SHAPE_LAYER" }, ids));
+    const shape = richShape(scene, ids, "Ellipse 1");
+    const text = scene.addLayer(makeNode("Title", { type: "TEXT_LAYER" }, ids));
+    text.text = "Ship it";
+    text.fontSize = 44;
+    const tail = scene.addLayer(makeNode("Tail", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, [shape, text]);
 
     playbackBegin({
       steps: [
-        step({
-          op: "nest-layers",
-          layers: [{ id: "R1", name: "Ellipse 1" }, { id: "R2", name: "Polygon 1" }],
-          spec: {
-            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 2",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
-          },
-        }),
-        // recorded on the SECOND nested layer — must map by ORDER
+        nestStep([
+          { id: "REC_A", name: "Ellipse 1" },
+          { id: "REC_B", name: "Title" },
+        ]),
+        // a later inside-edit addresses the nest's content by order
         step({
           op: "set-static",
-          path: ["shapes", 1, "rotation"],
-          before: 0,
-          after: -30,
-          shapeHint: "POLYGON",
-          layer: { id: "NEST", name: "Nested Scene 2" },
+          path: ["shapes", 0, "position"],
+          before: { x: 120, y: 40 },
+          after: { x: 300, y: 40 },
+          layer: { id: "NEST", name: "Nested Scene 5" },
         }),
       ] as Any,
     });
     const r0 = playbackStep({ index: 0 });
-    expect(r0.failures).toEqual([]);
-    const instance = scene.layers.find((l: Any) => l.type === "SCENE_LAYER");
-    expect(instance.scene.layers.map((l: Any) => l.name)).toEqual(["New A", "New B"]);
-    expect(instance.name).toBe("Nested Scene 2");
 
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "nested the 2 selected layers (rebuilt inside the new scene — Creator can't move them)",
+    ]);
+    // the nest took the FIRST source's slot; the originals are gone
+    expect(scene.layers.map((l: Any) => l.name)).toEqual(["Keep", "Nested Scene 5", "Tail"]);
+    expect(scene.layers[2]).toBe(tail);
+    const nest = scene.layers[1];
+    expect(nest.type).toBe("SCENE_LAYER");
+
+    const inside = nest.scene.layers;
+    expect(inside.map((l: Any) => l.name)).toEqual(["Ellipse 1", "Title"]);
+    // the copy carries what the serializer captured: paints, children,
+    // keyframes and plain flags
+    expect(inside[0].fills[0].color.staticValue).toEqual({ r: 9, g: 182, b: 225 });
+    expect(inside[0].shapes).toHaveLength(1);
+    expect(inside[0].rotation.keyframes.map((k: Any) => k.frame)).toEqual([10, 30]);
+    expect(inside[0].visible).toBe(false);
+    expect(inside[1].type).toBe("TEXT_LAYER");
+    expect(inside[1].text).toBe("Ship it");
+    expect(inside[1].fontSize).toBe(44);
+
+    // and a later shapes.N step lands on the COPY, not on the vanished source
     const r1 = playbackStep({ index: 1 });
     expect(r1.failures).toEqual([]);
-    // order-based: applied to the SECOND layer (New B) even though the
-    // recorded hint said POLYGON and New B isn't one
-    expect(y.rotation.staticValue).toBe(-30);
-    expect(x.rotation.staticValue).toBe(0);
+    expect(inside[0].position.staticValue).toEqual({ x: 300, y: 40 });
   });
 
-  it("removes the empty shell and falls back when nothing can move layers", () => {
+  it("remaps the recorded source ids onto the copies for later steps", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
-    delete scene.createSceneInstance;
-    const x = scene.addLayer(makeNode("New A", {}, ids)); // no shiftTo
+    const a = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, [a]);
+
+    playbackBegin({
+      steps: [
+        nestStep([{ id: "REC_A", name: "Ellipse 1" }]),
+        step({
+          op: "set-static",
+          path: ["rotation"],
+          before: 0,
+          after: 45,
+          layer: { id: "REC_A", name: "Ellipse 1" },
+        }),
+      ] as Any,
+    });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    const copy = scene.layers[0].scene.layers[0];
+    expect(playbackStep({ index: 1 }).failures).toEqual([]);
+    expect(copy.rotation.staticValue).toBe(45);
+  });
+
+  it("nests the recorded sources when nothing is selected", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    const b = scene.addLayer(makeNode("Rectangle 1", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        nestStep([
+          { id: String(a.id), name: "Ellipse 1" },
+          { id: String(b.id), name: "Rectangle 1" },
+        ]),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "nested 2 layers (rebuilt inside the new scene — Creator can't move them)",
+    ]);
+    expect(scene.layers.map((l: Any) => l.name)).toEqual(["Nested Scene 5"]);
+    expect(scene.layers[0].scene.layers.map((l: Any) => l.name)).toEqual([
+      "Ellipse 1",
+      "Rectangle 1",
+    ]);
+  });
+
+  it("leaves an image layer where it is, and says so", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const shape = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    const image = scene.addLayer(makeNode("Logo.png", { type: "IMAGE_LAYER" }, ids));
+    stubCreator(scene, [shape, image]);
+
+    playbackBegin({
+      steps: [
+        nestStep([
+          { id: "REC_A", name: "Ellipse 1" },
+          { id: "REC_B", name: "Logo.png" },
+        ]),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "an image layer can't be rebuilt inside the new scene — left it where it was",
+      "nested 1 of the 2 selected layers (rebuilt inside the new scene — Creator can't move them)",
+    ]);
+    // the image is untouched and still top-level
+    expect(scene.layers.map((l: Any) => l.name)).toEqual(["Nested Scene 5", "Logo.png"]);
+    expect(scene.layers[1]).toBe(image);
+    expect(scene.layers[0].scene.layers.map((l: Any) => l.name)).toEqual(["Ellipse 1"]);
+  });
+
+  it("ignores selected SHAPES — a macro nests layers", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    const rect = layer.createRectangle({ size: { width: 10, height: 10 } });
+    stubCreator(scene, [layer, rect]);
+
+    playbackBegin({ steps: [nestStep([{ id: "REC_A", name: "Ellipse 1" }])] as Any });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toContain(
+      "nested the 1 selected layer (rebuilt inside the new scene — Creator can't move them)",
+    );
+    expect(scene.layers.map((l: Any) => l.name)).toEqual(["Nested Scene 5"]);
+    // the rectangle went in as the copy's CHILD, never as a nested layer
+    expect(scene.layers[0].scene.layers.map((l: Any) => l.name)).toEqual(["Ellipse 1"]);
+    expect(scene.layers[0].scene.layers[0].shapes).toHaveLength(1);
+  });
+
+  it("nests the SELECTION even when the recorded nest is still live (tool semantics)", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const x = scene.addLayer(makeNode("Rectangle 1", { type: "SHAPE_LAYER" }, ids));
+    const old = scene.addLayer(makeNode("Rectangle 2", { type: "SHAPE_LAYER" }, ids));
+    const nested = nestExisting(scene, [old], "Nested Scene 5");
     stubCreator(scene, [x]);
 
     playbackBegin({
       steps: [
-        step({
-          op: "nest-layers",
-          layers: [{ id: "R1", name: "Ellipse 1" }],
-          spec: {
-            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 2",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
-          },
+        nestStep([{ id: "REC1", name: "Rectangle 2" }], {
+          ...NEST_SPEC,
+          nodeId: String(nested.id),
         }),
       ] as Any,
     });
     const r0 = playbackStep({ index: 0 });
-    expect((r0.notes ?? []).some((n: Any) => n.message.includes("rebuilding the scene layer"))).toBe(true);
+
+    expect(r0.failures).toEqual([]);
+    // the selected layer got its OWN nest — the live one was not adopted
+    expect((r0.notes ?? []).some((n: Any) => n.message.includes("already exists"))).toBe(false);
+    const instances = scene.layers.filter((l: Any) => l.type === "SCENE_LAYER");
+    expect(instances).toHaveLength(2);
+    expect(instances.some((l: Any) => l.scene.layers.some((c: Any) => c.name === "Rectangle 1"))).toBe(
+      true,
+    );
+  });
+
+  it("keeps the host-moved path untouched when createSceneLayer consumes the selection", () => {
+    const ids = makeIds();
+    const scene = consumeSelectionOnCreate(makeSceneRoot(ids));
+    const a = scene.addLayer(makeNode("New A", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, [a]);
+
+    playbackBegin({ steps: [nestStep([{ id: "REC_A", name: "Ellipse 1" }])] as Any });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    // no rebuild happened: the SAME node moved in, so the note says nothing
+    // about rebuilding
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual(["nested the 1 selected layer"]);
+    expect(scene.layers[0].scene.layers[0]).toBe(a);
+  });
+});
+
+describe("nest-layers rebuild failures leave the originals alone", () => {
+  it("removes the shell and keeps the sources when the copies can't be verified", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const create = scene.createSceneLayer;
+    scene.createSceneLayer = (opts?: Any) => {
+      const shell = create(opts);
+      // a factory that "creates" a layer the scene never takes
+      shell.scene.createShapeLayer = () => makeNode("orphan", { type: "SHAPE_LAYER" }, ids);
+      return shell;
+    };
+    const a = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, [a]);
+
+    playbackBegin({ steps: [nestStep([{ id: "REC_A", name: "Ellipse 1" }])] as Any });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "couldn't rebuild your selected layer inside a new scene — left it where it is",
+    ]);
+    // the shell is gone and the original is exactly where it was
+    expect(scene.layers).toEqual([a]);
+  });
+
+  it("skips honestly when neither the shell's scene nor creator.createScene can build", () => {
+    const ids = makeIds();
+    const scene = shellWithoutInnerFactories(makeSceneRoot(ids));
+    const a = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    const b = scene.addLayer(makeNode("Rectangle 1", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, [a, b]); // no creator.createScene on this host
+
+    playbackBegin({ steps: [nestStep([{ id: "REC_A" }, { id: "REC_B" }])] as Any });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "couldn't rebuild your 2 selected layers inside a new scene — left them where they are",
+    ]);
+    expect(scene.layers).toEqual([a, b]);
+  });
+});
+
+describe("nest-layers route 2: creator.createScene + createSceneLayer({ scene })", () => {
+  function withCreateScene(scene: Any, ids: Any, options: { attach?: boolean } = {}) {
+    const created: Any[] = [];
+    const calls: Any[] = [];
+    (globalThis as Any).creator.createScene = (opts: Any) => {
+      calls.push(opts);
+      const made = makeInnerScene(String(opts?.name ?? "Scene"), ids);
+      created.push(made);
+      return made;
+    };
+    if (options.attach === false) {
+      // a host that accepts the option object and ignores its `scene`
+      const create = scene.createSceneLayer;
+      scene.createSceneLayer = (opts?: Any) => create(opts?.scene ? {} : opts);
+    }
+    return { created, calls };
+  }
+
+  it("builds the copies into a scene it created, then attaches it", () => {
+    const ids = makeIds();
+    const scene = shellWithoutInnerFactories(makeSceneRoot(ids));
+    scene.size = { width: 1080, height: 1080 };
+    scene.framerate = 30;
+    scene.duration = 5;
+    const a = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, [a]);
+    const { created, calls } = withCreateScene(scene, ids);
+
+    playbackBegin({ steps: [nestStep([{ id: "REC_A", name: "Ellipse 1" }])] as Any });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "nested the 1 selected layer (rebuilt inside the new scene — Creator can't move them)",
+    ]);
+    // the new scene copied the active scene's settings, with the nest's name
+    expect(calls).toEqual([
+      { name: "Nested Scene 5", size: { width: 1080, height: 1080 }, framerate: 30, duration: 5 },
+    ]);
+    expect(created[0].__removed).toBe(false);
+    const instances = scene.layers.filter((l: Any) => l.type === "SCENE_LAYER");
+    expect(instances).toHaveLength(1);
+    expect(instances[0].scene).toBe(created[0]);
+    expect(created[0].layers.map((l: Any) => l.name)).toEqual(["Ellipse 1"]);
+    expect(scene.layers.map((l: Any) => l.name)).toEqual(["Nested Scene 5"]);
+  });
+
+  it("removes the scene it created when the host ignores the { scene } option", () => {
+    const ids = makeIds();
+    const scene = shellWithoutInnerFactories(makeSceneRoot(ids));
+    const a = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    stubCreator(scene, [a]);
+    const { created } = withCreateScene(scene, ids, { attach: false });
+
+    playbackBegin({ steps: [nestStep([{ id: "REC_A", name: "Ellipse 1" }])] as Any });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "couldn't rebuild your selected layer inside a new scene — left it where it is",
+    ]);
+    // nothing left behind: no shell, no orphaned scene asset, source intact
+    expect(scene.layers).toEqual([a]);
+    expect(created[0].__removed).toBe(true);
+  });
+});
+
+describe("nest-layers with no sources at all", () => {
+  it("adopts the live nest from the recording", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const old = scene.addLayer(makeNode("Rectangle 1", { type: "SHAPE_LAYER" }, ids));
+    const nested = nestExisting(scene, [old], "Nested Scene 5");
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        nestStep([{ id: "REC_A", name: "Rectangle 1" }], {
+          ...NEST_SPEC,
+          nodeId: String(nested.id),
+        }),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "Nested Scene 5 already exists — using it",
+    ]);
+    expect(scene.layers).toHaveLength(1);
+  });
+
+  it("rebuilds the recorded spec WITH its content when no nest is live", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        nestStep([{ id: "GONE", name: "Ellipse 1" }], {
+          ...NEST_SPEC,
+          shapes: [
+            {
+              nodeId: "C1", nodeType: "SHAPE_LAYER", nodeName: "Ellipse 1",
+              props: { position: { animated: false, static: { x: 30, y: 40 } } },
+              plain: {}, fills: [{ kind: "solid", color: { animated: false, static: { r: 1, g: 2, b: 3 } } }],
+              strokes: [], masks: [], shapes: [],
+            },
+            {
+              nodeId: "C2", nodeType: "TEXT_LAYER", nodeName: "Title",
+              props: {}, plain: { text: "Ship it" },
+              fills: [], strokes: [], masks: [], shapes: [],
+            },
+          ],
+        }),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "couldn't find the layers to nest — rebuilt Nested Scene 5 from the recording instead",
+    ]);
+    const nest = scene.layers[0];
+    expect(nest.type).toBe("SCENE_LAYER");
+    // the fallback is no longer an empty shell: the recorded content is inside
+    const inside = nest.scene.layers;
+    expect(inside.map((l: Any) => l.name)).toEqual(["Ellipse 1", "Title"]);
+    expect(inside[0].position.staticValue).toEqual({ x: 30, y: 40 });
+    expect(inside[0].fills[0].color.staticValue).toEqual({ r: 1, g: 2, b: 3 });
+    expect(inside[1].text).toBe("Ship it");
+  });
+
+  it("says so when the rebuilt scene layer has no scene to build into", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const create = scene.createSceneLayer;
+    scene.createSceneLayer = (opts?: Any) => {
+      const shell = create(opts);
+      shell.scene = undefined;
+      return shell;
+    };
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        nestStep([{ id: "GONE", name: "Ellipse 1" }], {
+          ...NEST_SPEC,
+          shapes: [
+            {
+              nodeId: "C1", nodeType: "SHAPE_LAYER", nodeName: "Ellipse 1",
+              props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            },
+          ],
+        }),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toContain(
+      "this scene layer has no scene to build into — its 1 layer was skipped",
+    );
+  });
+});
+
+describe("nest-layers diagnostics", () => {
+  it("keeps the nest in the scene summary past the 25-layer cap", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const many: Any[] = [];
+    for (let i = 0; i < 30; i++) {
+      many.push(scene.addLayer(makeNode(`Layer ${i}`, { type: "SHAPE_LAYER" }, ids)));
+    }
+    // select the LAST two, so the nest lands well past the cap
+    stubCreator(scene, [many[28], many[29]]);
+
+    playbackBegin({
+      debug: true,
+      steps: [
+        nestStep([
+          { id: "REC_A", name: "Layer 28" },
+          { id: "REC_B", name: "Layer 29" },
+        ]),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 }) as Any;
+
+    expect(r0.failures).toEqual([]);
+    const after = r0.debug.after[0].value as Any[];
+    const nest = after.find((entry: Any) => entry.name === "Nested Scene 5");
+    expect(nest).toBeDefined();
+    expect(nest.inner).toBe(2);
+    // the cap still applies to everything that is not pinned
+    expect(after.length).toBeLessThan(29);
+    expect(r0.debug.breadcrumbs.join(" | ")).toContain("[nest]");
   });
 });
 
@@ -716,7 +1155,7 @@ describe("apply at playhead + stagger", () => {
     const b = scene.addLayer(makeNode("B", {}, ids));
     stubCreator(scene, []);
     (globalThis as Any).creator.timeline = { currentFrame: 50 };
-    // two pre-existing layers touched → scene script
+    // two pre-existing layers touched → scene rebuild
     const steps = [kfStep({ id: a.id, name: "A" }), kfStep({ id: b.id, name: "B" })] as Any;
 
     playbackBegin({ steps, atPlayhead: true });
@@ -804,6 +1243,8 @@ describe("delay for keyframe-free macros", () => {
     expect((result.notes ?? [])[0]).toEqual({
       target: "A",
       message: "delayed this layer by 100 frames — in point 0 → 100 (at playhead)",
+      // The delay worked, so the panel must not count it as a skipped step.
+      kind: "info",
     });
   });
 
@@ -860,7 +1301,7 @@ describe("delay for keyframe-free macros", () => {
     expect(a.startFrame).toBe(0);
   });
 
-  it("says so when stagger falls to a scene script", () => {
+  it("says so when stagger falls to a scene rebuild", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
     const a = scene.addLayer(makeNode("A", {}, ids));
@@ -874,7 +1315,7 @@ describe("delay for keyframe-free macros", () => {
     const result = playbackStep({ index: 0 });
 
     expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
-      "stagger ignored — this macro replayed as a scene script (nothing was selected)",
+      "stagger needs layers selected — replayed without it",
     );
     expect([a.startFrame, b.startFrame]).toEqual([0, 0]);
   });
@@ -1141,5 +1582,230 @@ describe("debug probes on structural and scene ops (rev .52)", () => {
     // ids and types travel too, so a rename or a wrong-factory rebuild shows
     expect(result.debug.after[0].value[0]).toMatchObject({ type: expect.any(String) });
     expect(result.debug.after[0].value[0].id).toEqual(expect.any(String));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* scene settings                                                      */
+/* ------------------------------------------------------------------ */
+
+/** A scene root that carries the plain settings 1.0.1 `Scene` declares. */
+function withSettings(scene: Any) {
+  scene.size = { width: 1920, height: 1080 };
+  scene.backgroundColor = { r: 255, g: 255, b: 255 };
+  scene.framerate = 30;
+  scene.duration = 5;
+  return scene;
+}
+
+describe("scene settings (set-scene)", () => {
+  it("writes the setting onto the active scene, with nothing selected", () => {
+    const ids = makeIds();
+    const scene = withSettings(makeSceneRoot(ids));
+    stubCreator(scene, []);
+
+    const steps = [
+      step({
+        op: "set-scene",
+        key: "size",
+        before: { width: 1920, height: 1080 },
+        after: { width: 1080, height: 1080 },
+      }),
+      step({ op: "set-scene", key: "framerate", before: 30, after: 60 }),
+      step({ op: "set-scene", key: "backgroundColor", before: { r: 255, g: 255, b: 255 }, after: null }),
+    ];
+
+    const begin = playbackBegin({ steps: steps as Any });
+    expect(begin.total).toBe(3);
+    for (let i = 0; i < steps.length; i++) {
+      const result = playbackStep({ index: i });
+      expect(result.failures).toEqual([]);
+      expect(result.notes ?? []).toEqual([]);
+    }
+    expect(scene.size).toEqual({ width: 1080, height: 1080 });
+    expect(scene.framerate).toBe(60);
+    expect(scene.backgroundColor).toBe(null);
+  });
+
+  it("applies once — not once per selected layer — when a selection is present", () => {
+    const ids = makeIds();
+    const scene = withSettings(makeSceneRoot(ids));
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    stubCreator(scene, [a, b]);
+
+    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(result.notes ?? []).toEqual([]);
+    expect(scene.framerate).toBe(60);
+  });
+
+  it("reports a host that keeps its own value instead of claiming success", () => {
+    const ids = makeIds();
+    const scene = withSettings(makeSceneRoot(ids));
+    Object.defineProperty(scene, "framerate", {
+      configurable: true,
+      get: () => 30,
+      set: () => {
+        /* the host discards the write, like a locked scene */
+      },
+    });
+    stubCreator(scene, []);
+
+    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).some((n: Any) => /didn't apply/.test(n.message))).toBe(true);
+  });
+
+  it("skips a setting the scene doesn't carry, rather than inventing the property", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids); // no settings at all
+    stubCreator(scene, []);
+
+    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).some((n: Any) => /skipped/.test(n.message))).toBe(true);
+    expect("framerate" in scene).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* image layers                                                        */
+/* ------------------------------------------------------------------ */
+
+describe("add-layer for an IMAGE_LAYER", () => {
+  it("skips honestly instead of building an empty shape shell", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    scene.createShapeLayer = () => scene.addLayer(makeNode("Shape", {}, ids));
+    stubCreator(scene, []);
+
+    const spec = {
+      nodeId: "IMG", nodeType: "IMAGE_LAYER", nodeName: "Logo.png",
+      props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+    };
+    playbackBegin({ steps: [step({ op: "add-layer", spec })] as Any });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).some((n: Any) => /image asset/.test(n.message))).toBe(true);
+    expect(scene.layers).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* playback targets                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("playbackBegin — selection filtering", () => {
+  it("drops selected shapes from the target list and says so once", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    const rect = layer.createRectangle({ size: { width: 10, height: 10 } });
+    const ellipse = layer.createEllipse({});
+    stubCreator(scene, [layer, rect, ellipse]);
+
+    const begin = playbackBegin({
+      steps: [step({ op: "set-static", path: ["opacity"], before: 100, after: 50 })] as Any,
+    });
+    expect(begin.targetCount).toBe(1);
+
+    const result = playbackStep({ index: 0 });
+    const messages = (result.notes ?? []).map((n: Any) => n.message);
+    expect(messages.filter((m: string) => /selected shapes? skipped/.test(m))).toHaveLength(1);
+    expect(layer.opacity.staticValue).toBe(50);
+  });
+
+  it("prefers creator.utils.isLayer over the startFrame fallback when the host exposes it", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    // No startFrame — the fallback would call this a shape and drop it.
+    const exotic: Any = { name: "Exotic layer", opacity: { staticValue: 100 } };
+    stubCreator(scene, [layer, exotic]);
+    // The typed 1.0.1 surface, never live-verified — feature-detected.
+    (globalThis as Any).creator.utils = { isLayer: () => true };
+
+    const begin = playbackBegin({
+      steps: [step({ op: "set-static", path: ["opacity"], before: 100, after: 50 })] as Any,
+    });
+    expect(begin.targetCount).toBe(2);
+    const result = playbackStep({ index: 0 });
+    expect((result.notes ?? []).some((n: Any) => /skipped/.test(n.message))).toBe(false);
+    expect(layer.opacity.staticValue).toBe(50);
+  });
+
+  it("falls through to the existing no-targets path when only shapes were selected", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    const rect = layer.createRectangle({ size: { width: 10, height: 10 } });
+    stubCreator(scene, [rect]);
+
+    expect(() =>
+      playbackBegin({
+        steps: [step({ op: "set-static", path: ["opacity"], before: 100, after: 50 })] as Any,
+      }),
+    ).toThrow("no-selection");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* diagnostics                                                         */
+/* ------------------------------------------------------------------ */
+
+describe("the playback probe reads path values structurally", () => {
+  it("a pathData probe carries the points, not an empty object", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    layer.createPath({
+      pathData: { closed: true, points: [{ vertex: { x: 1, y: 2 } }, { vertex: { x: 3, y: 4 } }] },
+    });
+    stubCreator(scene, [layer]);
+
+    const after = { closed: true, points: [{ vertex: { x: 5, y: 6 } }] };
+    playbackBegin({
+      debug: true,
+      steps: [
+        step({
+          op: "set-static",
+          path: ["shapes", 0, "pathData"],
+          before: { closed: true, points: [] },
+          after,
+          shapeHint: "PATH",
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    const beforeProbe = result.debug!.before[0]!.value as Any;
+    expect(beforeProbe.points).toHaveLength(2);
+    expect(beforeProbe.points[0].vertex).toEqual({ x: 1, y: 2 });
+    expect((result.debug!.after[0]!.value as Any).points).toHaveLength(1);
+  });
+});
+
+describe("mask mode replays through the set-plain channel", () => {
+  it("writes Mask.mode on the target's mask", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    layer.createMask({ mode: "add" });
+    stubCreator(scene, [layer]);
+
+    playbackBegin({
+      steps: [
+        step({ op: "set-plain", path: ["masks", 0, "mode"], before: "add", after: "subtract" }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(result.notes ?? []).toEqual([]);
+    expect(layer.masks[0].mode).toBe("subtract");
   });
 });

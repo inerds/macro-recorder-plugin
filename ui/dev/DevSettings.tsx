@@ -1,4 +1,4 @@
-import { Button } from "@lottiefiles/creator-plugins-ui";
+import { Button, cn } from "@lottiefiles/creator-plugins-ui";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -133,9 +133,10 @@ export function DevSettings({ store, macroCount, onStoreChanged, children }: Dev
             {note ?? `${macroCount} stored`}
           </span>
           <ChevronDown
-            className={`size-3 transition-transform duration-150 ease-[cubic-bezier(0.2,0,0,1)] ${
-              open ? "" : "rotate-180"
-            }`}
+            className={cn(
+              "size-3 transition-transform duration-150 ease-[cubic-bezier(0.2,0,0,1)]",
+              !open && "rotate-180",
+            )}
           />
         </span>
       </button>
@@ -156,7 +157,7 @@ export function DevSettings({ store, macroCount, onStoreChanged, children }: Dev
             <Button
               size="sm"
               variant="outline"
-              className={`press key ${armed ? "key-armed" : "key-outline"}`}
+              className={cn("press key", armed ? "key-armed" : "key-outline")}
               aria-label={armed ? "Confirm: clear all macros" : "Clear all macros"}
               disabled={busy !== null || macroCount === 0}
               onClick={() => void clearAll()}

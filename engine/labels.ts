@@ -101,8 +101,9 @@ const PROP_NAMES: Record<string, string> = {
   fontSize: "font size",
   fontFamily: "font",
   timelineOffset: "timeline offset",
-  startFrame: "start frame",
-  endFrame: "end frame",
+  // Creator's own words for a layer's timeline window.
+  startFrame: "in point",
+  endFrame: "out point",
 };
 
 export function propDisplayName(name: string): string {
@@ -150,6 +151,36 @@ function propNameFlat(path: Path): string {
     return `Stroke${index}${rest ? ` · ${rest}` : ""}`;
   }
   return propDisplayName(String(root));
+}
+
+/** Scene settings as the UI says them. */
+const SCENE_SETTING_NAMES: Record<string, string> = {
+  name: "name",
+  size: "size",
+  backgroundColor: "background",
+  framerate: "framerate",
+  duration: "duration",
+};
+
+function sceneSettingName(key: string): string {
+  return SCENE_SETTING_NAMES[key] ?? key;
+}
+
+/**
+ * A scene setting's value in its own units: a size reads "1920×1080", not
+ * "(width: 1920, height: 1080)"; a null background is transparency, not "–".
+ */
+function fmtSetting(key: string, value: Json): string {
+  if (key === "size" && value !== null && typeof value === "object" && !Array.isArray(value)) {
+    const { width, height } = value as { width?: Json; height?: Json };
+    if (typeof width === "number" && typeof height === "number") {
+      return `${round2(width)}×${round2(height)}`;
+    }
+  }
+  if (key === "backgroundColor" && value === null) return "transparent";
+  if (key === "framerate" && typeof value === "number") return `${round2(value)}fps`;
+  if (key === "duration" && typeof value === "number") return `${round2(value)}s`;
+  return fmt(value);
 }
 
 const TRANSFORM_SET = new Set(["position", "scale", "rotation", "skew", "skewAxis", "opacity"]);
@@ -252,8 +283,13 @@ function beforeTextOf(payload: StepPayload): string | null {
     if (jsonEqual(payload.before, payload.after)) return null;
     return fmt(payload.before);
   }
+  if (payload.op === "set-scene") return fmtSetting(payload.key, payload.before);
   return null;
 }
+
+/** Structural roots a set-plain path can start at — `Mask · mode` beats
+ *  `Layer · mode` when the flag belongs to a mask, not the layer. */
+const PLAIN_STRUCTURAL_ROOTS = new Set(["masks", "fills", "strokes", "trimPaths", "shapes"]);
 
 function bareLabelOf(payload: StepPayload): string {
   switch (payload.op) {
@@ -319,14 +355,18 @@ function bareLabelOf(payload: StepPayload): string {
       return `Keyframes · ${prop} (${parts.join(", ")})`;
     }
     case "set-plain": {
-      const flag = propDisplayName(String(payload.path[payload.path.length - 1]));
+      // A flag on a mask/fill/stroke/shape names its OWNER, not the layer.
+      const owned = PLAIN_STRUCTURAL_ROOTS.has(String(payload.path[0]));
+      const flag = owned
+        ? propName(payload.path)
+        : `Layer · ${propDisplayName(String(payload.path[payload.path.length - 1]))}`;
       if (typeof payload.after === "boolean") {
-        return `Layer · ${flag} ${payload.after ? "on" : "off"}`;
+        return `${flag} ${payload.after ? "on" : "off"}`;
       }
       if (jsonEqual(payload.before, payload.after)) {
-        return `Layer · ${flag} = ${fmt(payload.after)}`;
+        return `${flag} = ${fmt(payload.after)}`;
       }
-      return `Layer · ${flag} ${fmt(payload.before)} → ${fmt(payload.after)}`;
+      return `${flag} ${fmt(payload.before)} → ${fmt(payload.after)}`;
     }
     case "add-fill":
     case "add-paint":
@@ -375,6 +415,8 @@ function bareLabelOf(payload: StepPayload): string {
     }
     case "reorder-layers":
       return "Reorder layers";
+    case "set-scene":
+      return `Scene · ${sceneSettingName(payload.key)} ${fmtSetting(payload.key, payload.before)} → ${fmtSetting(payload.key, payload.after)}`;
     case "not-replayable":
       return payload.description;
   }

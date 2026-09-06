@@ -82,6 +82,34 @@ describe("simplifySteps — static runs", () => {
   });
 });
 
+describe("simplifySteps — scene settings", () => {
+  function sceneStep(key: string, before: unknown, after: unknown): MacroStep {
+    return buildStep({ op: "set-scene", key, before, after } as StepPayload);
+  }
+
+  it("collapses a dragged scene setting into first → last, keyed per setting", () => {
+    const out = simplifySteps([
+      sceneStep("framerate", 30, 40),
+      sceneStep("size", { width: 1920, height: 1080 }, { width: 1500, height: 1080 }),
+      sceneStep("framerate", 40, 60),
+      sceneStep("size", { width: 1500, height: 1080 }, { width: 1080, height: 1080 }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0]!.payload).toMatchObject({ op: "set-scene", key: "framerate", before: 30, after: 60 });
+    expect(out[1]!.payload).toMatchObject({
+      op: "set-scene",
+      key: "size",
+      before: { width: 1920, height: 1080 },
+      after: { width: 1080, height: 1080 },
+    });
+  });
+
+  it("drops a scene setting run whose net effect is nothing", () => {
+    const out = simplifySteps([sceneStep("duration", 5, 8), sceneStep("duration", 8, 5)]);
+    expect(out).toEqual([]);
+  });
+});
+
 describe("simplifySteps — keyframe folding", () => {
   it("folds added@f + changed@f chains into one add with the final value", () => {
     const out = simplifySteps([

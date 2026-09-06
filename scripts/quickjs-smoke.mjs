@@ -47,6 +47,10 @@ const sceneCode = `({
 const fakeNodesSetup = `
 globalThis.__fakeNodes = [{
   id: "n1", name: "Layer 1", type: "SHAPE_LAYER",
+  // LayerMixin timing — readable live on every real layer (docs/runtime-api.md
+  // "Layer timing"), and what playbackBegin falls back to when the host has no
+  // creator.utils.isLayer to tell a layer from a shape.
+  startFrame: 0, endFrame: 150, timelineOffset: 0,
   position: {
     isAnimated: false,
     staticValue: { x: 10, y: 20 },
@@ -325,6 +329,27 @@ check(
   JSON.stringify(posted[0] ?? null),
 );
 sendToPlugin({ t: "req", id: 15, method: "playback.end", params: {} });
+
+// 10. Every note the sandbox reports carries its kind ("info" for an
+//     adaptation that worked, "skip" for a step that did not fully apply).
+//     The panel counts the skips alone, so a missing kind would report a
+//     working stagger as a skipped step.
+posted.length = 0;
+sendToPlugin({
+  t: "req", id: 16, method: "playback.begin",
+  params: { steps: staticSteps, staggerFrames: 10 },
+});
+posted.length = 0;
+sendToPlugin({ t: "req", id: 17, method: "playback.step", params: { index: 0 } });
+const stepNotes = posted[0]?.result?.notes ?? [];
+check(
+  "playback.step notes carry a kind",
+  posted.length === 1 &&
+    stepNotes.length > 0 &&
+    stepNotes.every((note) => note.kind === "info" || note.kind === "skip"),
+  JSON.stringify(posted[0]?.result ?? null),
+);
+sendToPlugin({ t: "req", id: 18, method: "playback.end", params: {} });
 
 onMessageCallback.dispose();
 vm.dispose();

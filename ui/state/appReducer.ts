@@ -90,7 +90,24 @@ export type Notice = {
   id: string;
   message: string;
   tone: "info" | "success" | "error";
+  /**
+   * What the notice reports, when the default toast life is wrong for it.
+   * A playback report is the ONLY account of what a run adapted or skipped,
+   * and it arrives while the eye is still on the scene — 3 s is not enough
+   * to find it, let alone read it.
+   */
+  kind?: "playback-notes";
 };
+
+/**
+ * How long a notice's toast stays up, or `undefined` for the toast default.
+ * An error waits for its reader; a playback report gets a long read.
+ */
+export function noticeToastDuration(notice: Notice): number | undefined {
+  if (notice.tone === "error") return Infinity;
+  if (notice.kind === "playback-notes") return 8000;
+  return undefined;
+}
 
 export type PlayingState = {
   macroId: string;
@@ -122,6 +139,12 @@ export type AppState =
       /** Macro id that just finished playing successfully (for flash). */
       justPlayedId: string | null;
       notice: Notice | null;
+      /**
+       * The store has answered at least once. Until it has, an empty list is
+       * "not known yet", not "nothing saved" — the empty state's copy and its
+       * Record key would otherwise flash on every panel open.
+       */
+      loaded: boolean;
     }
   | {
       mode: "recording";
@@ -148,6 +171,8 @@ export type AppState =
       params: MacroParam[];
       /** The recorded layer — saved onto the macro for selection fallback. */
       source?: { nodeId: string; nodeName?: string };
+      /** Review has a toast channel too: Simplify reports its count here. */
+      notice: Notice | null;
     }
   | {
       mode: "playing";
@@ -237,17 +262,21 @@ export function idleState(
     confirmingDeleteId: null,
     justPlayedId: null,
     notice: null,
+    // Every other idle state is reached from a mode the store already
+    // answered for; only the first one starts unknown.
+    loaded: true,
     ...overrides,
   };
 }
 
-export const initialState: AppState = idleState([]);
+export const initialState: AppState = idleState([], { loaded: false });
 
 export function appReducer(state: AppState, event: AppEvent): AppState {
   switch (event.type) {
     case "MACROS_LOADED": {
       // The review draft is pending state, not a macro — never render it.
       const macros = event.macros.filter((m) => m.id !== REVIEW_DRAFT_ID);
+      if (state.mode === "idle") return { ...state, macros, loaded: true };
       return { ...state, macros };
     }
 
@@ -306,6 +335,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         steps: state.steps,
         name: event.suggestedName,
         params: [],
+        notice: null,
         ...(event.source ? { source: event.source } : {}),
       };
 
@@ -383,6 +413,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         steps: event.draft.steps,
         name: event.draft.name,
         params: event.draft.params ?? [],
+        notice: null,
         ...(event.draft.source ? { source: event.draft.source } : {}),
       };
 
@@ -593,15 +624,25 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       return { ...state, justPlayedId: null };
 
     case "NOTICE":
-      // Idle and recording carry the toast channel (capture feedback lands
-      // mid-recording); other modes have no notice surface.
-      if (state.mode !== "idle" && state.mode !== "recording") return state;
+      // Idle, recording and reviewing carry the toast channel: capture
+      // feedback lands mid-recording, and Simplify — which rewrites the list
+      // under the user's eyes — is offered on the review sheet too. Playing
+      // and configuring have no notice surface, and nothing announces from
+      // either: a run reports through the idle state it ends in.
+      if (!hasNoticeChannel(state)) return state;
       return { ...state, notice: event.notice };
 
     case "NOTICE_CLEAR":
-      if (state.mode !== "idle" && state.mode !== "recording") return state;
+      if (!hasNoticeChannel(state)) return state;
       return { ...state, notice: null };
   }
+}
+
+/** The modes that hold a `notice` — the toast and the live region read it. */
+export function hasNoticeChannel(
+  state: AppState,
+): state is Extract<AppState, { notice: Notice | null }> {
+  return state.mode === "idle" || state.mode === "recording" || state.mode === "reviewing";
 }
 
 /** Replaces one macro in an idle state, leaving the rest untouched. */

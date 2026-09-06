@@ -28,7 +28,8 @@ rationale lives in `docs/`.
 - [`docs/contributing/engine-rev.md`](docs/contributing/engine-rev.md) — the
   `ENGINE_REV` rule and the stale-sandbox trap.
 - [`docs/runtime-api.md`](docs/runtime-api.md) — the host API's real runtime
-  surface. The published typings are wrong in both directions.
+  surface. The published typings, `@lottiefiles/creator-api-types` 1.0.1,
+  still diverge from the runtime in the places this file lists.
 - [`docs/limitations.md`](docs/limitations.md) — confirmed host limits, with
   evidence.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, the checks a change must pass,
@@ -41,7 +42,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (458 tests, 20 files, ~1s)
+pnpm test                      # vitest run (539 tests, 25 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 pnpm bundle                    # release zip → release/macro-recorder-v<version>.zip
@@ -74,11 +75,13 @@ claiming plugin-side work is done.
    `docs/architecture.md` or `docs/design-system.md`. File a confirmed platform
    limit in [`docs/limitations.md`](docs/limitations.md) with its evidence, and
    move the entry to the improvements log if the host later lifts it.
-3. **Keep the proxy boundary.** Only `sandbox/serialize.ts` and
-   `sandbox/applier.ts` touch Creator's live node proxies. New engine logic goes
-   in `engine/`, driven by snapshots, so it stays unit-testable without a
-   Creator mock. Never make `engine/testing/fakeScene.ts` more permissive than
-   the real host.
+3. **Keep the proxy boundary.** Reads of Creator's live node proxies belong
+   in `sandbox/serialize.ts` and writes in `sandbox/applier.ts`;
+   `sandbox/playback.ts` and `sandbox/recorder.ts` touch proxies only to
+   resolve targets, run scene-level ops, and probe for diagnostics. New engine
+   logic goes in `engine/`, driven by snapshots, so it stays unit-testable
+   without a Creator mock. Never make `engine/testing/fakeScene.ts` more
+   permissive than the real host.
 4. **Never read a trace bundle into the main context.** Bundles are large. Use
    `/triage-traces`, which fans out the read-only `macro-triage` agent
    (`.claude/agents/macro-triage.md`) and the test-writing `macro-fixture`
@@ -87,6 +90,31 @@ claiming plugin-side work is done.
 5. **Update [`docs/user-guide.md`](docs/user-guide.md) when user-facing
    behaviour changes**, and add a `CHANGELOG.md` entry for anything a user
    sees.
+
+## Host skills
+
+Two skills from [`LottieFiles/creator-plugin-skills`](https://github.com/LottieFiles/creator-plugin-skills)
+live as installed copies under `.claude/skills/`: `creator-plugin-development`
+and `creator-plugins-ui`. Re-install them with:
+
+```bash
+npx skills add LottieFiles/creator-plugin-skills --skill '*' -a claude-code --copy -y
+```
+
+They describe the generic Creator plugin scaffold: a single `plugin/plugin.ts`
+entry point, npm run scripts, raw `parent.postMessage({pluginMessage})`
+wrapping, and the published typings as the API description.
+
+This repository differs in each way. The sandbox code lives in `sandbox/`,
+not `plugin/`. The package manager is pnpm, not npm. UI-to-sandbox traffic
+goes through the RPC layer in `engine/protocol.ts`, not raw `postMessage`
+calls. The sandbox also carries the no-job-pump constraint from
+[`docs/architecture.md`](docs/architecture.md).
+
+On any conflict, [`docs/runtime-api.md`](docs/runtime-api.md),
+[`docs/limitations.md`](docs/limitations.md), and
+[`docs/architecture.md`](docs/architecture.md) win: they record what the host
+does at runtime, and the two skills assume the published typings match it.
 
 ## Documentation conventions
 

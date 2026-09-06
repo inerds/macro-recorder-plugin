@@ -994,3 +994,84 @@ describe("diffSnapshots — motion-path handles", () => {
     });
   });
 });
+
+describe("diffSnapshots — mask mode", () => {
+  it("emits a set-plain step when a mask's mode changes", () => {
+    const mask = (mode: string) => ({
+      mode,
+      pathData: anim({ points: [], closed: true }),
+      opacity: anim(100),
+    });
+    const before = makeNode({ masks: [mask("add")] });
+    const after = makeNode({ masks: [mask("subtract")] });
+    expect(diffSnapshots(before, after)).toEqual([
+      { op: "set-plain", path: ["masks", 0, "mode"], before: "add", after: "subtract" },
+    ]);
+  });
+
+  it("says nothing when the mode is unchanged or was never recorded", () => {
+    const withMode = makeNode({
+      masks: [{ mode: "add", pathData: anim({ points: [], closed: true }), opacity: anim(100) }],
+    });
+    expect(diffSnapshots(withMode, withMode)).toEqual([]);
+    const noMode = makeNode({
+      masks: [{ pathData: anim({ points: [], closed: true }), opacity: anim(100) }],
+    });
+    expect(diffSnapshots(noMode, withMode)).toEqual([]);
+  });
+});
+
+describe("diffSnapshots — gradient type swap", () => {
+  it("a LINEAR → RADIAL swap replaces the paint instead of diffing its parts", () => {
+    const linear: PaintSnapshot = { kind: "gradient", gradientType: "GRADIENT_LINEAR", stops: anim([]) };
+    const radial: PaintSnapshot = { kind: "gradient", gradientType: "GRADIENT_RADIAL", stops: anim([]) };
+    const before = makeNode({ fills: [linear] });
+    const after = makeNode({ fills: [radial] });
+    expect(diffSnapshots(before, after)).toEqual([
+      { op: "replace-paint", path: ["fills", 0], spec: radial },
+    ]);
+  });
+
+  it("two gradients of the SAME type still diff component by component", () => {
+    const at = (stops: Json): PaintSnapshot => ({
+      kind: "gradient",
+      gradientType: "GRADIENT_LINEAR",
+      stops: anim(stops),
+    });
+    const steps = diffSnapshots(makeNode({ fills: [at([0])] }), makeNode({ fills: [at([1])] }));
+    expect(steps).toEqual([
+      { op: "set-static", path: ["fills", 0, "stops"], before: [0], after: [1] },
+    ]);
+  });
+});
+
+describe("diffScene — scene settings", () => {
+  const scene = (settings: Record<string, Json>, layers: NodeSnapshot[] = []) => ({
+    sceneId: "scene-1",
+    settings: settings as never,
+    layers,
+  });
+
+  it("emits one set-scene step per changed setting", () => {
+    const steps = diffScene(
+      scene({ name: "Main", size: { width: 100, height: 100 }, framerate: 30, duration: 5, backgroundColor: null }),
+      scene({ name: "Main", size: { width: 200, height: 100 }, framerate: 60, duration: 5, backgroundColor: null }),
+    );
+    expect(steps).toEqual([
+      { op: "set-scene", key: "size", before: { width: 100, height: 100 }, after: { width: 200, height: 100 } },
+      { op: "set-scene", key: "framerate", before: 30, after: 60 },
+    ]);
+  });
+
+  it("treats a null background as a real value, not an absent one", () => {
+    expect(
+      diffScene(scene({ backgroundColor: { r: 255, g: 255, b: 255 } }), scene({ backgroundColor: null })),
+    ).toEqual([
+      { op: "set-scene", key: "backgroundColor", before: { r: 255, g: 255, b: 255 }, after: null },
+    ]);
+  });
+
+  it("says nothing when a snapshot carries no settings at all (legacy recordings)", () => {
+    expect(diffScene({ sceneId: "s", layers: [] }, scene({ framerate: 60 }))).toEqual([]);
+  });
+});

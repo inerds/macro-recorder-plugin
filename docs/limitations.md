@@ -12,11 +12,12 @@ the user sees instead, and any path that could lift it.
 
 ## Selected keyframes (`creator.selection.keyframes`) — empty in practice
 
-**What does not work:** the capture offer's "Add selected", which pulls only
-the keyframes that the user selected on the timeline into a recording.
+**What does not work:** the capture offer's "Add selected keyframes", which
+pulls only the keyframes that the user selected on the timeline into a
+recording.
 
-**Why (evidence):** the typings declare the surface (`SelectionAPI.keyframes`
-and the event `selection:keyframes`), and the surface IS live —
+**Why (evidence):** 1.0.1 types the surface (`SelectionAPI.keyframes` and the
+event `selection:keyframes`), and the surface IS live —
 `introspectSelection` probes show a real own-property array, with no throw.
 But it read `array(0)` at every probe, and `selectedCount` stayed 0 on every
 tick across five debug sessions at revs .42/.43/.44 (traces
@@ -25,9 +26,10 @@ One of them, the "Pink Flower" session, held a layer under offer that carried
 21 keyframes of its own. The polled getter never reflects the timeline
 selection in this host build.
 
-**What the user sees:** "Add selected (0)", disabled, with the tooltip
-"Creator hasn't reported any selected keyframes to plugins". "Add all" is
-unaffected and fully live-verified.
+**What the user sees:** "Add selected keyframes (0)", off, with the reason
+"Creator hasn't reported any selected keyframes to plugins" in its tooltip and
+for a screen reader. "Add all keyframes" is unaffected and fully
+live-verified.
 
 **Path to lift:** rev .46 subscribes to the typed `selection:keyframes` event
 (feature-detected) and feeds the capture offer from the latest event payload
@@ -36,8 +38,8 @@ FIRES (`events: {supported: true, fired: 32}` — and `fired: 311` across a
 longer session, trace 2026-08-26T06-03-22) but always with empty payloads
 (`lastCount: 0`). Both typed routes exist, and neither carries the timeline
 selection. Conclusive: the ask is upstream, for Creator to populate either
-surface. The moment it does, "Add selected" starts to work with no plugin
-changes.
+surface. The moment it does, "Add selected keyframes" starts to work with no
+plugin changes.
 
 ---
 
@@ -113,6 +115,15 @@ Recordings capture nothing, and no API sets the value on a target.
   values are strictly `{r,g,b}` — no alpha channel.
 - A drag of the fill-opacity slider during a recording produced **10/10 empty
   polling ticks** — zero observable change through the API.
+- The typings agree with the proxy. 1.0.1 types `SolidPaint` as
+  `{type, color, remove}` and `GradientPaint` as
+  `{start, end, stops, remove}`. `opacity` appears only on `ColorStops`
+  entries, `Mask`, `LayerMixin`, and `Group`, so the limit stands.
+- 1.0.1's `PaintOptions` has no `opacity` either, so the create side is shut
+  as well. `sandbox/applier.ts#paintSpec` no longer puts the key in a
+  `createFill` spec (rev `2026-09-06.2`): an unknown key makes the host
+  reject the whole create with `✗ Invalid input`, so the key lost the fill as
+  well as the opacity.
 - The user confirmed that it still does not work on engine rev 2026-08-22.12.
 
 **What the user sees:** the recorder captures nothing for the edit, and no
@@ -121,10 +132,12 @@ replays correctly, and it is the practical substitute.
 
 **Path to lift:**
 - A speculative document-level capture is in place. The untyped `node.toJSON()`
-  exposes the raw document where `o` lives, and the serializer recovers fill
-  and stroke opacities from it, matched by document order. If a future trace
-  shows fill-opacity steps being recorded, the capture side works. Replay
-  stays limited to honest skip-notes, because no API sets paint opacity on a
+  is where the raw document `o` would live, and the serializer recovers fill
+  and stroke opacities from it, matched by document order. On the host probed
+  on 2026-08-26 it recovers nothing: `toJSON()` returns an `{id, type}` stub
+  there (see the caveat in `runtime-api.md`). If a future trace shows
+  fill-opacity steps being recorded, the capture side works. Replay stays
+  limited to honest skip-notes, because no API sets paint opacity on a
   target.
 - The clean fix is upstream: LottieFiles must expose `opacity` on the `Paint`
   plugin interface. The document already has the property, so this is purely a
@@ -139,9 +152,9 @@ UI is invisible to the plugin. Recordings capture nothing, and the plugin
 cannot read the value back to replay it.
 
 **Why (evidence, 2026-08-22/23, engine rev 2026-08-22.39):**
-- The `Rectangle` typing lists `roundness` only as a *creation option*
-  (`RectangleOptions.roundness`, `plugin-api-ref.d.ts:1276`), not as a
-  property of a live rectangle.
+- 1.0.1 types `Rectangle.roundness` as `Animatable<number>`, and the live
+  proxy matches it. The typings are not the problem: the value itself is
+  dead.
 - Runtime introspection (trace `2026-08-21T21-53-02-401_record.json`,
   `shapeIntrospection`) shows that the live rectangle proxy DOES expose
   `roundness` as a full Animatable (`addKeyframes, clearKeyframes,
@@ -176,9 +189,9 @@ plugin. Recordings capture the keyframes' frames, values, and easing, but not
 the curve, and replays produce straight-line motion between them.
 
 **Why (evidence, 2026-08-22, engine rev 2026-08-22.38):**
-- The typings' `Keyframe<T>` interface has `id`, `frame`, `value`, `easing`,
-  and `remove`. `inTangent` and `outTangent` appear only in a doc example
-  (`plugin-api-ref.d.ts:496-497`).
+- 1.0.1's `Keyframe<T>` interface has `id`, `frame`, `value`, `easing`, and
+  `remove` — no tangent fields. `inTan` and `outTan` exist in 1.0.1 only on
+  `PathPoint`, which is path geometry, not motion.
 - Runtime introspection of a live **position** keyframe proxy across the full
   prototype chain (trace `2026-08-21T21-53-02-401_record.json`,
   `debug.keyframeIntrospection` on the first keyframe tick) found exactly
@@ -192,50 +205,107 @@ motion between the same keyframes. No step and no note mentions the curve,
 because there is nothing observable to report on.
 
 **Path to lift:** the host exposes `inTangent` and `outTangent` on keyframe
-proxies. The engine already reads and writes them defensively
-(`KfSnap.inTangent`/`outTangent`, applier read-back verification with a note
-on refusal), so a host that adds them starts to record and replay curves with
-no code change.
+proxies. The engine already reads and writes them defensively:
+`sandbox/serialize.ts` records `KfSnap.inTangent`/`outTangent` when they
+exist, and `sandbox/applier.ts#writeTangents` writes each handle, reads it
+back, and turns every refusal into its own note ("motion-path handle
+(`inTangent`) @ 12 not supported by Creator"). A host that adds the members
+starts to record and replay curves with no code change.
 
 ---
 
 ## Nesting layers programmatically — CONFIRMED
 
-> **Re-confirmed live 2026-08-26 (rev .52, traces 08-15-14 / 08-30-20 /
-> 08-32-08):** all three guess-chain routes still move 0 layers, and the
-> breadcrumbs are now in the traces. Sub-finding from the 08-32-08 replay: the
-> honest rebuild fallback is also structurally incapable of restoring the
-> scene layer's CONTENT. The child recursion in `createLayerFromSpec` knows
-> only shape primitives (`SHAPE_FACTORIES`: rectangle, ellipse, polygon, star,
-> path), so LAYER-typed children note "can't re-create a shape layer —
-> skipped", and the fallback can only ever produce an empty shell. To lift
-> that half, the host needs a way to create layers INSIDE a scene layer's
-> content, which is the same upstream ask. Same-scene replays are unaffected:
-> the recorded id resolves to the original nested scene (adoption), as the
-> 08-32-08 transform step shows.
+**Lifted in part (2026-09-07, rev `2026-09-07.1`).** Replay now rebuilds the
+layers inside the new scene, so the user-facing half of this limit is gone.
+`nestByRebuild` (`sandbox/playback.ts`) serializes each source with
+`serializeNode`, then builds a copy of each snapshot inside the shell's own
+scene. Route 1 uses the shell's own factories —
+`shell.scene.createShapeLayer`, `createTextLayer`, and `createSceneLayer`.
+Route 2 runs only when route 1 is absent: it creates the scene first with
+`creator.createScene({ name, size, framerate, duration })`, then places it
+with `scene.createSceneLayer({ scene })`. `createLayerFromSpec` recurses into
+layer-typed children, so the 2026-08-26 sub-finding no longer holds: that
+replay (rev .52, traces 08-15-14 / 08-30-20 / 08-32-08) showed the rebuild
+could only ever produce an empty shell, because the child recursion knew the
+shape primitives in `SHAPE_FACTORIES` alone.
 
-**What does not work:** replay of a "nest layers into a new scene" macro onto
-a selection can be unable to actually move the layers into the created scene.
-Early replays produced an empty nested scene.
+Five things stay:
 
-**Why (evidence, 2026-08-22):**
-- The typings promise `Scene.createSceneInstance(layers)`. Runtime
-  introspection shows **no such method exists** (the scene exposes
-  `createSceneLayer`, `createShapeLayer`, `createImageLayer`,
-  `createTextLayer`, `export`, `toJSON`, …).
+- The copies are copies. Each one gets a new id, so later steps that name a
+  recorded source resolve to the copy by index, not by identity.
+- The nest takes the first source's slot through `moveBefore`. A host that
+  refuses that move leaves the nest at the end of the layer list, with the
+  note "the new scene landed at the end of the layer list".
+- An image layer cannot be rebuilt: the recording holds no image asset. It
+  stays where it is, with the note "an image layer can't be rebuilt inside the
+  new scene — left it where it was".
+- Undo is many steps. One rebuild is a scene layer, one layer per copy, and
+  one removal per original.
+- The inner-scene factories are typed in 1.0.1 and not live-verified. The
+  17-13 traces prove only that the shell carries a `scene` whose `layers` is
+  an array. See `runtime-api.md`.
+
+**What does not work:** no API moves an existing layer into a scene. A "nest
+layers into a new scene" macro cannot move the selected layers, and early
+replays produced an empty nested scene.
+
+**Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06):**
+- 0.0.2 promised `Scene.createSceneInstance(layers)`. Runtime introspection
+  shows **no such method exists** (the scene exposes `createSceneLayer`,
+  `createShapeLayer`, `createImageLayer`, `createTextLayer`, `export`,
+  `toJSON`, …), and 1.0.1 no longer declares it.
+- 1.0.1 types `shiftTo(frame: number)` as a shift of the layer's timeline
+  window. That explains both throws below: a node and a `{to}` object are not
+  numbers.
+- 1.0.1 offers `createSceneLayer({scene})` and `creator.createScene()`.
+  Neither moves an existing layer into a scene.
 - `createSceneLayer()` **creates an empty scene layer** and does not consume
   the selection. This is live-verified: replay traces of Macro 31/32 produced
   empty shells, and the user confirmed it visually.
 - Creator's own UI nest action clearly has a path, but Creator does not expose
   it under any typed name.
+- Adoption could report a false success. Traces
+  `2026-09-06T17-13-00-849_record.json`,
+  `2026-09-06T17-13-19-190_playback-Macro-5.json`, and
+  `2026-09-06T17-13-38-332_playback-Macro-5.json` (rev `2026-09-06.4`) hold
+  one correct recording and two replays, with 26 layers selected and then 1.
+  Replay did use the selected layers. `createSceneLayer()` still returned an
+  empty shell (`[nest] createSceneLayer() -> object, content=0, top=55`), so
+  verification failed. The engine then adopted the still-live recorded nest,
+  and the note read like success. The scene did not change.
 
-**Current engine behavior (rev 2026-08-22.33):** the engine runs a verified
-guess-chain — `createSceneInstance(layers)` → `createSceneLayer(layers)` →
-`createSceneLayer()` plus a per-layer `shiftTo(created)` (the untyped move
-method present on every node). The engine checks each attempt against whether
-the created scene actually contains the layers. If no rung works, the engine
-removes the empty shell, and the macro falls back to a rebuild of the recorded
-scene layer, with notes.
+**Current engine behavior (rev `2026-09-07.1`):** the step filters the live
+selection through `isLayerNode` first, and then follows this table:
+
+| Selection (layers only) | Recorded sources found | Recorded nest live | Action |
+|---|---|---|---|
+| Not empty | Ignored | Any | Rebuild-nest the selected layers — a new nest every time |
+| Empty | Yes | Any | Rebuild-nest the recorded sources |
+| Empty | No | Yes | Adopt it, with a note |
+| Empty | No | No | Rebuild the recorded spec, now with its content |
+
+The adoption note names the scene: "Nested Scene 5 already exists — using
+it". The longer "(its layers are inside)" wording belongs to revs
+`2026-09-06.2` and `2026-09-06.3`, where a selection could adopt as well.
+
+`nestByRebuild` runs in this order:
+
+1. Serialize each source, and hold the `IMAGE_LAYER` sources back.
+2. Set the selection, and call `scene.createSceneLayer()`.
+3. Return at once if the shell's inner `layers` is not empty: the host moved
+   them, and no rebuild is necessary.
+4. Build each copy through route 1, or through route 2 when the shell carries
+   no factory.
+5. Verify by reads: the copy count, `inner.layers`, and the shape count or
+   the text of each copy.
+6. Move the shell with `shell.moveBefore(sources[0])`, apply the spec's name
+   and plain flags, and remove each rebuilt source.
+
+Any miss in step 5 removes the shell, and the route-2 scene with it. The
+originals stay where they are, and the step reports one skip note. Every host
+call is a `tryRead` with a `[nest] …` breadcrumb, so a trace shows which route
+ran.
 
 **Status: CONFIRMED (instrumented trace, 2026-08-22, rev .34).** Breadcrumbs
 from a live replay: `createSceneLayer(layers)` returned undefined;
@@ -243,23 +313,68 @@ from a live replay: `createSceneLayer(layers)` returned undefined;
 selection, even when the engine set the selection programmatically;
 `layer.shiftTo(created)` and `shiftTo({to})` both throw (0 of 2 layers moved).
 No API route exists to move existing layers into a scene. **Upstream ask for
-LottieFiles:** ship `createSceneInstance(layers)` as the typings already
-promise, or let `createSceneLayer` accept layers, or give `shiftTo` a
-scene-layer destination.
+LottieFiles:** give Creator an API that moves existing layers into a scene, or
+let `createSceneLayer` accept layers. The status covers the move API alone:
+the engine reaches the other half without the ask, because a scene's own
+`createShapeLayer` / `createTextLayer` fills it and
+`scene.createSceneLayer({ scene })` places it. That route rebuilds nested
+CONTENT; it still does not move the recorded layers. It ships in rev
+`2026-09-07.1` — see the lift paragraph above.
 
-**What replay does meanwhile:** nest steps fall back to a rebuild of the
-recorded scene layer from spec. The engine cannot rebuild layer-typed content
-either, and it notes that honestly. Same-scene replays adopt the original
-nest.
+**What replay does meanwhile:** a nest step rebuilds the layers inside the new
+scene and removes the originals. A success reads "nested the 3 selected layers
+(rebuilt inside the new scene — Creator can't move them)". A failure reads
+"couldn't rebuild your 3 selected layers inside a new scene — left them where
+they are". With nothing selected and no recorded source left, replay rebuilds
+the recorded scene layer from its spec, with its content, and notes "couldn't
+find the layers to nest — rebuilt Nested Scene 5 from the recording instead".
+A same-scene replay with nothing selected adopts the original nest.
+
+---
+
+## Re-creating an image layer on replay — the recording has no asset
+
+**What does not work:** an `add-layer` step for an `IMAGE_LAYER`. Replay
+cannot rebuild the layer, because the macro carries no image.
+
+**Why (evidence, 2026-09-06, against the 1.0.1 typings):**
+- A recorded layer is a `NodeSnapshot` — transforms, plain flags, paints,
+  masks, and child shapes. It has no channel for an image asset, so the macro
+  carries nothing to draw.
+- The only factory that builds one is `Scene.createImageLayer(opts)`, and
+  `ImageLayerCreateOptions.image` requires an `Image` asset. That is exactly
+  what the recording lacks.
+- Building the layer with `createShapeLayer` instead would produce the
+  dishonest empty shell that a rebuilt TEXT layer used to get, where every
+  later write lands on nothing (taxonomy #12). The engine refuses to do that.
+
+**What the user sees:** the step skips with the note *can't re-create an image
+layer — the recording has no image asset — skipped*
+(`sandbox/playback.ts#createLayerFromSpec`, rev `2026-09-06.3`). Every other
+edit to that image layer — transform, opacity, timing, keyframes — replays
+normally when the layer is already in the scene.
+
+**Path to lift:** 1.0.1 types two routes, and neither is live-verified here.
+Record the source asset's identity from `ImageLayer.image` and resolve it
+against `creator.assets` on replay, then call `createImageLayer({ image })`.
+Or record `Image.uri` — a base64 data URI, `null` until the host has loaded
+the image — and rebuild through `Scene.import`. Weigh the second one against
+the store: a data URI inside a macro makes the saved entry much larger, and
+`clientStorage` reports the bytes used but no cap (`runtime-api.md`).
 
 ---
 
 ## Effects, ungroup — no API surface
 
 No effect types, no effects list, and no ungroup operation exist anywhere in
-the plugin API. They are absent from the published typings and from the
-runtime surface that introspection found. Edits that use them are invisible to
-the recorder.
+the plugin API. They are absent from 1.0.1 as well, and from the runtime
+surface that introspection found. Edits that use them are invisible to
+the recorder, which reports nothing: there is no observable change to note.
+
+1.0.1 does type a layer `matte` and an `isMatte` flag. That is track matting,
+not an effect: the recorder reads `isMatte` with the other plain flags and
+nothing else of it. The path to lift is upstream — Creator must give plugins
+an effects surface first.
 
 ---
 
@@ -311,11 +426,12 @@ deletions, and layer reordering. See "Engine v3" in `history/improvements.md`.
 ---
 
 *Revised, no longer limitations:* shape **reorder**. Runtime introspection
-found the untyped `moveBefore`, `moveAfter`, `bringToFront`, and `sendToBack`
-methods, and reorder replay now builds on them (rev 2026-08-22.14; the fake's
+found `moveBefore`, `moveAfter`, `bringToFront`, and `sendToBack`, which 0.0.2
+omitted, and reorder replay now builds on them (rev 2026-08-22.14; the fake's
 model of their placement semantics is unverified against the real host until a
-reorder trace confirms it). The untyped runtime surface also includes
-`toJSON()` on nodes, shapes, and scenes; `clearKeyframes()` and
-`getValueAt()` on animatables; `createTrimPath` and `trimPaths`; and
-scene-level `export`, `createTextLayer`, and `createImageLayer` — the
-published typings substantially undersell the real API.
+reorder trace confirms it). The runtime surface also includes `toJSON()` on
+nodes, shapes, and scenes (an `{id, type}` stub on the host probed on
+2026-08-26 — see `runtime-api.md`); `clearKeyframes()` and `getValueAt()` on
+animatables; `createTrimPath` and `trimPaths`; and scene-level `export`,
+`createTextLayer`, and `createImageLayer`. 0.0.2 substantially undersold the
+real API. 1.0.1 types all of those members except `toJSON()` and `export()`.
