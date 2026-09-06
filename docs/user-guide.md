@@ -120,7 +120,7 @@ see its steps and edit them in place. Your changes save immediately.
 
 **Tip — select a layer before you record.** A macro recorded on one selected
 layer replays on *any* selected layer later. A recording that builds new
-layers replays as a scene script bound to those layers. Recording with nothing
+layers replays as a scene rebuild bound to those layers. Recording with nothing
 selected still works, and that is how you make structure macros. The panel
 reminds you of the trade-off when you start that way.
 
@@ -131,30 +131,32 @@ reminds you of the trade-off when you start that way.
 A layer that is already animated can hand its keyframes to a recording,
 without re-authoring. While you record, select **one** layer that has
 keyframes. A card appears above the live feed ("*Layer* has N keyframes on M
-properties") with two choices:
+properties. Adding them also captures the layer's current values.") with two
+choices:
 
-- **Add all** takes the layer's whole state. Every animated property becomes
-  keyframe steps, and its fills travel whole: solid stays solid, and a radial
-  gradient stays radial. Replaying replaces a mismatched fill, and adds one
-  where none exists. The rest of its current *look* — static transform values,
-  stroke widths, text and font, and blend mode — rides along as value steps.
-  Those steps read as `property = value` in the feed. Playing the saved macro
-  recreates the motion and the look on any selected layer, at the playhead,
-  with stagger. Position, scale, and rotation values deliberately do not move
-  a replay target, because a style should not teleport the layer it lands on.
-- **Add selected (n)** takes only the keyframes you selected on the timeline.
-  On current Creator builds it shows **(0), disabled**: Creator does not yet
-  report the timeline's keyframe selection to plugins. That is a host
+- **Add all keyframes** takes the layer's whole state. Every animated property
+  becomes keyframe steps, and its fills travel whole: solid stays solid, and a
+  radial gradient stays radial. Replaying replaces a mismatched fill, and adds
+  one where none exists. The rest of its current *look* — static transform
+  values, stroke widths, text and font, and blend mode — rides along as value
+  steps. Those steps read as `property = value` in the feed. Playing the saved
+  macro recreates the motion and the look on any selected layer, at the
+  playhead, with stagger. Position, scale, and rotation values deliberately do
+  not move a replay target, because a style should not teleport the layer it
+  lands on.
+- **Add selected keyframes (n)** takes only the keyframes you selected on the
+  timeline. On current Creator builds it shows **(0), disabled**: Creator does
+  not yet report the timeline's keyframe selection to plugins. That is a host
   limitation, not a broken button. The plugin also listens for the selection
   event, so the key lights up by itself the moment a Creator build starts
-  delivering it. **Add all** is unaffected.
+  delivering it. **Add all keyframes** is unaffected.
 
 The offer follows your selection: select a different layer and it updates, and
 deselect and it leaves. It shows for a single selected layer only, and not for
 a scene layer, because a scene layer's content belongs to the scene it shows,
 and every layer that shows that scene shares it.
-After **Add all**, that button disables for the layer, so a second tap cannot
-double up the steps.
+After **Add all keyframes**, that key disables for the layer, so a second tap
+cannot double up the steps.
 
 ---
 
@@ -221,7 +223,7 @@ exists. The values adapt per target:
   motion's first keyframe
 
 **Macros that touched several layers or changed scene structure** replay as a
-**scene script**: each step finds its layer by identity, then by name, and
+**scene rebuild**: each step finds its layer by identity, then by name, and
 reports a skip if it cannot. Duplicate steps really duplicate, and edits
 recorded on a copy go to the copy the replay created. Layers the replay
 recreates keep their kind: a recorded text layer comes back as a real text
@@ -235,7 +237,7 @@ the layer is already there.
 **Scene settings apply to the scene.** A step that recorded the size,
 background, frame rate, duration, or name goes to the active scene once per
 play, whatever you have selected. Playback names the setting it wrote, and it
-says so when the host keeps the old value.
+says so when Creator keeps the old value.
 
 **Duplicate-macros are tools.** "Duplicate the layer, then move or recolor the
 copy" clones each *selected* layer and edits that clone, offset from the
@@ -283,7 +285,7 @@ Click the **sliders next to ▶** to open the play options. In a very narrow
 panel the sliders leave the closed row, and the ⋮ menu offers **Play
 options…** instead. The dialog has
 **Cancel**. What you choose sticks to the row: the plain ▶ uses it too, and
-the row shows it (`×8 · +4f · @playhead`).
+the row shows it (`repeat ×8 · stagger 4 frames · at playhead`).
 
 ### At playhead
 
@@ -301,7 +303,7 @@ own animation moves with the in point.
 ### Stagger
 
 Stagger is meaningful only with several layers selected, so it is disabled for
-macros that replay as a scene script. It adds **N frames per layer**: the
+macros that replay as a scene rebuild. It adds **N frames per layer**: the
 first selected layer starts at the playhead, the second N frames later, the
 third 2N later, and so on. That is a cascade in one click. Combine it with *At
 playhead*, or leave the playhead off to stagger from the recorded frames.
@@ -388,7 +390,7 @@ Three of these actions have more to them:
   macro.
 - Expand: the open card's footer keeps **Play**, the play options, and the ⋮
   menu, so nothing needs collapsing first. Hover Play for the macro's duration
-  in frames.
+  ("Duration 30 frames").
 
 A macro travels as plain JSON. Steps, disabled flags, and parameters ride
 along, so you can share macros between people and projects: paste the text
@@ -408,8 +410,9 @@ which is why sharing is copy and paste.
 - **Select before you play.** One-layer macros apply to every selected layer.
   With nothing selected, they fall back to the original layer.
 - **Read the notes toast.** "4 steps adapted or skipped — fills not found on
-  this layer" is the macro telling you that the layer's structure differs.
-- **Name your layers.** Scene scripts find layers by id, then by **name**, so
+  this layer" is the macro telling you that the layer's structure differs. A
+  run that only adapted says "adjusted" instead, and skipped nothing.
+- **Name your layers.** A scene rebuild finds layers by id, then by **name**, so
   consistent naming makes macros portable across files.
 
 ---

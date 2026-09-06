@@ -12,7 +12,7 @@ import type { Json } from "../engine/json";
 import { makeGradientFill, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { diffSnapshots } from "../engine/diff";
 import type { StepPayload } from "../engine/steps";
-import { applyStep, delayLayer, readBaseline, type ApplyContext } from "./applier";
+import { applyStep, delayLayer, NoteList, readBaseline, type ApplyContext } from "./applier";
 
 const exact: ApplyContext = { origins: {}, baselines: {} };
 
@@ -1777,53 +1777,56 @@ describe("set-plain blendMode is a lowercase union on the real host (rev .51 tra
 describe("delayLayer", () => {
   it("moves the in point and the layer's own animation by the same delta", () => {
     const target = makeNode("Layer A", {}, makeIds());
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
     expect(target.startFrame).toBe(10);
     expect(target.timelineOffset).toBe(10);
     expect(target.endFrame).toBe(150);
-    expect(notes).toEqual(["delayed this layer by 10 frames — in point 0 → 10"]);
+    expect(notes.messages).toEqual(["delayed this layer by 10 frames — in point 0 → 10"]);
+    // A delay that WORKED is an info note: the summary must not report it as
+    // a skipped step (item 6).
+    expect(notes.kinds).toEqual(["info"]);
   });
 
   it("reports a zero delta rather than writing nothing silently", () => {
     const target = makeNode("Layer A", {}, makeIds());
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 0 }, notes);
 
     expect(target.startFrame).toBe(0);
-    expect(notes).toEqual(["in point already at 0 — nothing to shift"]);
+    expect(notes.messages).toEqual(["in point already at 0 — nothing to shift"]);
   });
 
   it("puts the first target's in point on the playhead, then staggers from it", () => {
     const ids = makeIds();
     const first = makeNode("Layer A", {}, ids);
     const second = makeNode("Layer B", {}, ids);
-    const firstNotes: string[] = [];
-    const secondNotes: string[] = [];
+    const firstNotes = new NoteList();
+    const secondNotes = new NoteList();
 
     delayLayer(first, { base: 100, delta: 0 }, firstNotes);
     delayLayer(second, { base: 100, delta: 10 }, secondNotes);
 
     expect(first.startFrame).toBe(100);
     expect(second.startFrame).toBe(110);
-    expect(firstNotes).toEqual([
+    expect(firstNotes.messages).toEqual([
       "delayed this layer by 100 frames — in point 0 → 100 (at playhead)",
     ]);
-    expect(secondNotes).toEqual(["delayed this layer by 110 frames — in point 0 → 110"]);
+    expect(secondNotes.messages).toEqual(["delayed this layer by 110 frames — in point 0 → 110"]);
   });
 
   it("skips a layer whose shifted in point would reach its out point", () => {
     const target: Record<string, unknown> = { startFrame: 0, endFrame: 15, timelineOffset: 0 };
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 20 }, notes);
 
     expect(target.startFrame).toBe(0);
     expect(target.timelineOffset).toBe(0);
-    expect(notes).toEqual([
+    expect(notes.messages).toEqual([
       "stagger would move the in point to 20, at or past the out point (15) — skipped",
     ]);
   });
@@ -1835,12 +1838,15 @@ describe("delayLayer", () => {
       set: () => {},
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
     expect(target.startFrame).toBe(0);
-    expect(notes).toEqual(["the host kept startFrame unchanged — the write didn't take"]);
+    expect(notes.messages).toEqual([
+      "Creator kept the in point as it was — the change didn't apply",
+    ]);
+    expect(notes.kinds).toEqual(["skip"]);
   });
 
   it("skips a layer whose in point can't be read", () => {
@@ -1851,11 +1857,11 @@ describe("delayLayer", () => {
       },
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
-    expect(notes).toEqual(["couldn't read this layer's in point — stagger skipped"]);
+    expect(notes.messages).toEqual(["couldn't read this layer's in point — stagger skipped"]);
   });
 
   it("falls back to the in point alone when the host keeps timelineOffset", () => {
@@ -1865,13 +1871,13 @@ describe("delayLayer", () => {
       set: () => {},
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
     expect(target.startFrame).toBe(10);
-    expect(notes).toEqual([
-      "the host kept timelineOffset unchanged — this layer's own animation stays where it was",
+    expect(notes.messages).toEqual([
+      "Creator kept the timeline offset as it was — this layer's own animation stays where it was",
       "delayed this layer by 10 frames — in point 0 → 10",
     ]);
   });
@@ -1888,13 +1894,13 @@ describe("delayLayer", () => {
       },
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
-    expect(notes).toEqual([
+    expect(notes.messages).toEqual([
       "delayed this layer by 10 frames — in point 0 → 10",
-      "the host also moved the out point 150 → 160",
+      "Creator also moved the out point 150 → 160",
     ]);
   });
 
@@ -1907,11 +1913,11 @@ describe("delayLayer", () => {
       },
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
-    expect(notes).toEqual(["couldn't set the in point: ✗ Invalid input — stagger skipped"]);
+    expect(notes.messages).toEqual(["couldn't set the in point: ✗ Invalid input — stagger skipped"]);
   });
 });
 

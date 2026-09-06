@@ -6,6 +6,22 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- Playback notes now tell adjustments from skips: a stagger that worked says
+  "3 steps adjusted", and only a step that could not apply counts as skipped.
+  Every note speaks Creator's language ("Creator kept the in point as it
+  was") and the notes toast stays for eight seconds.
+- Keys that are off now say why when you reach them with the keyboard, the
+  deck's Stop key works during playback, a paused run scrolls its
+  Continue/Stop into view, and the screen reader hears one announcement at
+  the start and end of a run instead of one per step.
+- The panel no longer stays blank when the plugin engine cannot be reached;
+  it opens on the demo engine and says so.
+- Clearer wording: "Add all keyframes", "Discard recording", "Duration 30
+  frames", one lowercase play-options readout, and "Rebuilds the scene"
+  instead of "scene script".
+- Higher contrast on the red keys, the running and pending steps, the import
+  placeholder and the warning box; a hairline edge on light Creator themes;
+  the deck's smallest readouts never drop under 9 px.
 - Recording now captures the scene settings: size, background (a transparent
   one included), frame rate, duration, and the scene name. Playback applies
   them to the active scene once per run, whatever you have selected.

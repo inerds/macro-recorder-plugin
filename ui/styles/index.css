@@ -63,6 +63,15 @@ body::before {
   box-sizing: border-box;
   padding: 8px;
   background: var(--host-frame-bg, hsl(198 16.7% 11.8%));
+  /* Grayscale smoothing for the panel. Every readout here is small, dark and
+     on warm cream — subpixel rendering fringes those strokes with colour, and
+     a 10px uppercase `.instrument` label is exactly the size at which that
+     reads as a wobble. It is a declaration here rather than an `antialiased`
+     utility on the frame div so the rule sits with the rest of the skin.
+     It inherits down the frame only: dialogs, menus and toasts are portalled
+     out of it, so give them the same pair if they ever grow small type. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* The panel is the height container for the deck's collapse rule. It is a
@@ -75,7 +84,14 @@ body::before {
   container: panel / size;
   border-radius: 10px;
   overflow: clip;
+  /* The hairline first: the seat shadow is ink, so on Creator's DARK theme the
+     plate has an edge and on its LIGHT one it has none — cream on near-white
+     with a shadow that can't be seen. `--border` rides the gutter's own
+     colour, so it draws where the drop cannot: 1.62:1 against a white host
+     (1.36:1 against the plate) instead of nothing at all, and 13.37:1 against
+     the plate on the dark host where the drop already works. */
   box-shadow:
+    0 0 0 1px var(--border),
     0 1px 0 rgba(255, 255, 255, 0.05),
     0 6px 16px -8px rgba(0, 0, 0, 0.55);
   /* An instrument, not a document: a drag across the faceplate or a
@@ -412,37 +428,46 @@ textarea {
  */
 .step-strip [data-status] {
   transition:
-    opacity 180ms cubic-bezier(0.2, 0, 0, 1),
+    color 180ms cubic-bezier(0.2, 0, 0, 1),
     background-color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Not yet reached — present, legible, and plainly not the subject. */
+/* Not yet reached — present, LEGIBLE, and plainly not the subject. The demotion
+   is a colour, never alpha: at 0.55 the label composited to #837F7A (3.35:1)
+   and the numeral, the kind icon and the skip badge — all already
+   --muted-foreground — to #A6A099 (2.18:1), so a row the user is being asked
+   to follow was under the floor for its own text. Muted ink instead: the label
+   inherits this colour (the row's own `text-foreground` is a layered utility
+   and loses to an unlayered rule), and every other part of the row is that
+   colour at full strength already. 4.96:1 on the strip. */
 .step-strip [data-status="pending"] {
-  opacity: 0.55;
-}
-
-.step-strip [data-status="running"],
-.step-strip [data-status="done"],
-.step-strip [data-status="failed"] {
   opacity: 1;
+  color: var(--muted-foreground);
 }
 
-/* The running row's numeral is a lit segment — same recipe as .rack-num,
-   since it is the same idea one level down. */
+/* The running row's numeral is a lit segment — the same recipe as .rack-num,
+   one level down, but in the SMALL-TEXT red: this is a 10px numeral, and
+   --primary reads 4.36:1 on the strip where --ink-red-text reads 5.19:1.
+   The lamp is the only thing that pulses (see below), so 5.19:1 is what the
+   numeral holds at every frame. */
 .step-strip [data-status="running"] .step-num {
-  color: var(--primary);
-  text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--ink-red-text);
+  text-shadow: 0 0 5px color-mix(in srgb, var(--ink-red-text) 35%, transparent);
   animation: step-running-pulse 1.4s ease-in-out infinite alternate;
 }
 
 /* Shallower than record-pulse: this one sits under a moving playhead and a
-   full blink at 2Hz would fight the row-to-row travel for attention. */
+   full blink at 2Hz would fight the row-to-row travel for attention. It
+   pulses the GLOW, never the opacity — the old fade to 0.7 took the numeral
+   to 2.85:1 for half of every cycle, which is the one thing a "you are here"
+   marker must not do. A text-shadow only ever adds light around the glyph;
+   the glyph's own colour never moves. */
 @keyframes step-running-pulse {
   from {
-    opacity: 1;
+    text-shadow: 0 0 5px color-mix(in srgb, var(--ink-red-text) 20%, transparent);
   }
   to {
-    opacity: 0.7;
+    text-shadow: 0 0 7px color-mix(in srgb, var(--ink-red-text) 65%, transparent);
   }
 }
 
@@ -455,9 +480,15 @@ textarea {
   }
 }
 
-/* A recoverable problem, not a failure — amber, not the action red. */
+/* A recoverable problem, not a failure — amber, not the action red. The edge
+   is amber DARKENED WITH INK, not amber faded into the paper: 70% of the lamp
+   over transparent landed at #E0B972, a 1.56:1 edge that vanished on cream
+   (1.47:1 against the box's own fill). Mixed with --ink instead it is
+   #A47E38 — 3.14:1 on --background, 3.40:1 on the card it actually sits on,
+   3.05:1 against the fill, so the box has a boundary at the 1.4.11 bar
+   whichever side you read it from. */
 .warn-box {
-  border: 1px solid color-mix(in srgb, var(--lamp-amber) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lamp-amber) 70%, var(--ink));
   background: color-mix(in srgb, var(--lamp-amber) 16%, transparent);
   border-radius: 10px;
 }
@@ -513,20 +544,29 @@ textarea {
   box-shadow: 0 1px 0 var(--ink);
 }
 
+/* The cap is a red gradient with a legend ON it, so the LIGHTEST sample of
+   the face is what the legend has to survive: the old #E0574A top left
+   `#fff3ee` at 3.43:1 there and 4.51:1 at the 60% stop. The face now starts
+   at --primary and darkens — top 4.76:1, mid 5.52:1, bottom 6.44:1. These
+   are the deck's `.key-plate-red` values (deck.css); retune one, retune both. */
 .key-red.key-red {
-  background: linear-gradient(180deg, #e0574a 0%, #c8382b 60%, #b3301f 100%);
+  background: linear-gradient(180deg, #c8382b 0%, #b5301f 60%, #a62c1c 100%);
   color: #fff3ee;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
     0 1.5px 0 var(--ink);
 }
 
+/* Hover lifts the WHOLE face a step rather than the top alone: the top has
+   only 0.26 of headroom over the 4.5 floor, so the brightening that reads is
+   the lower two thirds. Samples 4.62 / 5.11 / 5.67:1. */
 .key-red.key-red:hover:not(:disabled) {
-  background: linear-gradient(180deg, #e45c4a 0%, #bc3124 100%);
+  background: linear-gradient(180deg, #cb3a2c 0%, #b5301f 100%);
 }
 
+/* Pressed reads darker than rest: 6.30 / 7.06 / 7.93:1. */
 .key-red.key-red:active:not(:disabled) {
-  background: linear-gradient(180deg, #be3428 0%, #9e2a1e 100%);
+  background: linear-gradient(180deg, #a82d21 0%, #8f241a 100%);
   box-shadow:
     inset 0 2px 3px rgba(0, 0, 0, 0.28),
     0 0 0 var(--ink);

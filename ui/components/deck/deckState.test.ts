@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deckCountLabel,
   deckLabel,
   deckLamp,
   deriveDeckState,
@@ -135,5 +136,15 @@ describe("deriveDeckState", () => {
       expect(deckLabel(state)).toMatch(/^[A-Z]/);
       expect([null, "red", "amber"]).toContain(deckLamp(state));
     }
+  });
+});
+
+describe("deckCountLabel", () => {
+  it("says what the counter counts in the state it is in", () => {
+    expect(deckCountLabel("recording", 4)).toBe("4 steps captured");
+    expect(deckCountLabel("recording", 1)).toBe("1 step captured");
+    expect(deckCountLabel("playing", 4)).toBe("4 steps played");
+    expect(deckCountLabel("paused", 2)).toBe("2 steps played");
+    expect(deckCountLabel("idle", 0)).toBe("0 steps");
   });
 });

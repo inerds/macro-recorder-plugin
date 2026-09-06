@@ -330,6 +330,27 @@ check(
 );
 sendToPlugin({ t: "req", id: 15, method: "playback.end", params: {} });
 
+// 10. Every note the sandbox reports carries its kind ("info" for an
+//     adaptation that worked, "skip" for a step that did not fully apply).
+//     The panel counts the skips alone, so a missing kind would report a
+//     working stagger as a skipped step.
+posted.length = 0;
+sendToPlugin({
+  t: "req", id: 16, method: "playback.begin",
+  params: { steps: staticSteps, staggerFrames: 10 },
+});
+posted.length = 0;
+sendToPlugin({ t: "req", id: 17, method: "playback.step", params: { index: 0 } });
+const stepNotes = posted[0]?.result?.notes ?? [];
+check(
+  "playback.step notes carry a kind",
+  posted.length === 1 &&
+    stepNotes.length > 0 &&
+    stepNotes.every((note) => note.kind === "info" || note.kind === "skip"),
+  JSON.stringify(posted[0]?.result ?? null),
+);
+sendToPlugin({ t: "req", id: 18, method: "playback.end", params: {} });
+
 onMessageCallback.dispose();
 vm.dispose();
 console.log(`\n${pass}/${pass + fail} QuickJS checks passed`);

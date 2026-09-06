@@ -123,7 +123,7 @@ one yet. Every call stays feature-detected, and each one has a fallback:
   `backgroundColor` (`Color | null`, where `null` is a transparent scene),
   `framerate`, and `duration`. All five are plain mutable members.
   `sandbox/playback.ts#applySceneSetting` writes one per `set-scene` step and
-  reads it back. It notes a value the host keeps unchanged.
+  reads it back. It notes a value Creator keeps unchanged.
 - `Animatable.getValueAt(frame)` as a playback baseline. The member is
   live-verified (see the list above); this use of it is not.
   `sandbox/applier.ts#readBaseline` reads the value at

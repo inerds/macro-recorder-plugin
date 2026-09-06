@@ -60,7 +60,7 @@ describe("saveMacro failure wording", () => {
     const { saveMacro } = await loadStore({
       set: () => Promise.reject(new Error("")),
     });
-    await expect(saveMacro(macro)).rejects.toThrow("Could not save the macro");
+    await expect(saveMacro(macro)).rejects.toThrow("Couldn't save the macro. Try again.");
   });
 });
 

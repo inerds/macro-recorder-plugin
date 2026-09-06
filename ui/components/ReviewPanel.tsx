@@ -119,7 +119,7 @@ export function ReviewPanel({
             message={`Discard this recording? Its ${
               steps.length === 1 ? "1 step" : `${steps.length} steps`
             } will be lost.`}
-            confirmLabel="Discard"
+            confirmLabel="Discard recording"
             onConfirm={onDiscard}
             onCancel={() => setConfirmingDiscard(false)}
           />

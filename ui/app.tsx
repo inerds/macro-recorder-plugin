@@ -16,6 +16,7 @@ import { MacroList } from "./components/MacroList";
 import { RecordingView } from "./components/RecordingView";
 import { ReviewPanel } from "./components/ReviewPanel";
 import { useApp } from "./state/AppContext";
+import { hasNoticeChannel, noticeToastDuration } from "./state/appReducer";
 import { useHostBackground } from "./theme/useHostBackground";
 import { VINTAGE_TOKENS } from "./theme/vintageTokens";
 
@@ -26,8 +27,7 @@ import { VINTAGE_TOKENS } from "./theme/vintageTokens";
 function NoticeToasts() {
   const { state, actions } = useApp();
   const { toast } = useToast();
-  const notice =
-    state.mode === "idle" || state.mode === "recording" ? state.notice : null;
+  const notice = hasNoticeChannel(state) ? state.notice : null;
   // The key changes on every announcement, identical text included: a live
   // region only speaks when its contents CHANGE, and "Played X" twice in a
   // row is two events the user needs to hear twice.
@@ -38,11 +38,12 @@ function NoticeToasts() {
   useEffect(() => {
     if (!notice) return;
     announce(notice.message);
+    const duration = noticeToastDuration(notice);
     toast({
       title: notice.message,
       variant: notice.tone === "info" ? "default" : notice.tone,
-      // Something went wrong: don't time out before it has been read.
-      ...(notice.tone === "error" ? { duration: Infinity } : {}),
+      // An error waits for its reader; a playback report gets a long read.
+      ...(duration === undefined ? {} : { duration }),
     });
     actions.clearNotice();
   }, [notice, toast, actions]);
@@ -60,6 +61,18 @@ function NoticeToasts() {
     );
   }, [mode]);
 
+  // The progress row itself is silent (it ticks up to ~20 times a second).
+  // A run says one thing on the way in; its outcome — played, stopped, or a
+  // report of what it adapted — arrives as the notice above.
+  const playingMacroId = state.mode === "playing" ? state.playing.macroId : null;
+  const playingTotal = useRef(0);
+  playingTotal.current = state.mode === "playing" ? state.playing.total : 0;
+  useEffect(() => {
+    if (playingMacroId === null) return;
+    const total = playingTotal.current;
+    announce(`Playing ${total === 1 ? "1 step" : `${total} steps`}…`);
+  }, [playingMacroId]);
+
   return (
     <div
       aria-live="polite"
@@ -72,7 +85,40 @@ function NoticeToasts() {
   );
 }
 
-function Panel({ gateways }: { gateways: GatewaysBundle }) {
+/**
+ * A full-screen sheet takes the focused element with it when it closes, and
+ * focus falls to `<body>`. Aim it back at the list row the sheet came from —
+ * the same move `MacroRow`'s own `restoreFocus` makes after a rename. The
+ * frame's wait is for the row to exist: the sheet is still mounted when the
+ * key is pressed.
+ */
+function focusAfterSheet(target: { macroId: string } | "last-row" | "deck") {
+  requestAnimationFrame(() => {
+    const deck = () => document.querySelector<HTMLElement>('[data-testid="record-button"]');
+    if (target === "deck") {
+      deck()?.focus();
+      return;
+    }
+    const list = document.querySelector('[data-testid="macro-list"]');
+    const rows = list?.querySelectorAll<HTMLElement>("[data-row-disclosure]");
+    const row =
+      target === "last-row"
+        ? rows?.[rows.length - 1]
+        : list?.querySelector<HTMLElement>(
+            `[data-macro-id="${target.macroId}"] [data-row-disclosure]`,
+          );
+    (row ?? deck())?.focus();
+  });
+}
+
+function Panel({
+  gateways,
+  demoEngine,
+}: {
+  gateways: GatewaysBundle;
+  /** Forced on by `main.tsx` when the gateways could not even be built. */
+  demoEngine?: boolean;
+}) {
   const { state, actions } = useApp();
   // The frame matches Creator's interface theme; null until the host pushes
   // one, and the CSS fallback (dark) covers that.
@@ -84,7 +130,8 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
   // Mocks are expected in a standalone tab; inside an iframe (i.e. inside
   // Creator) they mean the sandbox handshake failed — say so loudly instead
   // of silently showing demo data.
-  const demoInIframe = gateways.kind === "mock" && window.self !== window.top;
+  const demoInIframe =
+    demoEngine === true || (gateways.kind === "mock" && window.self !== window.top);
 
   const configuringMacro =
     state.mode === "configuring"
@@ -134,59 +181,83 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
               machine's faceplate, so it meets the panel edges rather than
               floating on the paper like a card. */}
           <Deck />
-          {state.mode === "recording" ? (
-            <RecordingView
-              steps={state.steps}
-              confirmingDiscard={state.confirmingDiscard}
-              selectionCount={state.selectionCount}
-              captureOffer={state.captureOffer}
-              capturedAllLayerIds={state.capturedAllLayerIds}
-              onCapture={actions.captureLayerKeyframes}
-              onStop={actions.stopRecording}
-              onDiscardRequest={actions.requestDiscard}
-              onDiscardCancel={actions.cancelDiscard}
-              onDiscardConfirm={actions.confirmDiscard}
-            />
-          ) : state.mode === "reviewing" ? (
-            <ReviewPanel
-              name={state.name}
-              steps={state.steps}
-              params={state.params}
-              onNameChange={actions.changeReviewName}
-              onDeleteStep={actions.deleteReviewStep}
-              onSimplify={actions.simplifyReview}
-              onToggleStep={actions.toggleReviewStep}
-              onEditStep={actions.editReviewStep}
-              onToggleParam={actions.toggleReviewParam}
-              onSave={actions.saveReview}
-              onDiscard={actions.discardReview}
-            />
-          ) : state.mode === "configuring" && configuringMacro ? (
-            <ConfigureSheet
-              macro={configuringMacro}
-              values={state.values}
-              options={state.options}
-              onChange={actions.changeConfigureValue}
-              onPlay={actions.confirmConfigure}
-              onCancel={actions.cancelConfigure}
-            />
-          ) : (
-            // The footer that used to sit below this list carried only a
-            // totals line ("N macros · M steps") — folded into the "Saved
-            // macros" header row instead (MacroList.tsx) so the list keeps the
-            // whole row of chrome that footer cost. Its other job, clearing
-            // the bottom-centre toast, moves to this <main> directly.
-            <main
-              className={cn(
-                "min-h-0 flex-1 overflow-y-auto overflow-x-hidden transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
-                toasts.length > 0 && "pb-12",
-              )}
-            >
-              <MacroList
-                playing={state.mode === "playing" ? state.playing : null}
+          {/* One wrapper for every screen. The toast is pinned to the
+              panel's bottom edge and every screen has something there — the
+              recording and review bars carry their own decision, and the
+              idle list runs to the floor. The room for it is made once,
+              here, rather than by the one screen that remembered to. */}
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col transition-[padding] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+              toasts.length > 0 && "pb-12",
+            )}
+          >
+            {state.mode === "recording" ? (
+              <RecordingView
+                steps={state.steps}
+                confirmingDiscard={state.confirmingDiscard}
+                selectionCount={state.selectionCount}
+                captureOffer={state.captureOffer}
+                capturedAllLayerIds={state.capturedAllLayerIds}
+                onCapture={actions.captureLayerKeyframes}
+                onStop={actions.stopRecording}
+                onDiscardRequest={actions.requestDiscard}
+                onDiscardCancel={actions.cancelDiscard}
+                onDiscardConfirm={actions.confirmDiscard}
               />
-            </main>
-          )}
+            ) : state.mode === "reviewing" ? (
+              <ReviewPanel
+                name={state.name}
+                steps={state.steps}
+                params={state.params}
+                onNameChange={actions.changeReviewName}
+                onDeleteStep={actions.deleteReviewStep}
+                onSimplify={actions.simplifyReview}
+                onToggleStep={actions.toggleReviewStep}
+                onEditStep={actions.editReviewStep}
+                onToggleParam={actions.toggleReviewParam}
+                // Saving lands the macro at the end of the list; discarding
+                // leaves nothing behind, so the deck's Record key takes focus.
+                onSave={() => {
+                  actions.saveReview();
+                  focusAfterSheet("last-row");
+                }}
+                onDiscard={() => {
+                  actions.discardReview();
+                  focusAfterSheet("deck");
+                }}
+              />
+            ) : state.mode === "configuring" && configuringMacro ? (
+              <ConfigureSheet
+                macro={configuringMacro}
+                values={state.values}
+                options={state.options}
+                onChange={actions.changeConfigureValue}
+                // Both keys close the sheet and put the macro's own row back
+                // on screen — that row is where the focus that opened the
+                // sheet came from.
+                onPlay={() => {
+                  actions.confirmConfigure();
+                  focusAfterSheet({ macroId: configuringMacro.id });
+                }}
+                onCancel={() => {
+                  actions.cancelConfigure();
+                  focusAfterSheet({ macroId: configuringMacro.id });
+                }}
+              />
+            ) : (
+              // The footer that used to sit below this list carried only a
+              // totals line ("N macros · M steps") — folded into the "Saved
+              // macros" header row instead (MacroList.tsx) so the list keeps the
+              // whole row of chrome that footer cost. Its other job, clearing
+              // the bottom-centre toast, belongs to the wrapper above.
+              <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+                <MacroList
+                  playing={state.mode === "playing" ? state.playing : null}
+                />
+              </main>
+            )}
+          </div>
           {import.meta.env.DEV && (
             <DevSettings
               store={gateways.store}
@@ -209,10 +280,17 @@ function Panel({ gateways }: { gateways: GatewaysBundle }) {
   );
 }
 
-export function App({ gateways }: { gateways: GatewaysBundle }) {
+export function App({
+  gateways,
+  demoEngine,
+}: {
+  gateways: GatewaysBundle;
+  /** Set by `main.tsx` when gateway selection itself failed. */
+  demoEngine?: boolean;
+}) {
   return (
     <ToastProvider position="bottom-center">
-      <Panel gateways={gateways} />
+      <Panel gateways={gateways} {...(demoEngine ? { demoEngine } : {})} />
     </ToastProvider>
   );
 }

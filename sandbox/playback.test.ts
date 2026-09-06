@@ -180,7 +180,7 @@ describe("retargeted duplication (targets mode)", () => {
     expect(scene.layers[1].name).toBe("star 7"); // scene mode applies recorded name
   });
 
-  it("multi-source macros ignore selection and stay scene scripts", () => {
+  it("multi-source macros ignore selection and stay scene rebuilds", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
     const a = scene.addLayer(makeNode("A", { props: { rotation: 0 } }, ids));
@@ -764,7 +764,7 @@ describe("apply at playhead + stagger", () => {
     const b = scene.addLayer(makeNode("B", {}, ids));
     stubCreator(scene, []);
     (globalThis as Any).creator.timeline = { currentFrame: 50 };
-    // two pre-existing layers touched → scene script
+    // two pre-existing layers touched → scene rebuild
     const steps = [kfStep({ id: a.id, name: "A" }), kfStep({ id: b.id, name: "B" })] as Any;
 
     playbackBegin({ steps, atPlayhead: true });
@@ -852,6 +852,8 @@ describe("delay for keyframe-free macros", () => {
     expect((result.notes ?? [])[0]).toEqual({
       target: "A",
       message: "delayed this layer by 100 frames — in point 0 → 100 (at playhead)",
+      // The delay worked, so the panel must not count it as a skipped step.
+      kind: "info",
     });
   });
 
@@ -908,7 +910,7 @@ describe("delay for keyframe-free macros", () => {
     expect(a.startFrame).toBe(0);
   });
 
-  it("says so when stagger falls to a scene script", () => {
+  it("says so when stagger falls to a scene rebuild", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
     const a = scene.addLayer(makeNode("A", {}, ids));
@@ -922,7 +924,7 @@ describe("delay for keyframe-free macros", () => {
     const result = playbackStep({ index: 0 });
 
     expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
-      "stagger ignored — this macro replayed as a scene script (nothing was selected)",
+      "stagger needs layers selected — replayed without it",
     );
     expect([a.startFrame, b.startFrame]).toEqual([0, 0]);
   });
@@ -1263,7 +1265,7 @@ describe("scene settings (set-scene)", () => {
     playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
-    expect((result.notes ?? []).some((n: Any) => /didn't take/.test(n.message))).toBe(true);
+    expect((result.notes ?? []).some((n: Any) => /didn't apply/.test(n.message))).toBe(true);
   });
 
   it("skips a setting the scene doesn't carry, rather than inventing the property", () => {

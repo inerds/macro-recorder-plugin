@@ -1,6 +1,6 @@
 import { RPC_ERRORS } from "../../../engine/protocol";
 import { trace } from "../../dev/trace";
-import type { Macro, StepResult } from "../../types";
+import type { Macro, NoteKind, StepResult } from "../../types";
 import { paceDelayMs, SETTLE_MS } from "../pacing";
 import {
   enabledSteps,
@@ -38,7 +38,11 @@ export class RpcPlaybackGateway implements PlaybackGateway {
       });
 
     /** One begin/steps/end pass. Returns false when the run should stop. */
-    async function pass(iteration: number, allNotes: string[]): Promise<boolean> {
+    async function pass(
+      iteration: number,
+      allNotes: string[],
+      allKinds: NoteKind[],
+    ): Promise<boolean> {
       let begun = false;
       const offset = iteration * steps.length;
       try {
@@ -74,6 +78,8 @@ export class RpcPlaybackGateway implements PlaybackGateway {
             (note) => `Step ${index + 1} · ${note.target}: ${note.message}`,
           );
           allNotes.push(...stepNotes);
+          // A note from an older sandbox carries no kind; read it as a skip.
+          allKinds.push(...(result.notes ?? []).map((note) => note.kind ?? "skip"));
           if (result.debug) {
             trace.event("playback-event", {
               index,
@@ -122,14 +128,15 @@ export class RpcPlaybackGateway implements PlaybackGateway {
 
     async function loop(): Promise<void> {
       const allNotes: string[] = [];
+      const allKinds: NoteKind[] = [];
       try {
         for (let iteration = 0; iteration < repeats; iteration++) {
-          if (!(await pass(iteration, allNotes))) return;
+          if (!(await pass(iteration, allNotes, allKinds))) return;
         }
         if (cancelled) return;
         // The settle beat: the last row shows done before the run does.
         await sleep(SETTLE_MS);
-        if (!cancelled) onEvent({ kind: "done", notes: allNotes });
+        if (!cancelled) onEvent({ kind: "done", notes: allNotes, noteKinds: allKinds });
       } finally {
         void trace.flush(`playback-${macro.name}`);
       }

@@ -67,6 +67,25 @@ export function deckLamp(state: DeckState): "red" | "amber" | null {
   }
 }
 
+/**
+ * What the counter's four digits mean right now, in words. The digits are a
+ * readout with no label of their own, and the one they used to carry said
+ * "Steps captured" through a playback that captures nothing.
+ */
+export function deckCountLabel(state: DeckState, count: number): string {
+  const steps = count === 1 ? "1 step" : `${count} steps`;
+  switch (state) {
+    case "recording":
+      return `${steps} captured`;
+    case "playing":
+    case "rewind":
+    case "paused":
+      return `${steps} played`;
+    default:
+      return steps;
+  }
+}
+
 /** The word on the panel. Under reduced motion this is the whole story. */
 export function deckLabel(state: DeckState): string {
   switch (state) {

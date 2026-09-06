@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { Json } from "./json";
 import type { MacroStep } from "./macro";
-import { joinLabelParts, labelOf, labelPartsOf, sharedLayerName } from "./labels";
+import {
+  joinLabelParts,
+  labelOf,
+  labelPartsOf,
+  propDisplayName,
+  sharedLayerName,
+} from "./labels";
 import type { AnimatableSnapshot, KfSnap, PaintSnapshot, Path } from "./snapshot";
 import { buildStep, kindOf, type StepPayload } from "./steps";
 
@@ -528,5 +534,19 @@ describe("labelOf — a flag on a mask names the mask", () => {
       kindOf({ op: "set-plain", path: ["masks", 0, "mode"], before: "add", after: "subtract" }),
     ).toBe("mask");
     expect(kindOf({ op: "set-plain", path: ["visible"], before: true, after: false })).toBe("layer");
+  });
+});
+
+describe("propDisplayName", () => {
+  it("says a layer's timeline window the way Creator says it", () => {
+    // Notes and step labels read these words to the user, so "startFrame"
+    // never reaches a note (docs/contributing/writing-style.md).
+    expect(propDisplayName("startFrame")).toBe("in point");
+    expect(propDisplayName("endFrame")).toBe("out point");
+    expect(propDisplayName("timelineOffset")).toBe("timeline offset");
+  });
+
+  it("passes an unmapped name through unchanged", () => {
+    expect(propDisplayName("opacity")).toBe("opacity");
   });
 });

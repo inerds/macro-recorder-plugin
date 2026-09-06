@@ -2,7 +2,7 @@ import type { Json } from "../engine/json";
 import { jsonEqual, toJson } from "../engine/json";
 import type { MacroStep } from "../engine/macro";
 import type { PlaybackStepDebug, TargetProbe } from "../engine/protocol";
-import { RPC_ERRORS } from "../engine/protocol";
+import { RPC_ERRORS, type NoteKind } from "../engine/protocol";
 import type { NodeSnapshot, Path } from "../engine/snapshot";
 import { pathKey, propClassOf } from "../engine/snapshot";
 import { nodeTypeName } from "../engine/labels";
@@ -12,6 +12,7 @@ import { resolvePaint,
   applyNodeSpec,
   applyStep,
   delayLayer,
+  NoteList,
   readBaseline,
   reorderChildren,
   resolvePath,
@@ -69,7 +70,7 @@ interface StepAnalysis {
 
 /**
  * A macro that touches several layers (or restructures the scene) replays as
- * a scene script: each step finds its own layer by recorded id, then by name,
+ * a scene rebuild: each step finds its own layer by recorded id, then by name,
  * then skips. A macro that touches at most one PRE-EXISTING layer keeps the
  * selection semantics — apply to every selected layer, offsets from each
  * one's start. That includes duplication: "duplicate the layer, edit the
@@ -122,7 +123,7 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
   }
   if (selectionCount > 0) return { mode: "targets" };
   // Nothing selected and nothing layer-bound: a settings-only macro is still
-  // a scene script, and must not fail the targets path's no-selection gate.
+  // a scene rebuild, and must not fail the targets path's no-selection gate.
   return referenced.size > 0 || sceneSettings ? { mode: "scene" } : { mode: "targets" };
 }
 
@@ -443,7 +444,7 @@ function layerLabel(ref: LayerRef | undefined): string {
 function createLayerFromSpec(
   scene: AnyProxy,
   spec: NodeSnapshot,
-  notes: string[],
+  notes: NoteList,
 ): AnyProxy | undefined {
   // An image layer's content is an ASSET the recording never captured, so no
   // factory can rebuild it: createShapeLayer gives the same dishonest empty
@@ -568,7 +569,7 @@ const SCENE_SETTING_LABELS: Record<string, string> = {
 function applySceneSetting(
   scene: AnyProxy,
   payload: Extract<StepPayload, { op: "set-scene" }>,
-  notes: string[],
+  notes: NoteList,
 ): void {
   const key = payload.key;
   const label = SCENE_SETTING_LABELS[key] ?? key;
@@ -593,7 +594,7 @@ function applySceneSetting(
   }
   try {
     if (!jsonEqual(toJson(scene[key]), payload.after)) {
-      notes.push(`the host kept the scene ${label} unchanged — the write didn't take`);
+      notes.push(`Creator kept the scene ${label} as it was — the change didn't apply`);
     }
   } catch {
     // read-back unavailable: unverifiable is not a failure
@@ -613,7 +614,7 @@ function applySceneOp(
         | "set-scene";
     }
   >,
-  notes: string[],
+  notes: NoteList,
 ): void {
   const scene = creator.activeScene;
   if (!scene) {
@@ -661,7 +662,7 @@ function applySceneOp(
           return;
         }
       }
-      notes.push(`couldn't duplicate ${layerLabel(payload.cloneOf)} — rebuilding from the recording`);
+      notes.info(`couldn't duplicate ${layerLabel(payload.cloneOf)} — rebuilding from the recording`);
     }
     // Untyped runtime factory (introspection-discovered).
     const created = createLayerFromSpec(scene, payload.spec as NodeSnapshot, notes);
@@ -688,17 +689,17 @@ function applySceneOp(
       else missing.push(spec as NodeSnapshot);
     }
     if (missing.length === payload.fallback.length) {
-      notes.push(
+      notes.info(
         `couldn't break ${layerLabel(payload.layer)} — rebuilding its layers from the recording`,
       );
     } else if (missing.length > 0) {
-      notes.push(
+      notes.info(
         `${layerLabel(payload.layer)} was already broken — rebuilding ${missing.length} ${
           missing.length === 1 ? "missing layer" : "missing layers"
         }`,
       );
     } else {
-      notes.push(`${layerLabel(payload.layer)} was already broken — using its layers`);
+      notes.info(`${layerLabel(payload.layer)} was already broken — using its layers`);
     }
     for (const spec of missing) {
       const created = createLayerFromSpec(scene, spec, notes);
@@ -728,7 +729,7 @@ function applySceneOp(
             .map((ref) => resolveLayer(ref))
             .filter((layer): layer is AnyProxy => layer !== undefined);
     if (selection.length > 0) {
-      notes.push(
+      notes.info(
         `nesting the ${selection.length} selected ${
           selection.length === 1 ? "layer" : "layers"
         }`,
@@ -744,7 +745,7 @@ function applySceneOp(
     const already = resolveLayer({ id: payload.spec.nodeId });
     const adopt = (): void => {
       playback.layerByRecordedId.set(payload.spec.nodeId, already);
-      notes.push(
+      notes.info(
         `${payload.spec.nodeName ?? "the nested scene"} already exists (its layers are inside) — using it`,
       );
     };
@@ -764,7 +765,7 @@ function applySceneOp(
           }
         }
         const nested = resolved.length === 1 ? "layer" : "layers";
-        notes.push(
+        notes.info(
           selection.length > 0
             ? `nested the ${resolved.length} selected ${nested}`
             : `nested ${resolved.length} ${nested}`,
@@ -819,14 +820,14 @@ function applySceneOp(
 function applyReorderLayers(
   scene: AnyProxy,
   payload: Extract<StepPayload, { op: "reorder-layers" }>,
-  notes: string[],
+  notes: NoteList,
 ): void {
   const refs = payload.layers;
   if (!refs || refs.length === 0) {
     // Legacy payload (pre rev .52): no identities to check. Still reorders —
     // same-scene replays are the common case — but says so.
     reorderChildren(scene, "layers", payload.order, notes);
-    notes.push(
+    notes.info(
       "this recording didn't capture layer identities — reordered by position without verifying the layers match; check the result",
     );
     return;
@@ -998,12 +999,11 @@ export function playbackBegin(params: {
       baselines: [],
       ...timing,
       delay: null,
-      // A scene script binds each step to its own recorded layer, so there is
+      // A scene rebuild binds each step to its own recorded layer, so there is
       // no target order to cascade. Say so rather than doing nothing.
       ...(staggerFrames > 0
         ? {
-            staggerNote:
-              "stagger ignored — this macro replayed as a scene script (nothing was selected)",
+            staggerNote: "stagger needs layers selected — replayed without it",
           }
         : {}),
       ...(selectionNote !== undefined ? { selectionNote } : {}),
@@ -1081,7 +1081,7 @@ export function playbackBegin(params: {
 export function playbackStep(params: { index: number }): {
   index: number;
   failures: { target: string; message: string }[];
-  notes?: { target: string; message: string }[];
+  notes?: { target: string; message: string; kind: NoteKind }[];
   debug?: PlaybackStepDebug;
 } {
   const playback = session.playback;
@@ -1093,7 +1093,7 @@ export function playbackStep(params: { index: number }): {
   const path = pathOf(payload);
 
   const failures: { target: string; message: string }[] = [];
-  const notes: { target: string; message: string }[] = [];
+  const notes: { target: string; message: string; kind: NoteKind }[] = [];
   breadcrumbs.length = 0;
   let before: TargetProbe[] = [];
   let after: TargetProbe[] = [];
@@ -1105,12 +1105,16 @@ export function playbackStep(params: { index: number }): {
   if (params.index === 0 && playback.firstPass && !playback.onceDone) {
     playback.onceDone = true;
     const label = playback.targetNames[0] ?? "scene";
-    if (playback.selectionNote) notes.push({ target: label, message: playback.selectionNote });
-    if (playback.staggerNote) notes.push({ target: label, message: playback.staggerNote });
+    if (playback.selectionNote) {
+      notes.push({ target: label, message: playback.selectionNote, kind: "skip" });
+    }
+    if (playback.staggerNote) {
+      notes.push({ target: label, message: playback.staggerNote, kind: "skip" });
+    }
     if (playback.delay) {
       const { base, perTarget } = playback.delay;
       playback.targets.forEach((target, i) => {
-        const delayNotes: string[] = [];
+        const delayNotes = new NoteList();
         // The SELECTED layer moves, so a duplicate that step 0 makes from it
         // inherits the delay.
         delayLayer(
@@ -1119,7 +1123,7 @@ export function playbackStep(params: { index: number }): {
           delayNotes,
         );
         const name = playback.targetNames[i] ?? `layer ${i + 1}`;
-        for (const message of delayNotes) notes.push({ target: name, message });
+        delayNotes.forEach((message, kind) => notes.push({ target: name, message, kind }));
       });
     }
   }
@@ -1129,7 +1133,7 @@ export function playbackStep(params: { index: number }): {
   if (playback.mode === "scene" || payload?.op === "set-scene") {
     const ref = payload ? layerRefOf(payload) : undefined;
     const label = payload && isSceneOp(payload) ? "scene" : layerLabel(ref);
-    const stepNotes: string[] = [];
+    const stepNotes = new NoteList();
 
     if (payload && isSceneOp(payload)) {
       // Scene ops change the LAYER LIST, not a property — so their probe is
@@ -1154,14 +1158,16 @@ export function playbackStep(params: { index: number }): {
       } else {
         if (playback.debug) before = [probe(layer, label, path)];
         try {
-          // Scene scripts reproduce the recorded result exactly: no origins,
+          // A scene rebuild reproduces the recorded result exactly: no origins,
           // so values pass through verbatim.
           const outcome = applyStep(layer, step.payload, {
             origins: {},
             baselines: {},
             frameOffset: playback.frameOffsetBase,
           });
-          stepNotes.push(...outcome.notes);
+          outcome.notes.forEach((message, i) =>
+            stepNotes.add(message, outcome.noteKinds[i] ?? "skip"),
+          );
         } catch (error) {
           failures.push({
             target: label,
@@ -1173,7 +1179,7 @@ export function playbackStep(params: { index: number }): {
     } else {
       stepNotes.push("this step can't be replayed (unrecognized format) — skipped");
     }
-    for (const message of stepNotes) notes.push({ target: label, message });
+    stepNotes.forEach((message, kind) => notes.push({ target: label, message, kind }));
   } else {
     const nameOf = (i: number) => playback.targetNames[i] ?? `layer ${i + 1}`;
     // A step bound to a recorded layer applies to: the target itself when it
@@ -1198,7 +1204,11 @@ export function playbackStep(params: { index: number }): {
               ? target
               : playback.targetMaps?.[i]?.get(payload.cloneOf.id) ?? target;
           if (typeof cloneSource.clone !== "function") {
-            notes.push({ target: nameOf(i), message: "this layer can't be duplicated — skipped" });
+            notes.push({
+              target: nameOf(i),
+              message: "this layer can't be duplicated — skipped",
+              kind: "skip",
+            });
             return;
           }
           const created = cloneSource.clone();
@@ -1230,7 +1240,7 @@ export function playbackStep(params: { index: number }): {
               }
             }
           } else {
-            notes.push({ target: nameOf(i), message: "duplicate failed — skipped" });
+            notes.push({ target: nameOf(i), message: "duplicate failed — skipped", kind: "skip" });
           }
           return;
         }
@@ -1240,9 +1250,9 @@ export function playbackStep(params: { index: number }): {
           // Cascade: each selected layer's motion starts later than the last.
           frameOffset: playback.frameOffsetBase + i * playback.staggerFrames,
         });
-        for (const message of outcome.notes) {
-          notes.push({ target: nameOf(i), message });
-        }
+        outcome.notes.forEach((message, at) => {
+          notes.push({ target: nameOf(i), message, kind: outcome.noteKinds[at] ?? "skip" });
+        });
       } catch (error) {
         failures.push({
           target: nameOf(i),

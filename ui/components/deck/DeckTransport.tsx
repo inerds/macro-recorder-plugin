@@ -1,7 +1,7 @@
 import { Button } from "@lottiefiles/creator-plugins-ui";
 import type { ReactNode } from "react";
 
-import { deckLabel, deckLamp, type DeckState } from "./deckState";
+import { deckCountLabel, deckLabel, deckLamp, type DeckState } from "./deckState";
 import { useElapsed } from "./useElapsed";
 
 export interface DeckTransportProps {
@@ -113,18 +113,16 @@ export function DeckTransport({
               {elapsed}
             </span>
           )}
-          <span className="lcd-count" aria-label="Steps captured">
-            {counterOverride === null ? (
-              counterText(stepCount)
-            ) : (
-              /* Spinning the reels runs the counter like tape footage. The
-                 digits are a toy, so they are hidden from the accessibility
-                 tree and the real count is spoken in their place. */
-              <>
-                <span aria-hidden="true">{counterOverride}</span>
-                <span className="sr-only">{counterText(stepCount)}</span>
-              </>
-            )}
+          {/* The digits are decoration in both states — spinning the reels
+              runs the counter like tape footage — so they are hidden and the
+              adjacent text carries the count. An `aria-label` on this bare
+              span named nothing: a span has no role to name, and the name it
+              tried to give said "captured" all through playback. */}
+          <span className="lcd-count">
+            <span aria-hidden="true">
+              {counterOverride === null ? counterText(stepCount) : counterOverride}
+            </span>
+            <span className="sr-only">{deckCountLabel(state, stepCount)}</span>
           </span>
         </span>
       </div>

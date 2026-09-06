@@ -101,8 +101,9 @@ const PROP_NAMES: Record<string, string> = {
   fontSize: "font size",
   fontFamily: "font",
   timelineOffset: "timeline offset",
-  startFrame: "start frame",
-  endFrame: "end frame",
+  // Creator's own words for a layer's timeline window.
+  startFrame: "in point",
+  endFrame: "out point",
 };
 
 export function propDisplayName(name: string): string {

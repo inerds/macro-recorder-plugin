@@ -264,7 +264,8 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   the trim on demand; paint paths remap singular text fills). Genuine failures throw and pause. Keep
   this invariant — silent half-applies were the original disease. It extends
   to `set-plain`: the applier reads the flag back after writing and notes a
-  mismatch ("the host kept X unchanged"); an unreadable read-back makes no
+  mismatch ("Creator kept the X as it was — the change didn't apply"); an
+  unreadable read-back makes no
   claim (taxonomy #13). Hosts can accept an assignment and keep their own
   value, so a bare write is never proof of application.
 - Keyframe machinery (applier): frame-keyed matching via `getKeyframeAt` with

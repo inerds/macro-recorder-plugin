@@ -55,7 +55,10 @@ const ACTION_CLASS =
  * buttons out of the tab order.
  */
 const LANE_CLASS =
-  "absolute end-1 top-0 bottom-0 flex items-center gap-0.5 bg-inherit pl-2";
+  "absolute end-1 top-0 bottom-0 flex items-center gap-0.5 bg-inherit pl-2 transition-opacity duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
+// The lane fades on the same 150ms curve as the buttons inside it
+// (ACTION_CLASS). Without it the buttons eased out while the lane they sit in
+// snapped, so leaving a row read as a flicker rather than a fade.
 const LANE_HIDDEN =
   "pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto";
 /** A pinned or skipped row shows its state icon at rest, so the lane stays. */
@@ -163,8 +166,13 @@ export function StepRow({
         // and swaps the inset bar to the small-text red.
         status === "failed"
           ? "bg-inherit text-foreground shadow-[inset_2px_0_0_var(--ink-red-text)]"
-          : active
-            ? "bg-accent text-accent-foreground shadow-[inset_2px_0_0_var(--primary)]"
+          : // `bg-accent` was a 1.01:1 tint against the strip's own ground —
+            // a state that could not be seen, carried entirely by the inset
+            // bar beside it. `bg-muted` is the same step down the rack's
+            // drawer uses to read as recessed (1.08:1), and the bar
+            // (--primary, 4.36:1 on the strip) stays the load-bearing cue.
+            active
+            ? "bg-muted text-foreground shadow-[inset_2px_0_0_var(--primary)]"
             : "bg-inherit text-foreground",
       )}
       aria-current={active ? "step" : undefined}

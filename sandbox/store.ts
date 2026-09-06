@@ -93,7 +93,7 @@ export async function saveMacro(macro: Macro): Promise<void> {
     if (namesTheCap || (!message && typeof used === "number" && used > 0)) {
       throw new Error("Storage full — delete a macro first");
     }
-    throw new Error(message || "Could not save the macro");
+    throw new Error(message || "Couldn't save the macro. Try again.");
   }
 }
 

@@ -1,4 +1,4 @@
-import { Button } from "@lottiefiles/creator-plugins-ui";
+import { Button, cn } from "@lottiefiles/creator-plugins-ui";
 import { useEffect, useId, useRef } from "react";
 
 export interface ConfirmInlineProps {
@@ -80,10 +80,16 @@ export function ConfirmInline({
         >
           Cancel
         </Button>
+        {/* A destructive confirm wore the exact cap the Save primary wears, so
+            "Delete" and "Save" were the same object in the same place — the
+            word was the only thing separating them. `.key-armed` is the skin's
+            answer (cream face, red legend, red edge and red drop): armed, and
+            visibly not the filled key that saves. A non-destructive confirm
+            IS the primary, so it keeps the red cap. `variant` never reached
+            the cap — the key classes are the whole treatment — so it goes. */}
         <Button
           size="sm"
-          className="press key key-red"
-          variant={destructive ? "destructive" : "default"}
+          className={cn("press key", destructive ? "key-armed" : "key-red")}
           onClick={onConfirm}
         >
           {confirmLabel}

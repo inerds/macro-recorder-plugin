@@ -15,10 +15,29 @@ import type { PlayOptions } from "../gateways/types";
 
 import { ICON_KEY_CLASS } from "./iconKey";
 
+/**
+ * What "at playhead" does to this macro, in one sentence. The dialog says it
+ * beside the checkbox and the row's badge carries it on the pointer — one
+ * source so the two can never explain the same option differently.
+ */
+export function atPlayheadHint({
+  noKeyframes,
+  sceneScript,
+}: {
+  noKeyframes?: boolean;
+  sceneScript?: boolean;
+}): string {
+  return noKeyframes === true && !sceneScript
+    ? "Moves the first layer's in point to the current frame."
+    : "Moves the macro's earliest keyframe to the current frame.";
+}
+
 export interface PlayOptionsPopoverProps {
   macroName: string;
   disabled?: boolean;
-  /** This macro replays as a scene script, so stagger has no targets. */
+  /** Why the key is off. Shown on the key, not only in a tooltip. */
+  disabledReason?: string;
+  /** This macro replays as a scene rebuild, so stagger has no targets. */
   sceneScript?: boolean;
   /** This macro has no keyframes, so stagger and At playhead delay the
    *  layer instead of moving keyframes. */
@@ -59,6 +78,7 @@ function normalize(draft: {
 export function PlayOptionsPopover({
   macroName,
   disabled,
+  disabledReason,
   sceneScript,
   noKeyframes,
   value,
@@ -85,6 +105,7 @@ export function PlayOptionsPopover({
   const staggerHintId = useId();
   const repeatId = useId();
   const repeatHintId = useId();
+  const disabledId = useId();
 
   const atPlayhead = value.atPlayhead ?? DEFAULTS.atPlayhead;
   const staggerFrames = value.staggerFrames ?? DEFAULTS.staggerFrames;
@@ -99,9 +120,7 @@ export function PlayOptionsPopover({
     : delaysLayers
       ? "No keyframes in this macro: stagger delays each layer instead, in point and animation together."
       : undefined;
-  const playheadHint = delaysLayers
-    ? "Moves the first layer's in point to the current frame."
-    : "Moves the macro's earliest keyframe to the current frame.";
+  const playheadHint = atPlayheadHint({ noKeyframes: delaysLayers });
 
   const update = (patch: Partial<typeof DEFAULTS>) => {
     onChange(normalize({ atPlayhead, staggerFrames, repeat, ...patch }));
@@ -122,6 +141,10 @@ export function PlayOptionsPopover({
     <DialogRoot
       open={open}
       onOpenChange={(next: boolean) => {
+        // The trigger keeps its place in the tab order while it is off (see
+        // below), so the guard that a `disabled` attribute used to give for
+        // free lives here instead.
+        if (next && disabled === true) return;
         if (next) {
           setOpenedWith(value);
           handled.current = false;
@@ -133,14 +156,26 @@ export function PlayOptionsPopover({
         setOpen(next);
       }}
     >
+      {/* aria-disabled, not disabled: the library's Button kills pointer
+          events on a disabled control, so the tooltip that says WHY the key
+          is off never appeared — and the key left the tab order with it.
+          The SimplifyButton idiom, applied to a dialog trigger. */}
       <DialogTrigger
         aria-label={`Play options for ${macroName}`}
-        disabled={disabled}
-        className={ICON_KEY_CLASS}
+        aria-disabled={disabled}
+        {...(disabled && disabledReason
+          ? { "aria-describedby": disabledId, title: disabledReason }
+          : {})}
+        className={`${ICON_KEY_CLASS} aria-disabled:cursor-default aria-disabled:opacity-40`}
         data-testid="play-options-trigger"
       >
         <SlidersHorizontal className="size-3.5" strokeWidth={2.5} />
       </DialogTrigger>
+      {disabled && disabledReason && (
+        <span id={disabledId} className="sr-only">
+          {disabledReason}
+        </span>
+      )}
       <DialogContent
         className="w-[calc(100%-1.5rem)] max-w-[280px] gap-2"
         data-testid="play-options"
@@ -176,7 +211,7 @@ export function PlayOptionsPopover({
               onChange={(next) => update({ staggerFrames: next })}
               min={0}
               step={1}
-              suffix=" frames"
+              suffix={staggerFrames === 1 ? " frame" : " frames"}
               disabled={sceneScript}
               className="h-6 w-20"
               {...(staggerHint ? { "aria-describedby": staggerHintId } : {})}

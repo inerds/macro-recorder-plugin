@@ -29,7 +29,7 @@ type Any = any;
 
 /**
  * A scene holding the three layers the demo macros are written against,
- * plus the untyped layer factories a scene script needs. Layer ids are the
+ * plus the untyped layer factories a scene rebuild needs. Layer ids are the
  * fake's own, so resolution runs through the recorded NAME (and, for the
  * caption, its `priorName`) exactly as it does on a real host replaying
  * someone else's macro.
@@ -103,7 +103,7 @@ afterEach(() => {
 function replay(macro: (typeof macros)[number]) {
   const steps = enabledSteps(macro);
   const { scene, hero, orbit, caption } = makeDemoScene();
-  // Targets mode is the selection-present case; a scene script must run
+  // Targets mode is the selection-present case; a scene rebuild must run
   // with nothing selected or it would retarget its structural ops.
   const mode = describePlaybackMode(macro).mode;
   stubCreator(scene, mode === "targets" ? [hero] : []);

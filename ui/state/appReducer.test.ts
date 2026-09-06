@@ -6,6 +6,7 @@ import {
   appReducer,
   idleState,
   initialState,
+  noticeToastDuration,
   REVIEW_DRAFT_ID,
   suggestMacroName,
   type AppState,
@@ -846,5 +847,70 @@ describe("record selection nudge (live count)", () => {
     // and it's ignored outside recording (late tick)
     const idle = appReducer(idleState([]), { type: "RECORD_SELECTION_COUNT", count: 0 });
     expect(idle.mode).toBe("idle");
+  });
+});
+
+describe("notice channel", () => {
+  const notice = (message: string, kind?: "playback-notes") => ({
+    id: "n1",
+    message,
+    tone: "info" as const,
+    ...(kind ? { kind } : {}),
+  });
+
+  function reviewing(): AppState {
+    return appReducer(recordWithSteps(2), {
+      type: "RECORD_STOP",
+      suggestedName: "Macro 1",
+    });
+  }
+
+  it("carries a notice in idle, recording and reviewing", () => {
+    for (const state of [idleState([]), recordWithSteps(1), reviewing()]) {
+      const next = appReducer(state, { type: "NOTICE", notice: notice("Merged") });
+      expect(next.mode).toBe(state.mode);
+      expect("notice" in next && next.notice?.message).toBe("Merged");
+    }
+  });
+
+  it("clears the notice in reviewing too", () => {
+    const withNotice = appReducer(reviewing(), {
+      type: "NOTICE",
+      notice: notice("6 steps merged into 2"),
+    });
+    const cleared = appReducer(withNotice, { type: "NOTICE_CLEAR" });
+    expect(cleared.mode).toBe("reviewing");
+    expect("notice" in cleared && cleared.notice).toBeNull();
+  });
+
+  it("ignores a notice in the modes that have no toast surface", () => {
+    const playing = appReducer(idleState([macro("m1")]), {
+      type: "PLAY_START",
+      macroId: "m1",
+      total: 3,
+    });
+    expect(appReducer(playing, { type: "NOTICE", notice: notice("x") })).toBe(playing);
+  });
+
+  it("gives a playback report a long read and an error no timeout", () => {
+    expect(noticeToastDuration(notice("4 steps skipped", "playback-notes"))).toBe(8000);
+    expect(noticeToastDuration({ id: "n", message: "Nope", tone: "error" })).toBe(Infinity);
+    expect(noticeToastDuration({ id: "n", message: "Saved", tone: "success" })).toBeUndefined();
+  });
+});
+
+describe("store-loaded flag", () => {
+  it("starts unknown and is set by MACROS_LOADED", () => {
+    expect(initialState.mode === "idle" && initialState.loaded).toBe(false);
+    const loaded = appReducer(initialState, { type: "MACROS_LOADED", macros: [] });
+    expect(loaded.mode === "idle" && loaded.loaded).toBe(true);
+  });
+
+  it("every idle state reached from another mode is already loaded", () => {
+    const saved = appReducer(
+      appReducer(recordWithSteps(1), { type: "RECORD_STOP", suggestedName: "Macro 1" }),
+      { type: "REVIEW_SAVE", macro: macro("m1") },
+    );
+    expect(saved.mode === "idle" && saved.loaded).toBe(true);
   });
 });

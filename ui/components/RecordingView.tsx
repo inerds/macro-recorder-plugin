@@ -48,10 +48,10 @@ export function RecordingView({
         {confirmingDiscard ? (
           <div className="mb-2">
             <ConfirmInline
-              message={`Discard this recording (${steps.length} ${
-                steps.length === 1 ? "step" : "steps"
-              })?`}
-              confirmLabel="Discard"
+              message={`Discard this recording? Its ${
+                steps.length === 1 ? "1 step" : `${steps.length} steps`
+              } will be lost.`}
+              confirmLabel="Discard recording"
               onConfirm={onDiscardConfirm}
               onCancel={onDiscardCancel}
             />
@@ -95,7 +95,12 @@ export function RecordingView({
         <div className="rack rack-drawer p-1">
           {steps.length === 0 ? (
             <p className="px-2 py-6 text-center text-12 text-muted-foreground">
-              Recording. Edit your animation — steps appear here as you work.
+              {/* The second sentence is the only place the capture offer is
+                  named: it appears above the feed on its own terms, and a
+                  user who never selects a layer with keyframes never learns
+                  it exists. */}
+              Recording. Edit your animation — steps appear here as you work. Select a layer that
+              has keyframes to add them to the recording.
             </p>
           ) : (
             <StepList steps={steps} autoScroll />

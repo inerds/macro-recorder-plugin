@@ -110,9 +110,12 @@ export function ConfigureSheet({
           <p className="mt-0.5 text-11 text-muted-foreground">
             The saved macro keeps its recorded values.
           </p>
+          {/* The readout is lowercase (playOptionsText.ts), so it needs a
+              label to start the line here — the row badge has one too, for
+              screen readers. */}
           {optionSummary && (
             <p className="mt-0.5 text-11 tabular-nums text-muted-foreground">
-              {optionSummary}
+              Play options: {optionSummary}
             </p>
           )}
         </div>

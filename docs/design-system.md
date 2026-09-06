@@ -55,12 +55,39 @@ load-bearing:
   is NOT theme support — it is the token delivery mechanism above; removing
   it reverts the panel to library teal.
 - `.host-frame` is an 8px gutter around `.panel-root`, which becomes a plate
-  on it: 10px radius, `overflow: clip`, one seat shadow. The gutter costs
-  16px of height, so panel-height math (collapse threshold, README's
-  develop-at size) is against the panel, not the window.
+  on it: 10px radius, `overflow: clip`, one seat shadow, and a
+  `0 0 0 1px var(--border)` hairline. The hairline is drawn first because the
+  seat shadow is ink: on Creator's dark theme the drop gives the plate an
+  edge, and on its light one the plate is cream on near-white with a shadow
+  nobody can see. `--border` composites against whatever the gutter is
+  wearing — 1.62:1 against a white host (1.36:1 against the plate), against
+  nothing at all before. The gutter costs 16px of height, so panel-height
+  math (collapse threshold, README's develop-at size) is against the panel,
+  not the window.
+- `.host-frame` also carries `-webkit-font-smoothing: antialiased` and
+  `-moz-osx-font-smoothing: grayscale`. Every readout here is small, dark,
+  and on warm cream, and subpixel rendering fringes those strokes with
+  colour. It inherits down the frame only: dialogs, menus, and toasts are
+  portalled out of it.
 - All CSS lives in `ui/styles/index.css`; the build inlines one file. No
   network assets, system font stacks only (`--font-sans`, `--font-mono` are
   overridden too).
+- **`ui/main.tsx` must keep `import "@lottiefiles/creator-plugins-ui/styles.css"`,
+  webfont and all.** That file's first line fetches DM Sans from
+  `fonts.googleapis.com`, which the skin then overrides — `--font-sans` is a
+  system stack — so the request is paid for and discarded. Replacing the
+  import with `@source "…/creator-plugins-ui/dist"` in `index.css` does
+  remove it, and it costs more than it saves. Measured on `dist/ui.html`
+  (2026-09-06): the inline CSS goes from 73,116 to 78,457 bytes, because
+  scanning minified JS also generates 85 utilities nothing uses. Worse, the
+  library styles its dialogs, menus, popovers, and toasts with
+  `data-open:animate-in fade-in-0 zoom-in-95`, and `animate-in` is not a core
+  Tailwind utility — it comes from a plugin that only the library's own build
+  has. The scan finds the class names and generates nothing: `animate-in`,
+  `animate-out`, `fade-in-0`, `zoom-in-95`, and the `enter` and `exit`
+  keyframes all leave the stylesheet, and every portalled surface loses its
+  entrance. Removing the webfont needs that plugin as a new dependency
+  first.
 - **Three radius tiers, by what the surface is** (2026-09-04): raised paper
   10px (the panel plate, cards, notices, dialogs, menus, toasts); keys 7px
   (every key and icon key); wells 4px (the rack, the step strip, text
@@ -76,6 +103,33 @@ load-bearing:
   count (`5 → 3`) is muted ink at weight 500, because a red number beside a
   key reads as a warning (2026-09-03 audit). The red section titles
   (`REVIEW & SAVE`, `LIVE STEPS`) are a deliberate mode cue and stay.
+- **The red cap's face starts at `--primary` and only darkens.** `.key-red`
+  (`index.css`) and the deck's `.key-plate-red` (`deck.css`) carry the same
+  three values, and you must retune both together. The legend is `#FFF3EE`,
+  so the LIGHTEST sample of the face is what it has to survive. The old face
+  started at `#E0574A` and gave the legend 3.43:1 at the top of the cap and
+  4.51:1 at the 60% stop. Measured against `#FFF3EE` at the top, middle, and
+  bottom of the cap:
+
+  | State | Gradient | Top | Middle | Bottom |
+  |---|---|---|---|---|
+  | Rest | `#C8382B → #B5301F 60% → #A62C1C` | 4.76:1 | 5.52:1 | 6.44:1 |
+  | Hover | `#CB3A2C → #B5301F` | 4.62:1 | 5.11:1 | 5.67:1 |
+  | Pressed | `#A82D21 → #8F241A` | 6.30:1 | 7.06:1 | 7.93:1 |
+
+  Hover lifts the WHOLE face one step, not the top alone: the top has 0.26 of
+  headroom over the 4.5 bar, so the change that reads is the lower two thirds
+  (`#A62C1C` → `#B5301F`). The 1px inset sheen and the lamp colours are not
+  part of this and do not move.
+- **A destructive confirm is `.key.key-armed`, never `.key-red`.**
+  `ConfirmInline`'s confirm wore the exact cap that Save wears, so "Delete"
+  and "Save" were one object in one place and the word was the only thing
+  that separated them. `key-armed` is a cream face with a red legend, edge,
+  and drop (`--ink-red-text` on `--card`, 5.61:1; 4.96:1 on its own hover
+  face) — armed, and visibly not the filled key that saves. A confirm that
+  is NOT destructive is the surface's primary and keeps the red cap. The
+  library's `variant` prop never reaches either cap; the key classes are the
+  whole treatment.
 - A dead red key on the cream surface is `.key.key-red:disabled`: flat
   cream, muted legend, hairline edge, no travel — the deck's "a dead key is a
   dark key" rule translated to paper. The library's `disabled:opacity-50`
@@ -105,6 +159,12 @@ load-bearing:
   outrank the decision beside it. Quiet controls take their feedback from
   `.press`'s scale, never key travel — travel needs a shadow to travel into,
   and a quiet control has none.
+- **The skin sizes a quiet key's icon, and the icon is drawn at
+  `strokeWidth={2}`.** `.key-quiet.key-quiet svg` is 12px, so a `size-3!`
+  utility beside it says the same thing twice and invites the two to drift.
+  A 2.5 stroke at 12px is heavier than the 10px/600 legend next to it, which
+  made Import and Simplify read as bolder than the words on the same shelf.
+  Step-row action icons are 14px and keep 2.5.
 - **`--ring` is ink (#2A2623), not red.** Focus is "you are here", never an
   action, and red on this panel means "this does something". It used to be
   `#C8382B`, which made every `focus-visible:ring-ring` — the macro row's
@@ -254,6 +314,14 @@ recording clock, the status lamp, and the state word.
   the way a deck's counter window carries time and count together. Keep them
   in one pane: two panes side by side read as two instruments, and the
   trailing gutter is only ~84px wide at 300px.
+- **9px is the floor for every readout on the deck, at every size.** The
+  collapsed panel took `.deck-clock` to 8px and the narrow panel took
+  `.deck-word` to 8.5px — a lit digit behind the LCD's scanlines and the
+  state word that carries the deck under reduced motion, both under the size
+  at which they stay legible, and both on the panels where they matter most.
+  A squeezed readout gives up padding, gap, and tracking instead: the clock's
+  collapsed padding is 2px, `.deck-status`'s narrow gap is 3px, and the word
+  drops to 0.02em tracking but keeps its 9px and all of its letters.
 - The faceplate's lower legend is the package version, which `vite.config.ts`
   injects as `__APP_VERSION__` (declared in `ui/vite-env.d.ts`), so it can
   never drift from what shipped.
@@ -410,4 +478,35 @@ language. Two rules keep it coherent:
   audit); the pop-out card's interior is uniform card.
   The drawer's playback-mode hint is a `quietHint` (tooltip + sr-only);
   visible `hints` remain only on the review screen.
+- **A paced run demotes a row with COLOUR, never with alpha, and nothing on
+  the strip pulses its opacity.** The strip's ground is `--background`
+  (#EFEBE4). A pending row used to be `opacity: 0.55`, which composited its
+  label to #837F7A (3.35:1) and its numeral, kind icon, and skip badge — all
+  `--muted-foreground` already — to #A6A099 (2.18:1): a row the user is being
+  asked to follow, under the floor for its own text. It is now `opacity: 1`
+  with `color: var(--muted-foreground)`, one unlayered declaration that the
+  row's `text-foreground` utility loses to, at 4.96:1. The running row's
+  numeral is `--ink-red-text` (5.19:1), not `--primary` (4.36:1): it is a
+  10px numeral, so it takes the small-text red like every other small red
+  thing here. Its pulse animates the `text-shadow` alone — a glow only ever
+  adds light around the glyph — because the old fade to `opacity: 0.7` put
+  the one "you are here" marker at 2.85:1 for half of every cycle.
+- **The running row's tint is decoration; its inset bar is the state.** The
+  active row was `bg-accent`, a 1.01:1 tint against the strip's own ground —
+  a state that could not be seen. It is `bg-muted` (1.08:1), the same step
+  down the rack's drawer uses to read as recessed, and the 2px
+  `inset 2px 0 0 var(--primary)` bar (4.36:1 on the strip) stays what
+  actually carries the state, beside `aria-current="step"`.
+- **The action lane fades on the same curve as the buttons in it.**
+  `StepRow`'s `LANE_CLASS` carries
+  `transition-opacity duration-150 ease-[cubic-bezier(0.2,0,0,1)]` with
+  `motion-reduce:transition-none`, matching `ACTION_CLASS`. Without it the
+  buttons eased out while the lane they sit in snapped, and leaving a row
+  read as a flicker.
+- **`.warn-box`'s edge is amber darkened with ink, not amber faded into the
+  paper.** `color-mix(in srgb, var(--lamp-amber) 70%, transparent)` landed at
+  #E0B972 — a 1.56:1 edge on `--background` and 1.47:1 against the box's own
+  fill, so the box had no boundary. Mixed with `var(--ink)` instead it is
+  #A47E38: 3.14:1 on `--background`, 3.40:1 on the card it sits on, and
+  3.05:1 against the fill.
 

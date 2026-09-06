@@ -8,7 +8,8 @@
  */
 import type { Json } from "../engine/json";
 import { jsonEqual, toJson } from "../engine/json";
-import { nodeTypeName } from "../engine/labels";
+import { nodeTypeName, propDisplayName } from "../engine/labels";
+import type { NoteKind } from "../engine/protocol";
 import type { KfSnap, NodeSnapshot, PaintSnapshot, Path } from "../engine/snapshot";
 import { pathKey, propClassOf } from "../engine/snapshot";
 import { computeTarget } from "../engine/relative";
@@ -30,9 +31,56 @@ export interface ApplyContext {
  * What one step did to one target. Failures still throw; `notes` carries the
  * deliberate non-failures — things the target didn't need, couldn't take, or
  * that were adapted to fit — so they are reported rather than silent.
+ *
+ * `noteKinds` is parallel to `notes`: the kind of the note at the same index.
+ * The panel counts the skips alone, so a note about an adaptation that WORKED
+ * ("delayed this layer by 4 frames") is never reported as a skipped step.
  */
 export interface StepOutcome {
   notes: string[];
+  noteKinds: NoteKind[];
+}
+
+/**
+ * The notes one step collects, each with its kind. `push` is the skip kind —
+ * the step did not fully apply — so a new note is reported conservatively
+ * until its author says otherwise; `info` is for an adaptation that worked.
+ *
+ * Two parallel arrays rather than one array of objects: every caller here
+ * already writes `notes.push("...")`, and `StepOutcome.notes` stays a plain
+ * list of strings for the trace and the panel.
+ */
+export class NoteList {
+  readonly messages: string[] = [];
+  readonly kinds: NoteKind[] = [];
+
+  /** The step did not fully apply. */
+  push(...messages: string[]): void {
+    for (const message of messages) this.add(message, "skip");
+  }
+
+  /** The step applied, after an adaptation worth reporting. */
+  info(...messages: string[]): void {
+    for (const message of messages) this.add(message, "info");
+  }
+
+  add(message: string, kind: NoteKind): void {
+    this.messages.push(message);
+    this.kinds.push(kind);
+  }
+
+  get length(): number {
+    return this.messages.length;
+  }
+
+  forEach(visit: (message: string, kind: NoteKind) => void): void {
+    this.messages.forEach((message, i) => visit(message, this.kinds[i] ?? "skip"));
+  }
+}
+
+/** The outcome a `NoteList` describes. */
+export function outcomeOf(notes: NoteList): StepOutcome {
+  return { notes: notes.messages, noteKinds: notes.kinds };
 }
 
 const FRAME_EPSILON = 1e-6;
@@ -76,7 +124,7 @@ export function resolvePath(
   node: AnyProxy,
   path: Path,
   shapeHint?: string,
-  notes?: string[],
+  notes?: NoteList,
 ): AnyProxy {
   let current: AnyProxy = node;
   for (let i = 0; i < path.length; i++) {
@@ -106,12 +154,12 @@ export function resolvePath(
             : list.find((candidate: AnyProxy) => tryRead(() => String(candidate.type)) === shapeHint);
         if (byType !== undefined && shapeHint !== undefined) {
           if (byType !== child) {
-            notes?.push(`matched this layer's ${nodeTypeName(shapeHint)} shape`);
+            notes?.info(`matched this layer's ${nodeTypeName(shapeHint)} shape`);
           }
           child = byType;
         } else if (child === undefined && list.length === 1) {
           child = list[0];
-          notes?.push("applied to this layer's only shape");
+          notes?.info("applied to this layer's only shape");
         } else if (child === undefined) {
           throw new Error(`${describeSegment(path, i + 1)} not found on this layer`);
         }
@@ -209,7 +257,7 @@ function keyframeEntry(snap: KfSnap): Record<string, unknown> {
  * Keyframe surface (documented only by example), so a host that ignores the
  * write is reported as a note rather than assumed to have worked.
  */
-function writeTangents(kf: AnyProxy, snap: KfSnap, notes: string[]): void {
+function writeTangents(kf: AnyProxy, snap: KfSnap, notes: NoteList): void {
   for (const key of ["inTangent", "outTangent"] as const) {
     const wanted = snap[key];
     if (wanted === undefined) continue;
@@ -230,7 +278,7 @@ function writeTangents(kf: AnyProxy, snap: KfSnap, notes: string[]): void {
  * ignored (and may write staticValue instead). Once animated, frame 0 inserts
  * fine — so seed animation with a sentinel keyframe, retry, drop the sentinel.
  */
-function addVerified(prop: AnyProxy, snap: KfSnap, notes: string[] = []): void {
+function addVerified(prop: AnyProxy, snap: KfSnap, notes: NoteList = new NoteList()): void {
   prop.addKeyframes([keyframeEntry(snap)]);
   const direct = keyframeAt(prop, snap.frame);
   if (direct) {
@@ -250,7 +298,7 @@ function addVerified(prop: AnyProxy, snap: KfSnap, notes: string[] = []): void {
 }
 
 /** Writes a recorded keyframe's values onto an existing target keyframe. */
-function writeKeyframe(prop: AnyProxy, kf: AnyProxy, snap: KfSnap, notes: string[] = []): void {
+function writeKeyframe(prop: AnyProxy, kf: AnyProxy, snap: KfSnap, notes: NoteList = new NoteList()): void {
   try {
     if (Math.abs(Number(kf.frame) - snap.frame) >= FRAME_EPSILON) {
       kf.frame = snap.frame;
@@ -269,7 +317,7 @@ function writeKeyframe(prop: AnyProxy, kf: AnyProxy, snap: KfSnap, notes: string
 }
 
 /** Updates the keyframe at snap.frame if one is there, otherwise creates it. */
-function upsertKeyframe(prop: AnyProxy, snap: KfSnap, notes: string[] = []): void {
+function upsertKeyframe(prop: AnyProxy, snap: KfSnap, notes: NoteList = new NoteList()): void {
   const occupant = keyframeAt(prop, snap.frame);
   if (occupant) {
     writeKeyframe(prop, occupant, snap, notes);
@@ -286,7 +334,7 @@ function upsertKeyframe(prop: AnyProxy, snap: KfSnap, notes: string[] = []): voi
 function applyKeyframes(
   prop: AnyProxy,
   payload: Extract<StepPayload, { op: "keyframes" }>,
-  notes: string[],
+  notes: NoteList,
   context: ApplyContext,
 ): void {
   const failures: string[] = [];
@@ -358,7 +406,7 @@ function applyKeyframes(
 
       if (!existing) {
         upsertKeyframe(prop, adjust(change.after), notes);
-        notes.push(
+        notes.info(
           moving
             ? `no keyframe at ${change.before.frame} — created it at ${change.after.frame}`
             : `no keyframe at ${change.before.frame} — created it`,
@@ -372,7 +420,7 @@ function applyKeyframes(
         const occupant = keyframeAt(prop, change.after.frame);
         if (occupant) {
           occupant.remove();
-          notes.push(`replaced the keyframe at ${change.after.frame}`);
+          notes.info(`replaced the keyframe at ${change.after.frame}`);
         }
       }
 
@@ -503,11 +551,11 @@ function writeComponent(paint: AnyProxy, key: string, snap: { static?: Json } | 
  * kind writes every component; cross-kind adapts (first stop's color /
  * tint every stop) since the kind can't change without re-creation.
  */
-function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, notes: string[]): void {
+function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, notes: NoteList): void {
   if (spec.kind === "solid") {
     if (writeComponent(paint, "color", spec.color)) {
       writeComponent(paint, "opacity", spec.opacity);
-      notes.push(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
+      notes.info(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
       return;
     }
     // solid spec onto a gradient paint: tint every stop
@@ -520,7 +568,7 @@ function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, n
             ? { ...stop, color: spec.color.static as Json }
             : stop,
         );
-        notes.push(`this layer's ${label} is a gradient — applied the recorded color to every stop`);
+        notes.info(`this layer's ${label} is a gradient — applied the recorded color to every stop`);
         return;
       } catch {
         // fall through
@@ -536,13 +584,13 @@ function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, n
       writeComponent(paint, "highlightAngle", spec.highlightAngle);
       writeComponent(paint, "highlightLength", spec.highlightLength);
       writeComponent(paint, "opacity", spec.opacity);
-      notes.push(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
+      notes.info(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
       return;
     }
     // gradient spec onto a solid paint: first stop's color
     const color = firstStopColor(staticOf(spec.stops, []));
     if (color !== undefined && writeComponent(paint, "color", { static: color })) {
-      notes.push(`this layer's ${label} is solid — applied the gradient's first color`);
+      notes.info(`this layer's ${label} is solid — applied the gradient's first color`);
       return;
     }
     notes.push(`couldn't apply the recorded fill to this layer's ${label}`);
@@ -582,7 +630,7 @@ const SHAPE_FACTORIES: Record<string, string> = {
 
 /** Seeds a live node with a recorded spec: name, props, paints, masks,
  *  trims, and child shapes. Used for created shapes AND created layers. */
-export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: string[]): void {
+export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: NoteList): void {
   if (spec.nodeName) {
     try {
       node.name = spec.nodeName;
@@ -647,7 +695,7 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: string[
 }
 
 /** Recreates a recorded shape subtree end-state under `parent`. */
-export function createShapeFrom(parent: AnyProxy, spec: NodeSnapshot, notes: string[]): void {
+export function createShapeFrom(parent: AnyProxy, spec: NodeSnapshot, notes: NoteList): void {
   if (spec.nodeType === "GROUP") {
     // A group can't be created empty — create its children on the parent
     // first, then group them (ShapeContainerMixin.createGroup).
@@ -703,7 +751,7 @@ export function createShapeFrom(parent: AnyProxy, spec: NodeSnapshot, notes: str
 function splitStructural(
   target: AnyProxy,
   path: Path,
-  notes: string[],
+  notes: NoteList,
 ): { container: AnyProxy; marker: string; index: number } {
   const index = path[path.length - 1];
   const marker = path[path.length - 2];
@@ -719,9 +767,9 @@ function splitStructural(
 // applyStep
 // ---------------------------------------------------------------------------
 
-function skipNote(notes: string[], error: unknown): StepOutcome {
+function skipNote(notes: NoteList, error: unknown): StepOutcome {
   notes.push(`${error instanceof Error ? error.message : String(error)} — skipped`);
-  return { notes };
+  return outcomeOf(notes);
 }
 
 /**
@@ -733,7 +781,7 @@ export function applyStep(
   rawPayload: unknown,
   context: ApplyContext,
 ): StepOutcome {
-  const notes: string[] = [];
+  const notes: NoteList = new NoteList();
   if (!isStepPayload(rawPayload)) {
     throw new Error("this step can't be replayed (unrecognized format)");
   }
@@ -747,7 +795,7 @@ export function applyStep(
       } catch (error) {
         try {
           if (applyPaintFallback(target, payload.path, payload.after, notes)) {
-            return { notes };
+            return outcomeOf(notes);
           }
           const trimProp = resolveTrimProp(target, payload.path, notes);
           if (trimProp) {
@@ -758,7 +806,7 @@ export function applyStep(
             } else {
               trimProp.staticValue = payload.after;
             }
-            return { notes };
+            return outcomeOf(notes);
           }
         } catch (fallbackError) {
           return skipNote(notes, fallbackError);
@@ -769,7 +817,7 @@ export function applyStep(
       // without error — say so instead of reporting a phantom success.
       if (hasKeyframes(prop)) {
         notes.push(`${pathKey(payload.path)} has keyframes here — static value not applied`);
-        return { notes };
+        return outcomeOf(notes);
       }
       const key = pathKey(payload.path);
       const origin = context.origins[key] ?? payload.before;
@@ -779,7 +827,7 @@ export function applyStep(
         payload.after,
         propClassOf(payload.path),
       );
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "keyframes": {
@@ -789,12 +837,12 @@ export function applyStep(
       } catch (error) {
         try {
           if (applyPaintKeyframesFallback(target, payload, notes, context)) {
-            return { notes };
+            return outcomeOf(notes);
           }
           const trimProp = resolveTrimProp(target, payload.path, notes);
           if (trimProp) {
             applyKeyframes(trimProp, payload, notes, context);
-            return { notes };
+            return outcomeOf(notes);
           }
         } catch (fallbackError) {
           return skipNote(notes, fallbackError);
@@ -802,7 +850,7 @@ export function applyStep(
         return skipNote(notes, error);
       }
       applyKeyframes(prop, payload, notes, context);
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "set-plain": {
@@ -851,25 +899,27 @@ export function applyStep(
       try {
         const seen = toJson(owner[flag as string]);
         if (!jsonEqual(seen, payload.after)) {
-          notes.push(`the host kept ${String(flag)} unchanged — the write didn't take`);
+          notes.push(
+            `Creator kept the ${propDisplayName(String(flag))} as it was — the change didn't apply`,
+          );
         }
       } catch {
         // read-back unavailable: unverifiable is not a failure
       }
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "add-paint": {
       const { container, marker } = splitStructural(target, payload.path, notes);
       if (marker !== "fills") throw new Error("this step can't be replayed (malformed path)");
       addPaintTo(container, payload.spec);
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "add-fill": {
       // legacy v1 payload: same as add-paint at the target root
       addPaintTo(target, payload.spec);
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "replace-paint": {
@@ -894,13 +944,13 @@ export function applyStep(
               : undefined;
           if (creator_) {
             addPaintTo(creator_, payload.spec);
-            notes.push("this layer had no fill — added the recorded one");
+            notes.info("this layer had no fill — added the recorded one");
           } else {
             notes.push("this layer can't hold a fill — skipped");
           }
-          return { notes };
+          return outcomeOf(notes);
         }
-        if (resolved.remapped) notes.push("applied to this layer's first fill");
+        if (resolved.remapped) notes.info("applied to this layer's first fill");
         if (canCreatePaint(resolved.container)) {
           if (!removeListEntry(resolved.container, "fills", resolved.index)) {
             notes.push("couldn't remove the old fill — the new one was added alongside");
@@ -909,14 +959,14 @@ export function applyStep(
         } else {
           applySpecInPlace(resolved.paint, payload.spec, resolved.label, notes);
         }
-        return { notes };
+        return outcomeOf(notes);
       }
       const { container, marker: m, index } = splitStructural(target, payload.path, notes);
       if (!removeListEntry(container, m, index)) {
         notes.push("couldn't remove the old fill — the new one was added alongside");
       }
       addPaintTo(container, payload.spec);
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "remove-paint": {
@@ -924,7 +974,7 @@ export function applyStep(
       if (!removeListEntry(container, marker, index)) {
         notes.push(`couldn't find ${entryLabel(marker)} ${index + 1} to remove`);
       }
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "add-stroke": {
@@ -937,7 +987,7 @@ export function applyStep(
         throw new Error("this layer can't take strokes");
       }
       container.createStroke(spec);
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "add-mask": {
@@ -960,7 +1010,7 @@ export function applyStep(
       } else {
         notes.push("this layer can't take masks — skipped");
       }
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "remove-mask": {
@@ -968,7 +1018,7 @@ export function applyStep(
       if (!removeListEntry(container, "masks", index)) {
         notes.push(`couldn't find mask ${index + 1} to remove`);
       }
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "add-shape": {
@@ -977,7 +1027,7 @@ export function applyStep(
           ? resolvePath(target, payload.parentPath, undefined, notes)
           : target;
       createShapeFrom(parent, payload.spec, notes);
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "remove-shape": {
@@ -989,23 +1039,23 @@ export function applyStep(
       }
       if (typeof node.remove !== "function") {
         notes.push("this shape can't be removed — skipped");
-        return { notes };
+        return outcomeOf(notes);
       }
       node.remove();
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "add-trim": {
       const { container } = splitStructural(target, payload.path, notes);
       if (typeof container.createTrimPath !== "function") {
         notes.push("this layer can't take trim paths — skipped");
-        return { notes };
+        return outcomeOf(notes);
       }
       const created = container.createTrimPath();
       for (const propName of ["start", "end", "offset"] as const) {
         seedAnimatable(tryRead(() => created[propName]), payload.spec[propName]);
       }
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "remove-trim": {
@@ -1014,10 +1064,10 @@ export function applyStep(
       const trim = Array.isArray(trims) ? trims[index] : undefined;
       if (!trim || typeof trim.remove !== "function") {
         notes.push(`couldn't find trim path ${index + 1} to remove`);
-        return { notes };
+        return outcomeOf(notes);
       }
       trim.remove();
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "reorder-shapes": {
@@ -1031,7 +1081,7 @@ export function applyStep(
         return skipNote(notes, error);
       }
       reorderShapes(container, payload.order, notes);
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "add-layer":
@@ -1042,7 +1092,7 @@ export function applyStep(
       // Scene-level ops are applied by the playback orchestrator, which owns
       // the scene; reaching applyStep means a legacy selection-mode replay.
       notes.push("scene-level step doesn't apply to a single layer — skipped");
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "set-scene": {
@@ -1052,12 +1102,12 @@ export function applyStep(
       // a caller bypassed that routing — say so rather than writing a scene
       // member onto a layer.
       notes.push("a scene setting applies to the scene, not to a layer — skipped");
-      return { notes };
+      return outcomeOf(notes);
     }
 
     case "not-replayable": {
       notes.push(`${payload.description} — skipped`);
-      return { notes };
+      return outcomeOf(notes);
     }
   }
 }
@@ -1069,7 +1119,7 @@ export function applyStep(
  * recorded range keep their relative order at the end. The result is
  * verified by re-reading the list — a partial apply is reported, not hidden.
  */
-function reorderShapes(container: AnyProxy, order: number[], notes: string[]): void {
+function reorderShapes(container: AnyProxy, order: number[], notes: NoteList): void {
   reorderChildren(container, "shapes", order, notes);
 }
 
@@ -1078,7 +1128,7 @@ export function reorderChildren(
   owner: AnyProxy,
   listKey: string,
   order: number[],
-  notes: string[],
+  notes: NoteList,
 ): void {
   const list = tryRead(() => owner[listKey]);
   if (!Array.isArray(list) || list.length < 2) {
@@ -1248,7 +1298,7 @@ function firstStopColor(stops: Json): Json | undefined {
 function convertFillToGradient(
   resolved: ResolvedPaint,
   stopsValue: Json,
-  notes: string[],
+  notes: NoteList,
 ): AnyProxy | undefined {
   if (resolved.label !== "fill") return undefined;
   const container = resolved.container;
@@ -1272,12 +1322,14 @@ function convertFillToGradient(
     created = Array.isArray(after) ? after[after.length - 1] : undefined;
   }
   if (!created) return undefined;
-  notes.push(
-    removed
-      ? `this layer's ${resolved.label} was solid — converted it to a gradient`
-      : `this layer's ${resolved.label} was solid — added the gradient alongside (couldn't remove the old fill)`,
-  );
-  if (resolved.remapped) notes.push(`applied to this layer's first ${resolved.label}`);
+  if (removed) {
+    notes.info(`this layer's ${resolved.label} was solid — converted it to a gradient`);
+  } else {
+    notes.push(
+      `this layer's ${resolved.label} was solid — added the gradient alongside (couldn't remove the old fill)`,
+    );
+  }
+  if (resolved.remapped) notes.info(`applied to this layer's first ${resolved.label}`);
   return created;
 }
 
@@ -1287,7 +1339,7 @@ function convertFillToGradient(
  * CONVERT the fill to a gradient (list fills) or apply the first stop's
  * color (singular fills, strokes); an out-of-range index remaps to paint 0.
  */
-function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: string[]): boolean {
+function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: NoteList): boolean {
   const resolved = resolvePaint(target, path);
   if (!resolved) return false;
   const { paint, leaf, label, remapped } = resolved;
@@ -1295,7 +1347,7 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
   const direct = tryRead(() => paint[leaf]);
   if (direct !== undefined && direct !== null && typeof direct === "object") {
     (direct as AnyProxy).staticValue = after;
-    if (remapped) notes.push(`applied to this layer's first ${label}`);
+    if (remapped) notes.info(`applied to this layer's first ${label}`);
     return true;
   }
 
@@ -1308,7 +1360,7 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
     const solidColor = tryRead(() => paint.color);
     if (color !== undefined && solidColor !== undefined && solidColor !== null) {
       (solidColor as AnyProxy).staticValue = color;
-      notes.push(`this layer's ${label} is solid — applied the gradient's first color`);
+      notes.info(`this layer's ${label} is solid — applied the gradient's first color`);
       return true;
     }
   }
@@ -1323,7 +1375,7 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
             ? { ...stop, color: after }
             : stop,
         );
-        notes.push(`this layer's ${label} is a gradient — applied the color to every stop`);
+        notes.info(`this layer's ${label} is a gradient — applied the color to every stop`);
         return true;
       }
     }
@@ -1338,7 +1390,7 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: st
  * Returns the addressed trim property (start/end/offset) or undefined when
  * the target genuinely can't hold a trim path.
  */
-function resolveTrimProp(target: AnyProxy, path: Path, notes: string[]): AnyProxy | undefined {
+function resolveTrimProp(target: AnyProxy, path: Path, notes: NoteList): AnyProxy | undefined {
   const at = path.lastIndexOf("trimPaths");
   if (at < 0 || typeof path[at + 1] !== "number" || path.length !== at + 3) return undefined;
   const container =
@@ -1348,12 +1400,12 @@ function resolveTrimProp(target: AnyProxy, path: Path, notes: string[]): AnyProx
   const trims = tryRead(() => container.trimPaths);
   let trim: AnyProxy = Array.isArray(trims) ? trims[index] ?? trims[0] : undefined;
   if (trim && Array.isArray(trims) && trims[index] === undefined) {
-    notes.push("applied to this layer's first trim path");
+    notes.info("applied to this layer's first trim path");
   }
   if (!trim) {
     if (typeof container.createTrimPath !== "function") return undefined;
     trim = container.createTrimPath();
-    notes.push("added a trim path to this layer");
+    notes.info("added a trim path to this layer");
   }
   return tryRead(() => trim[path[at + 2] as string]);
 }
@@ -1366,7 +1418,7 @@ function resolveTrimProp(target: AnyProxy, path: Path, notes: string[]): AnyProx
 function applyPaintKeyframesFallback(
   target: AnyProxy,
   payload: Extract<StepPayload, { op: "keyframes" }>,
-  notes: string[],
+  notes: NoteList,
   context: ApplyContext,
 ): boolean {
   const resolved = resolvePaint(target, payload.path);
@@ -1396,7 +1448,7 @@ function applyPaintKeyframesFallback(
       notes,
       context,
     );
-    notes.push(note);
+    notes.info(note);
     return true;
   };
 
@@ -1501,7 +1553,7 @@ function finiteOf(value: unknown): number | undefined {
 export function delayLayer(
   node: AnyProxy,
   plan: { base?: number; delta: number },
-  notes: string[],
+  notes: NoteList,
 ): void {
   const start = finiteOf(tryRead(() => node.startFrame));
   if (start === undefined) {
@@ -1513,7 +1565,7 @@ export function delayLayer(
 
   const d = (plan.base ?? start) + plan.delta - start;
   if (d === 0) {
-    notes.push(`in point already at ${start} — nothing to shift`);
+    notes.info(`in point already at ${start} — nothing to shift`);
     return;
   }
   if (end !== undefined && start + d >= end) {
@@ -1535,7 +1587,7 @@ export function delayLayer(
     }
     if (!moved) {
       notes.push(
-        "the host kept timelineOffset unchanged — this layer's own animation stays where it was",
+        "Creator kept the timeline offset as it was — this layer's own animation stays where it was",
       );
     }
   }
@@ -1549,11 +1601,11 @@ export function delayLayer(
     return;
   }
   if (finiteOf(tryRead(() => node.startFrame)) !== start + d) {
-    notes.push("the host kept startFrame unchanged — the write didn't take");
+    notes.push("Creator kept the in point as it was — the change didn't apply");
     return;
   }
 
-  notes.push(
+  notes.info(
     `delayed this layer by ${d} frames — in point ${start} → ${start + d}` +
       (plan.base !== undefined && plan.delta === 0 ? " (at playhead)" : ""),
   );
@@ -1566,7 +1618,7 @@ export function delayLayer(
   if (end !== undefined) {
     const endAfter = finiteOf(tryRead(() => node.endFrame));
     if (endAfter !== undefined && endAfter !== end) {
-      notes.push(`the host also moved the out point ${end} → ${endAfter}`);
+      notes.info(`Creator also moved the out point ${end} → ${endAfter}`);
     }
   }
 }
