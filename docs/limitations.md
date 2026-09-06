@@ -117,6 +117,11 @@ Recordings capture nothing, and no API sets the value on a target.
   `{type, color, remove}` and `GradientPaint` as
   `{start, end, stops, remove}`. `opacity` appears only on `ColorStops`
   entries, `Mask`, `LayerMixin`, and `Group`, so the limit stands.
+- 1.0.1's `PaintOptions` has no `opacity` either, so the create side is shut
+  as well. `sandbox/applier.ts#paintSpec` no longer puts the key in a
+  `createFill` spec (2026-09-06): an unknown key makes the host reject the
+  whole create with `✗ Invalid input`, so the key lost the fill as well as the
+  opacity.
 - The user confirmed that it still does not work on engine rev 2026-08-22.12.
 
 **What the user sees:** the recorder captures nothing for the edit, and no
@@ -259,7 +264,13 @@ selection, even when the engine set the selection programmatically;
 `layer.shiftTo(created)` and `shiftTo({to})` both throw (0 of 2 layers moved).
 No API route exists to move existing layers into a scene. **Upstream ask for
 LottieFiles:** give Creator an API that moves existing layers into a scene, or
-let `createSceneLayer` accept layers.
+let `createSceneLayer` accept layers. One half of the limit may be reachable
+without that ask: `creator.createScene(opts)` builds a scene, that scene's own
+`createShapeLayer` / `createTextLayer` can fill it, and
+`scene.createSceneLayer({ scene })` places it — a typed route to rebuild
+nested CONTENT, though still not one that moves the recorded layers. Both
+members are typed in 1.0.1 and the plugin has never called them, so the route
+is pending a live check.
 
 **What replay does meanwhile:** nest steps fall back to a rebuild of the
 recorded scene layer from spec. The engine cannot rebuild layer-typed content

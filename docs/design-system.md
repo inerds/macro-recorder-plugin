@@ -30,13 +30,23 @@ load-bearing:
   subscribes to `change:theme` (both typed in 1.0.1 but absent from our live
   introspection, so both stay feature-detected — runtime-api.md item 10),
   forwarding
-  `{ type: "change:theme", tokens, themeName }` on boot, on `hello`, and on
-  every change. Three consumers, resolution chain kept identical in all:
+  `{ type: "change:theme", tokens, themeName, isLight }` on boot, on `hello`,
+  and on every change. `isLight` is `ThemeTokens`' own light/dark flag — the
+  host's answer to the only question the panel asks of a theme — so the UI
+  never has to read "dark" out of a theme NAME. Three consumers, resolution
+  chain kept identical in all:
   the index.html head script (pre-React paint of `--host-frame-bg` on
   `<html>`), `useHostBackground()` (inline on the frame div), and the CSS
   fallback (theme.css's dark `hsl(198 16.7% 11.8)`, hardcoded because every
   live token is repainted cream). Order: pushed `--background`/`background`/
-  `--base`/`base` token → `isLight`/`themeName` → fallback. The panel itself
+  `--base`/`base` token → `isLight` → `themeName` → fallback. The two message
+  consumers also guard the same two things. The message must come from
+  `window.parent`. Every other window — a sibling iframe, an opener, anything
+  embedded beside the panel — is a stranger able to repaint its chrome. The
+  colour must then pass `CSS.supports("background-color", value)` before it
+  reaches a style declaration; an engine without `CSS.supports` paints the
+  value unchecked, as before. `ui/gateways/rpc/bridge.ts` applies the same
+  parent-only rule to RPC answers, for the same reason. The panel itself
   never flips: no `dark` class toggle, no transition freeze — and no
   transition on the frame either, a theme flip should snap. ThemeProvider
   is NOT theme support — it is the token delivery mechanism above; removing

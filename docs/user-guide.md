@@ -61,10 +61,14 @@ whole, turning reels. Nothing moves anywhere else.
      property on child shapes (size, roundness, points, path geometry…)
    - keyframes: added, removed, moved, value- or easing-changed (motion-path
      curve handles are **not** exposed to plugins — see §11)
-   - fills and strokes: added, removed, recolored, switched solid ↔ gradient
-   - masks, trim paths, layer flags (visible, locked, blend mode…), renames
+   - fills and strokes: added, removed, recolored, switched solid ↔ gradient,
+     and switched linear ↔ radial
+   - masks (including a mask's mode), trim paths, layer flags (visible,
+     locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,
      reordering, breaking a scene instance apart, nesting layers
+   - scene settings: size, background (a transparent one included), frame
+     rate, duration, and the scene name
 3. Watch the steps appear live in the panel as you work. The recorder samples
    twice a second, so a long drag shows up as a handful of steps — see
    *Simplify*.
@@ -77,6 +81,12 @@ whole, turning reels. Nothing moves anywhere else.
 first when steps exist. Deleting a layer while you record is itself a recorded
 step. Recording stops on its own only when the scene goes away, and it says
 so.
+
+**One scene per recording.** The recorder stays on the scene you started in.
+If you switch scenes while you record, it adds one step that says so —
+*You switched scenes — still recording "Scene 1"* — and it keeps recording
+that first scene. The step is a marker: playback skips it. Delete it in the
+review sheet, or leave it as a reminder.
 
 ---
 
@@ -187,6 +197,11 @@ editable this way — re-record those.
 Click **▶** on a macro row. How the plugin applies the macro depends on what
 the macro recorded.
 
+**Macros replay onto layers.** Select the layer, not a shape inside it. A
+shape in the selection is skipped, and the plugin says so once: *2 selected
+shapes skipped — macros replay onto layers*. With no layer left in the
+selection, you get the usual *Select a layer first*.
+
 **Macros that touched one layer** apply to **every selected layer**. With
 nothing selected, they apply to the layer they were recorded on, if it still
 exists. The values adapt per target:
@@ -204,7 +219,16 @@ reports a skip if it cannot. Duplicate steps really duplicate, and edits
 recorded on a copy go to the copy the replay created. Layers the replay
 recreates keep their kind: a recorded text layer comes back as a real text
 layer, with its text, font, size, and alignment applied. If the host cannot
-create one, the plugin skips the step with a note rather than faking it.
+create one, the plugin skips the step with a note rather than faking it. An
+image layer is always such a step: a recording holds no image asset, so the
+plugin reports *can't re-create an image layer — the recording has no image
+asset — skipped*. Every other edit to that image layer replays normally when
+the layer is already there.
+
+**Scene settings apply to the scene.** A step that recorded the size,
+background, frame rate, duration, or name goes to the active scene once per
+play, whatever you have selected. Playback names the setting it wrote, and it
+says so when the host keeps the old value.
 
 **Duplicate-macros are tools.** "Duplicate the layer, then move or recolor the
 copy" clones each *selected* layer and edits that clone, offset from the
@@ -398,6 +422,10 @@ likely to meet these:
   route moves existing layers into a scene. The step reports itself honestly.
   In the scene the macro was recorded in, the step uses the nested scene that
   already exists instead of building an empty copy next to it.
+- **A new image layer** cannot be re-created on replay: a recording holds the
+  layer, not the image asset behind it. The step says so and skips.
+- **Macros replay onto layers**, so a shape in the selection is skipped with a
+  note. Select the layer that holds the shape.
 - Layer-reorder replay is live-verified: the macro records which layers it
   reordered, and replay checks them before it moves anything. Mask creation on
   replay is fixed in this build, and a live session has not re-verified it

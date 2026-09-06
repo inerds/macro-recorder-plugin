@@ -12,6 +12,24 @@ one row per fix — is `docs/history/improvements.md`.
 - A macro step that nests layers now says plainly when Creator could not move
   the layers into a new scene layer, and that the nested scene was rebuilt
   from the recording instead.
+- Recording now captures the scene settings: size, background (a transparent
+  one included), frame rate, duration, and the scene name. Playback applies
+  them to the active scene once per run.
+- Changing a mask's mode, or switching a gradient between linear and radial,
+  now records. Both used to record nothing.
+- Playing a macro with shapes in the selection now skips the shapes and says
+  so — macros replay onto layers.
+- Switching scenes while you record now adds a step that says so. The
+  recorder stays on the scene you started in, and the step never replays.
+- A macro that adds an image layer now says it cannot re-create the layer,
+  because a recording holds no image asset.
+- The panel's surround now follows Creator's own light or dark setting,
+  instead of guessing from the theme name.
+- Saving a macro reports "Storage full" only when Creator names the quota, or
+  fails without a message on a store that already holds macros. Every other
+  failure now shows Creator's own words, so the advice fits the problem.
+- The development build keeps its own macro store, so testing no longer
+  touches the macros you saved with the released build.
 
 ## 0.6.0 — 2026-09-04
 

@@ -146,7 +146,12 @@ and this repository's own runtime findings — see its "Host skills" section.
    `vite build --mode development`: the dev strip (demo macros, mock
    scenarios) is on, React is unminified, and the manifest names the plugin
    "Macro Recorder (dev)" with a `-dev` version, so a tester can hold both
-   in Creator. Trace capture stays off there, since no dev server answers
+   in Creator. The dev manifest also carries its own plugin id
+   (`DEV_PLUGIN_ID` in `vite.config.ts`). Creator scopes `clientStorage` by
+   that id, so the dev build keeps its own macro store: a tester who wipes
+   the dev store keeps the macros they recorded with the release build. The
+   id must stay stable — a new one abandons every macro saved under the old
+   one. Trace capture stays off there, since no dev server answers
    the trace endpoint. Never upload the dev build as the release.
 6. Run the four checks above one more time against the released commit,
    then commit the bump, the changelog block and the release notes together

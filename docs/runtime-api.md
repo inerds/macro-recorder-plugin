@@ -99,6 +99,27 @@ snapshot change (`limitations.md`, 2026-08-23).
   routes exist, and neither carries the timeline selection; the ask is
   upstream. See `limitations.md`.
 
+## Typed in 1.0.1, live verification pending
+
+1.0.1 types these members, and the engine calls them, but no trace confirms
+one yet. Every call stays feature-detected, and each one has a fallback:
+
+- `creator.utils.isLayer(node)`, and its sibling `isShape(node)`, on
+  `UtilsAPI`. `sandbox/playback.ts#isLayerNode` uses `isLayer` only when it
+  answers with a boolean. The fallback reads `startFrame`, a `LayerMixin`
+  member that no shape carries.
+- `Scene` settings writes: `name`, `size` (a `Size` — `{width, height}`),
+  `backgroundColor` (`Color | null`, where `null` is a transparent scene),
+  `framerate`, and `duration`. All five are plain mutable members.
+  `sandbox/playback.ts#applySceneSetting` writes one per `set-scene` step and
+  reads it back. It notes a value the host keeps unchanged.
+- `Animatable.getValueAt(frame)` as a playback baseline. The member is
+  live-verified (see the list above); this use of it is not.
+  `sandbox/applier.ts#readBaseline` reads the value at
+  `creator.timeline.currentFrame` when the property has keyframes, because a
+  keyframed property's `staticValue` is a stale leftover. It falls back to
+  `staticValue`.
+
 ## Still untyped in 1.0.1
 
 These members are live on the runtime surface, and 1.0.1 omits them:
@@ -149,6 +170,24 @@ declares them:
 declares a member that RECEIVES a message, but the runtime takes a callback.
 `sandbox/plugin.ts` passes a function, and it compiles only because a function
 is assignable to `unknown`.
+
+## Mismatches found against 1.0.1 (2026-09-06)
+
+A review against the 1.0.1 typings found these disagreements between the
+typings and the plugin's own calls. The plugin now matches the typings:
+
+- `createGroup` takes `GroupOptions` — an object with a `shapes` array, not a
+  bare array. `createGroup(created)` left `opts.shapes` undefined, so the host
+  built an EMPTY group. `sandbox/applier.ts` calls
+  `createGroup({ shapes: created })`.
+- `TrimPath` has no `mode`. 1.0.1 gives a trim path `start`, `end`, `offset`,
+  and `remove`, and nothing else. `sandbox/serialize.ts` reads `mode`
+  defensively and omits it when it is absent, so a host that adds the member
+  starts recording it with no change here. The member is NEVER live-verified.
+- `PaintOptions` has no `opacity`. `sandbox/applier.ts#paintSpec` no longer
+  emits the key, because an unknown key makes the host reject the whole
+  `createFill` with `✗ Invalid input`. Per-paint opacity stays unreachable —
+  see `limitations.md`.
 
 ## Behavioral quirks (all live-verified, all handled in the engine)
 

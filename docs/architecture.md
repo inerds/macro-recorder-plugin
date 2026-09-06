@@ -89,12 +89,19 @@ unit-testable without a Creator mock. Preserve this: new engine logic belongs in
 `engine/`, driven by snapshots, not in a new proxy-reading module.
 
 `engine/testing/fakeScene.ts` is the test double for that proxy surface, shared
-by `dev/harness/host-harness.html` and vitest. It reproduces the real API's traps on
+by `dev/harness/host-harness.html` and vitest. It models the
+`creator-api-types` 1.0.1 surface, corrected by
+[`runtime-api.md`](runtime-api.md) and [`limitations.md`](limitations.md),
+which win where the two disagree. It reproduces the real API's traps on
 purpose — most importantly that the host silently discards an assignment to
-`staticValue` when keyframes exist (runtime quirk 4 in
-[`runtime-api.md`](runtime-api.md)). Never make the
-fake more permissive than the real host; that would hide the bugs it exists to
-catch.
+`staticValue` when keyframes exist (runtime quirk 4). It also REFUSES what the
+host refuses: paint lists on a geometry node, masks on a shape, layer flags on
+a group, `mode` on a trim path, `opacity` on a paint, a bare array to
+`createGroup`, and any unknown key in a `create*` options object (with the
+live host's `✗ Invalid input`). Its header comment holds the full list. Never
+make the fake more permissive than the real host; that would hide the bugs it
+exists to catch — the 2026-09-06 pass that tightened it exposed five real
+applier bugs at once.
 
 Both proxy files are defensive because proxies vary by node type and any
 getter can throw — `serialize.ts` wraps every read in `tryRead` and simply
@@ -130,6 +137,14 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   `nest-layers` (added SCENE layer + removals in one tick). In-layer payloads
   carry a `layer: LayerRef {id, name, priorName}` binding and, on deep paths,
   a `shapeHint`.
+- **Scene settings (rev 2026-09-06.3)**: `SceneSnapshot` is
+  `{sceneId?, settings?, layers}`. `settings` holds `name`, `size`,
+  `backgroundColor` (`null` = transparent), `framerate`, and `duration` — the
+  plain mutable members of 1.0.1 `Scene`. Each changed key becomes one
+  absolute `set-scene` step, applied ONCE per run against `creator.activeScene`
+  in `sandbox/playback.ts#applySceneSetting`, never per target. Both fields
+  are optional: a snapshot recorded before this rev carries no `settings`, and
+  `diffSceneSettings` emits nothing when either side lacks the key.
 - **Selection nudge (rev .48, inline since .49)**: `record.start` seeds and
   every `record.tick` carries `selectionCount`; 0 → a standing dashed chip
   above the live feed that clears ITSELF when a layer is selected (slot
