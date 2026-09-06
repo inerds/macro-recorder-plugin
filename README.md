@@ -93,6 +93,9 @@ at playhead, stagger, and repeat ×N.
 
 ### Standalone (primary dev loop)
 
+You need Node.js 22.12 or later and pnpm (the repository pins `pnpm@10.33.0`
+through `packageManager`).
+
 ```bash
 pnpm install
 pnpm dev
@@ -161,8 +164,9 @@ docs/           User guide, architecture, design system, runtime API, limitation
 Each tree compiles under its own `tsconfig.*.json` and `tsconfig.json` is the
 solution file. `pnpm bundle` builds and writes `release/macro-recorder-v<version>.zip`
 with exactly the three files Creator needs, and `pnpm bundle:dev` writes the
-`-dev` build with the dev strip on; the build stamps the version into
-`manifest.json`.
+`-dev` build with the dev strip on, the name "Macro Recorder (dev)", and its
+own plugin id, so the dev build keeps a separate macro store in Creator. The
+build stamps the version into `manifest.json`.
 
 ## Diagnostics and triage
 
@@ -202,8 +206,10 @@ sandbox reproduces bugs that are already fixed.
   through `configuring`, the pre-play parameter form).
 - `ui/gateways/types.ts` — the three gateway interfaces the panel talks to;
   `ui/gateways/index.ts` is the single real-versus-mock seam.
-- `sandbox/serialize.ts` and `sandbox/applier.ts` — the only two files that
-  touch Creator's live node proxies. Everything downstream is plain data.
+- `sandbox/serialize.ts` and `sandbox/applier.ts` — the reads and the writes
+  of Creator's live node proxies. `sandbox/playback.ts` and
+  `sandbox/recorder.ts` touch a proxy only to resolve targets, run scene-level
+  ops, and probe for diagnostics. Everything downstream is plain data.
 - `engine/testing/fakeScene.ts` — the test double for the proxy surface,
   shared by the harness and vitest. It reproduces the host's traps on
   purpose, above all that a `staticValue` write does nothing while keyframes
