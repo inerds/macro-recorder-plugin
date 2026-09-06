@@ -1,5 +1,5 @@
 import type { Json } from "../engine/json";
-import { toJson } from "../engine/json";
+import { jsonEqual, toJson } from "../engine/json";
 import type { MacroStep } from "../engine/macro";
 import type { PlaybackStepDebug, TargetProbe } from "../engine/protocol";
 import { RPC_ERRORS } from "../engine/protocol";
@@ -18,6 +18,7 @@ import { resolvePaint,
 } from "./applier";
 // (instance-content edits resolve strictly by index — user decision: layer
 // order, not shape-type matching, maps recorded content onto nested content)
+import { valueToJson } from "./serialize";
 import { session } from "./session";
 
 type AnyProxy = any;
@@ -51,7 +52,8 @@ function isSceneOp(payload: StepPayload): boolean {
     payload.op === "remove-layer" ||
     payload.op === "break-scene" ||
     payload.op === "nest-layers" ||
-    payload.op === "reorder-layers"
+    payload.op === "reorder-layers" ||
+    payload.op === "set-scene"
   );
 }
 
@@ -79,6 +81,7 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
   const createdIds = new Set<string>();
   const cloneSources = new Set<string>();
   let unretargetableSceneOps = false;
+  let sceneSettings = false;
   for (const step of steps) {
     const payload = payloadOf(step);
     if (!payload) continue;
@@ -93,6 +96,10 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
       payload.op === "reorder-layers"
     ) {
       unretargetableSceneOps = true;
+    } else if (payload.op === "set-scene") {
+      // NOT unretargetable: a scene setting is applied once either way, so it
+      // must not cost a mixed macro its per-selection retargeting.
+      sceneSettings = true;
     }
     const ref = layerRefOf(payload);
     if (ref) referenced.add(ref.id);
@@ -114,7 +121,9 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
     return { mode: "scene" };
   }
   if (selectionCount > 0) return { mode: "targets" };
-  return referenced.size > 0 ? { mode: "scene" } : { mode: "targets" };
+  // Nothing selected and nothing layer-bound: a settings-only macro is still
+  // a scene script, and must not fail the targets path's no-selection gate.
+  return referenced.size > 0 || sceneSettings ? { mode: "scene" } : { mode: "targets" };
 }
 
 /**
@@ -268,7 +277,9 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
     return base;
   }
   try {
-    base.value = toJson(prop.staticValue);
+    // valueToJson, not toJson: PathData is getter-based on the host, so a
+    // generic read probes `{}` on BOTH sides and hides every path write.
+    base.value = valueToJson(prop.staticValue);
   } catch {
     // leave null — an unreadable value is itself a finding
   }
@@ -291,7 +302,7 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
             // unreadable frame drops the entry below
           }
           try {
-            value = toJson(kf.value);
+            value = valueToJson(kf.value);
           } catch {
             // keep null — the frame is still worth reporting
           }
@@ -350,6 +361,20 @@ function sceneSummary(label: string): TargetProbe {
     probe.unreadable = `${layers.length} layers — summary capped at ${SCENE_SUMMARY_CAP}`;
   }
   return probe;
+}
+
+/** A scene SETTING's observable state — the value itself, so a trace can tell
+ *  a taken write from a discarded one. */
+function sceneSettingProbe(key: string, label: string): TargetProbe {
+  const value = tryRead(() => toJson((creator.activeScene as AnyProxy)?.[key]));
+  return {
+    target: label,
+    value: value === undefined ? null : value,
+    animated: false,
+    keyframes: [],
+    fills: 0,
+    strokes: 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -420,6 +445,14 @@ function createLayerFromSpec(
   spec: NodeSnapshot,
   notes: string[],
 ): AnyProxy | undefined {
+  // An image layer's content is an ASSET the recording never captured, so no
+  // factory can rebuild it: createShapeLayer gives the same dishonest empty
+  // shell TEXT_LAYER used to get (below), and createImageLayer would need an
+  // asset there is none of. Say what happened instead of building one.
+  if (spec.nodeType === "IMAGE_LAYER") {
+    notes.push("can't re-create an image layer — the recording has no image asset — skipped");
+    return undefined;
+  }
   // Factory must match the recorded type: a TEXT_LAYER rebuilt with
   // createShapeLayer is a shape shell with no text surface — every later
   // set-plain text/font write lands on nothing (live evidence: trace
@@ -513,16 +546,83 @@ function nestIntoNewScene(scene: AnyProxy, layers: AnyProxy[]): AnyProxy | undef
   return undefined;
 }
 
+/** Scene settings as a note says them — the API's camelCase is not English. */
+const SCENE_SETTING_LABELS: Record<string, string> = {
+  name: "name",
+  size: "size",
+  backgroundColor: "background",
+  framerate: "framerate",
+  duration: "duration",
+};
+
+/**
+ * Writes ONE scene setting on `creator.activeScene`, then reads it back.
+ *
+ * Absolute by construction: the recorded `after` goes on as-is, with none of
+ * the origin/baseline math layer transforms get. Two guards, both mirroring
+ * the set-plain path in applier.ts: a clean `undefined` read means this scene
+ * does not carry the member at all (never CREATE it — a phantom property
+ * read-back "verifies" trivially), and a read-back that disagrees means the
+ * host took the assignment and kept its own value.
+ */
+function applySceneSetting(
+  scene: AnyProxy,
+  payload: Extract<StepPayload, { op: "set-scene" }>,
+  notes: string[],
+): void {
+  const key = payload.key;
+  const label = SCENE_SETTING_LABELS[key] ?? key;
+  let missing = false;
+  try {
+    missing = scene[key] === undefined;
+  } catch {
+    // a THROWING getter means the member exists but is unreadable — write it
+    missing = false;
+  }
+  if (missing) {
+    notes.push(`this scene has no ${label} to set — skipped`);
+    return;
+  }
+  try {
+    scene[key] = payload.after;
+  } catch (error) {
+    notes.push(
+      `couldn't set the scene ${label} — ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
+  try {
+    if (!jsonEqual(toJson(scene[key]), payload.after)) {
+      notes.push(`the host kept the scene ${label} unchanged — the write didn't take`);
+    }
+  } catch {
+    // read-back unavailable: unverifiable is not a failure
+  }
+}
+
 function applySceneOp(
   payload: Extract<
     StepPayload,
-    { op: "add-layer" | "remove-layer" | "break-scene" | "nest-layers" | "reorder-layers" }
+    {
+      op:
+        | "add-layer"
+        | "remove-layer"
+        | "break-scene"
+        | "nest-layers"
+        | "reorder-layers"
+        | "set-scene";
+    }
   >,
   notes: string[],
 ): void {
   const scene = creator.activeScene;
   if (!scene) {
     notes.push("no active scene — skipped");
+    return;
+  }
+
+  if (payload.op === "set-scene") {
+    applySceneSetting(scene, payload, notes);
     return;
   }
 
@@ -808,6 +908,23 @@ export function earliestKeyframe(steps: MacroStep[]): number | undefined {
   return min;
 }
 
+/**
+ * Is this selected node a LAYER?
+ *
+ * `creator.utils.isLayer` is typed on 1.0.1 but has never been live-verified
+ * here, so it is feature-detected and its answer only used when it comes back
+ * a boolean. The fallback is `startFrame`: a timeline in point is LayerMixin's
+ * and no shape carries one.
+ */
+function isLayerNode(node: AnyProxy): boolean {
+  const utils = tryRead(() => (creator as AnyProxy).utils);
+  if (utils && typeof utils.isLayer === "function") {
+    const verdict = tryRead(() => utils.isLayer(node));
+    if (typeof verdict === "boolean") return verdict;
+  }
+  return typeof tryRead(() => node.startFrame) === "number";
+}
+
 export function playbackBegin(params: {
   steps: MacroStep[];
   sourceNodeId?: string;
@@ -817,13 +934,25 @@ export function playbackBegin(params: {
   iteration?: number;
   debug?: boolean;
 }): { total: number; targetCount: number; frameOffset?: number } {
-  const selection = ((): AnyProxy[] => {
+  const rawSelection = ((): AnyProxy[] => {
     try {
       return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
     } catch {
       return [];
     }
   })();
+  // A macro's steps are recorded against LAYERS and address them by layer
+  // paths, so a selected shape is not a target — applied to one, every step
+  // resolves against the wrong node or fails. Drop them, say so once, and let
+  // an emptied list fall through to the existing no-targets path.
+  const selection = rawSelection.filter((node) => isLayerNode(node));
+  const droppedShapes = rawSelection.length - selection.length;
+  const selectionNote =
+    droppedShapes > 0
+      ? `${droppedShapes} selected ${
+          droppedShapes === 1 ? "shape" : "shapes"
+        } skipped — macros replay onto layers`
+      : undefined;
 
   const analysis = chooseMode(params.steps, selection.length);
   const mode = analysis.mode;
@@ -877,6 +1006,7 @@ export function playbackBegin(params: {
               "stagger ignored — this macro replayed as a scene script (nothing was selected)",
           }
         : {}),
+      ...(selectionNote !== undefined ? { selectionNote } : {}),
       debug: params.debug === true,
     };
     session.recording = null;
@@ -940,6 +1070,7 @@ export function playbackBegin(params: {
     ...timing,
     delay,
     ...(staggerNote !== undefined ? { staggerNote } : {}),
+    ...(selectionNote !== undefined ? { selectionNote } : {}),
     debug: params.debug === true,
   };
   session.recording = null;
@@ -974,6 +1105,7 @@ export function playbackStep(params: { index: number }): {
   if (params.index === 0 && playback.firstPass && !playback.onceDone) {
     playback.onceDone = true;
     const label = playback.targetNames[0] ?? "scene";
+    if (playback.selectionNote) notes.push({ target: label, message: playback.selectionNote });
     if (playback.staggerNote) notes.push({ target: label, message: playback.staggerNote });
     if (playback.delay) {
       const { base, perTarget } = playback.delay;
@@ -992,7 +1124,9 @@ export function playbackStep(params: { index: number }): {
     }
   }
 
-  if (playback.mode === "scene") {
+  // A scene op is scene-level in EITHER mode: with a selection, a set-scene
+  // step still applies once to the scene, never once per selected layer.
+  if (playback.mode === "scene" || payload?.op === "set-scene") {
     const ref = payload ? layerRefOf(payload) : undefined;
     const label = payload && isSceneOp(payload) ? "scene" : layerLabel(ref);
     const stepNotes: string[] = [];
@@ -1000,8 +1134,10 @@ export function playbackStep(params: { index: number }): {
     if (payload && isSceneOp(payload)) {
       // Scene ops change the LAYER LIST, not a property — so their probe is
       // the list itself (rev .52). Without it add/remove/reorder/nest/break
-      // were unauditable in traces.
-      if (playback.debug) before = [sceneSummary(label)];
+      // were unauditable in traces. A settings op probes its own value.
+      const sceneProbe = () =>
+        payload.op === "set-scene" ? sceneSettingProbe(payload.key, label) : sceneSummary(label);
+      if (playback.debug) before = [sceneProbe()];
       try {
         applySceneOp(payload as Extract<StepPayload, { op: "add-layer" }>, stepNotes);
       } catch (error) {
@@ -1010,7 +1146,7 @@ export function playbackStep(params: { index: number }): {
           message: error instanceof Error ? error.message : String(error),
         });
       }
-      if (playback.debug) after = [sceneSummary(label)];
+      if (playback.debug) after = [sceneProbe()];
     } else if (payload && ref) {
       const layer = resolveLayer(ref);
       if (!layer) {

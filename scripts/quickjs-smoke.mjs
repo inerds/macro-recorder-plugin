@@ -47,6 +47,10 @@ const sceneCode = `({
 const fakeNodesSetup = `
 globalThis.__fakeNodes = [{
   id: "n1", name: "Layer 1", type: "SHAPE_LAYER",
+  // LayerMixin timing — readable live on every real layer (docs/runtime-api.md
+  // "Layer timing"), and what playbackBegin falls back to when the host has no
+  // creator.utils.isLayer to tell a layer from a shape.
+  startFrame: 0, endFrame: 150, timelineOffset: 0,
   position: {
     isAnimated: false,
     staticValue: { x: 10, y: 20 },

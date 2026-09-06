@@ -13,6 +13,7 @@ import type {
   MaskSnapshot,
   NodeSnapshot,
   PaintSnapshot,
+  SceneSettings,
   SceneSnapshot,
   StrokeSnapshot,
   TrimSnapshot,
@@ -70,8 +71,13 @@ function readPathData(value: AnyProxy): Json | undefined {
   };
 }
 
-/** toJson, with a structural reader for path-shaped values. */
-function valueToJson(value: AnyProxy): Json {
+/**
+ * toJson, with a structural reader for path-shaped values. Exported because
+ * the playback probe reads the same host values: a plain `toJson` sees `{}`
+ * for every getter-based PathData, which made path writes unverifiable in
+ * traces (before and after both `{}`).
+ */
+export function valueToJson(value: AnyProxy): Json {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
     const looksLikePath =
       tryRead(() => value.points) !== undefined || tryRead(() => value.closed) !== undefined;
@@ -348,11 +354,57 @@ export function serializeNode(node: AnyProxy, depth = 0): NodeSnapshot {
   return snapshot;
 }
 
+/**
+ * Scene-level settings — plain mutable members of 1.0.1 `Scene`, read as
+ * defensively as everything else here: a member the host will not give up
+ * (or gives up in the wrong shape) is simply omitted, and the differ skips
+ * whatever is absent on either side.
+ *
+ * `backgroundColor` is the exception to "omit what reads oddly": `null` is a
+ * REAL value there — a transparent scene — so only `undefined` is absent.
+ */
+function serializeSceneSettings(scene: AnyProxy): SceneSettings {
+  const settings: SceneSettings = {};
+  const name = tryRead(() => scene.name);
+  if (typeof name === "string") settings.name = name;
+
+  const size = tryRead(() => scene.size);
+  if (size !== undefined && size !== null && typeof size === "object") {
+    const width = tryRead(() => Number(size.width));
+    const height = tryRead(() => Number(size.height));
+    if (
+      width !== undefined && height !== undefined &&
+      Number.isFinite(width) && Number.isFinite(height)
+    ) {
+      settings.size = { width, height };
+    }
+  }
+
+  const background = tryRead(() => scene.backgroundColor);
+  if (background === null) {
+    settings.backgroundColor = null;
+  } else if (background !== undefined && typeof background === "object") {
+    const channels = (["r", "g", "b"] as const).map((key) => tryRead(() => Number(background[key])));
+    if (channels.every((value) => value !== undefined && Number.isFinite(value))) {
+      settings.backgroundColor = { r: channels[0]!, g: channels[1]!, b: channels[2]! };
+    }
+  }
+
+  const framerate = tryRead(() => Number(scene.framerate));
+  if (framerate !== undefined && Number.isFinite(framerate)) settings.framerate = framerate;
+
+  const duration = tryRead(() => Number(scene.duration));
+  if (duration !== undefined && Number.isFinite(duration)) settings.duration = duration;
+
+  return settings;
+}
+
 /** Whole-scene snapshot: every top-level layer's subtree. */
 export function serializeScene(scene: AnyProxy): SceneSnapshot {
   const snapshot: SceneSnapshot = { layers: [] };
   const id = tryRead(() => String(scene.id));
   if (id !== undefined) snapshot.sceneId = id;
+  snapshot.settings = serializeSceneSettings(scene);
   const layers = tryRead(() => scene.layers);
   if (Array.isArray(layers)) {
     snapshot.layers = layers.map((layer: AnyProxy) => serializeNode(layer));

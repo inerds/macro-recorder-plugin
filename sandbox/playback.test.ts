@@ -1191,3 +1191,228 @@ describe("debug probes on structural and scene ops (rev .52)", () => {
     expect(result.debug.after[0].value[0].id).toEqual(expect.any(String));
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* scene settings                                                      */
+/* ------------------------------------------------------------------ */
+
+/** A scene root that carries the plain settings 1.0.1 `Scene` declares. */
+function withSettings(scene: Any) {
+  scene.size = { width: 1920, height: 1080 };
+  scene.backgroundColor = { r: 255, g: 255, b: 255 };
+  scene.framerate = 30;
+  scene.duration = 5;
+  return scene;
+}
+
+describe("scene settings (set-scene)", () => {
+  it("writes the setting onto the active scene, with nothing selected", () => {
+    const ids = makeIds();
+    const scene = withSettings(makeSceneRoot(ids));
+    stubCreator(scene, []);
+
+    const steps = [
+      step({
+        op: "set-scene",
+        key: "size",
+        before: { width: 1920, height: 1080 },
+        after: { width: 1080, height: 1080 },
+      }),
+      step({ op: "set-scene", key: "framerate", before: 30, after: 60 }),
+      step({ op: "set-scene", key: "backgroundColor", before: { r: 255, g: 255, b: 255 }, after: null }),
+    ];
+
+    const begin = playbackBegin({ steps: steps as Any });
+    expect(begin.total).toBe(3);
+    for (let i = 0; i < steps.length; i++) {
+      const result = playbackStep({ index: i });
+      expect(result.failures).toEqual([]);
+      expect(result.notes ?? []).toEqual([]);
+    }
+    expect(scene.size).toEqual({ width: 1080, height: 1080 });
+    expect(scene.framerate).toBe(60);
+    expect(scene.backgroundColor).toBe(null);
+  });
+
+  it("applies once — not once per selected layer — when a selection is present", () => {
+    const ids = makeIds();
+    const scene = withSettings(makeSceneRoot(ids));
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    stubCreator(scene, [a, b]);
+
+    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(result.notes ?? []).toEqual([]);
+    expect(scene.framerate).toBe(60);
+  });
+
+  it("reports a host that keeps its own value instead of claiming success", () => {
+    const ids = makeIds();
+    const scene = withSettings(makeSceneRoot(ids));
+    Object.defineProperty(scene, "framerate", {
+      configurable: true,
+      get: () => 30,
+      set: () => {
+        /* the host discards the write, like a locked scene */
+      },
+    });
+    stubCreator(scene, []);
+
+    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).some((n: Any) => /didn't take/.test(n.message))).toBe(true);
+  });
+
+  it("skips a setting the scene doesn't carry, rather than inventing the property", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids); // no settings at all
+    stubCreator(scene, []);
+
+    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).some((n: Any) => /skipped/.test(n.message))).toBe(true);
+    expect("framerate" in scene).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* image layers                                                        */
+/* ------------------------------------------------------------------ */
+
+describe("add-layer for an IMAGE_LAYER", () => {
+  it("skips honestly instead of building an empty shape shell", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    scene.createShapeLayer = () => scene.addLayer(makeNode("Shape", {}, ids));
+    stubCreator(scene, []);
+
+    const spec = {
+      nodeId: "IMG", nodeType: "IMAGE_LAYER", nodeName: "Logo.png",
+      props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+    };
+    playbackBegin({ steps: [step({ op: "add-layer", spec })] as Any });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).some((n: Any) => /image asset/.test(n.message))).toBe(true);
+    expect(scene.layers).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* playback targets                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("playbackBegin — selection filtering", () => {
+  it("drops selected shapes from the target list and says so once", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    const rect = layer.createRectangle({ size: { width: 10, height: 10 } });
+    const ellipse = layer.createEllipse({});
+    stubCreator(scene, [layer, rect, ellipse]);
+
+    const begin = playbackBegin({
+      steps: [step({ op: "set-static", path: ["opacity"], before: 100, after: 50 })] as Any,
+    });
+    expect(begin.targetCount).toBe(1);
+
+    const result = playbackStep({ index: 0 });
+    const messages = (result.notes ?? []).map((n: Any) => n.message);
+    expect(messages.filter((m: string) => /selected shapes? skipped/.test(m))).toHaveLength(1);
+    expect(layer.opacity.staticValue).toBe(50);
+  });
+
+  it("prefers creator.utils.isLayer over the startFrame fallback when the host exposes it", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    // No startFrame — the fallback would call this a shape and drop it.
+    const exotic: Any = { name: "Exotic layer", opacity: { staticValue: 100 } };
+    stubCreator(scene, [layer, exotic]);
+    // The typed 1.0.1 surface, never live-verified — feature-detected.
+    (globalThis as Any).creator.utils = { isLayer: () => true };
+
+    const begin = playbackBegin({
+      steps: [step({ op: "set-static", path: ["opacity"], before: 100, after: 50 })] as Any,
+    });
+    expect(begin.targetCount).toBe(2);
+    const result = playbackStep({ index: 0 });
+    expect((result.notes ?? []).some((n: Any) => /skipped/.test(n.message))).toBe(false);
+    expect(layer.opacity.staticValue).toBe(50);
+  });
+
+  it("falls through to the existing no-targets path when only shapes were selected", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    const rect = layer.createRectangle({ size: { width: 10, height: 10 } });
+    stubCreator(scene, [rect]);
+
+    expect(() =>
+      playbackBegin({
+        steps: [step({ op: "set-static", path: ["opacity"], before: 100, after: 50 })] as Any,
+      }),
+    ).toThrow("no-selection");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* diagnostics                                                         */
+/* ------------------------------------------------------------------ */
+
+describe("the playback probe reads path values structurally", () => {
+  it("a pathData probe carries the points, not an empty object", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    layer.createPath({
+      pathData: { closed: true, points: [{ vertex: { x: 1, y: 2 } }, { vertex: { x: 3, y: 4 } }] },
+    });
+    stubCreator(scene, [layer]);
+
+    const after = { closed: true, points: [{ vertex: { x: 5, y: 6 } }] };
+    playbackBegin({
+      debug: true,
+      steps: [
+        step({
+          op: "set-static",
+          path: ["shapes", 0, "pathData"],
+          before: { closed: true, points: [] },
+          after,
+          shapeHint: "PATH",
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    const beforeProbe = result.debug!.before[0]!.value as Any;
+    expect(beforeProbe.points).toHaveLength(2);
+    expect(beforeProbe.points[0].vertex).toEqual({ x: 1, y: 2 });
+    expect((result.debug!.after[0]!.value as Any).points).toHaveLength(1);
+  });
+});
+
+describe("mask mode replays through the set-plain channel", () => {
+  it("writes Mask.mode on the target's mask", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    layer.createMask({ mode: "add" });
+    stubCreator(scene, [layer]);
+
+    playbackBegin({
+      steps: [
+        step({ op: "set-plain", path: ["masks", 0, "mode"], before: "add", after: "subtract" }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(result.notes ?? []).toEqual([]);
+    expect(layer.masks[0].mode).toBe("subtract");
+  });
+});

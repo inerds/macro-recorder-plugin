@@ -83,9 +83,39 @@ export interface NodeSnapshot {
   shapes: NodeSnapshot[];
 }
 
+/**
+ * Scene-level settings — plain mutable members of 1.0.1 `Scene`, not
+ * animatables. Every field is optional: a host that will not give one up
+ * simply omits it, and a snapshot recorded before scene-settings support
+ * carries none at all.
+ */
+export interface SceneSettings {
+  name?: string;
+  /** 1.0.1 `Size` is {width, height} — NOT a Vector. */
+  size?: { width: number; height: number };
+  /** null is a REAL value here: the scene is transparent. */
+  backgroundColor?: { r: number; g: number; b: number } | null;
+  framerate?: number;
+  /** Seconds, per the typings. */
+  duration?: number;
+}
+
+/** The setting names `set-scene` steps address, in diff order. */
+export const SCENE_SETTING_KEYS = [
+  "name",
+  "size",
+  "backgroundColor",
+  "framerate",
+  "duration",
+] as const;
+
+export type SceneSettingKey = (typeof SCENE_SETTING_KEYS)[number];
+
 /** Whole-scene snapshot: every top-level layer's subtree. */
 export interface SceneSnapshot {
   sceneId?: string;
+  /** Absent in snapshots recorded before scene-settings support. */
+  settings?: SceneSettings;
   layers: NodeSnapshot[];
 }
 
@@ -106,7 +136,12 @@ const TRANSFORM_PROPS = [
  */
 export const TYPE_PROPS: Record<string, readonly string[]> = {
   CONTAINER: TRANSFORM_PROPS,
-  SCENE_INSTANCE: TRANSFORM_PROPS,
+  // A scene layer's runtime type string is SCENE_LAYER (docs/runtime-api.md);
+  // 0.0.2's SCENE_INSTANCE never appears at runtime, so a registry entry for
+  // it only made the union fallback look covered.
+  SCENE_LAYER: TRANSFORM_PROPS,
+  // Image layers carry the generic layer surface and nothing else animatable.
+  IMAGE_LAYER: TRANSFORM_PROPS,
   GROUP: TRANSFORM_PROPS,
   SHAPE_LAYER: TRANSFORM_PROPS, // legacy/fake type name
   RECTANGLE: ["size", "position", "roundness"],

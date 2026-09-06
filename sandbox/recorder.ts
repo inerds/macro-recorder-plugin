@@ -6,6 +6,7 @@ import { RPC_ERRORS } from "../engine/protocol";
 import type { SceneSnapshot } from "../engine/snapshot";
 import { buildStep } from "../engine/steps";
 import { serializeScene } from "./serialize";
+import type { RecordingSession } from "./session";
 import { session } from "./session";
 import type { Json } from "../engine/json";
 import { toJson } from "../engine/json";
@@ -569,6 +570,34 @@ function computeCaptureOffer(next: SceneSnapshot, nodes: AnyProxy[]): CaptureOff
   return offer;
 }
 
+/**
+ * The scene switched under the recording — said ONCE, as a step.
+ *
+ * `record.start` PINS `creator.activeScene` and every tick re-serializes that
+ * same proxy, so switching scenes mid-recording silently records nothing the
+ * user can see happening. Both reads here are live-verified surfaces
+ * (`creator.activeScene`, `Scene.id`).
+ *
+ * The note rides the `not-replayable` step channel because `record.tick`'s
+ * RPC result has NO notes field (engine/protocol.ts) and the debug channel is
+ * opt-in, so a production session would never be told. A `not-replayable`
+ * step is marked `replayable: false`, is visible in the review list, and the
+ * user can delete it.
+ */
+function sceneSwitchStep(recording: RecordingSession): MacroStep | undefined {
+  if (recording.sceneSwitchNoted) return undefined;
+  const pinned = tryReadValue(() => String(recording.scene.id));
+  const active = tryReadValue(() => String(creator.activeScene?.id));
+  if (pinned === undefined || active === undefined || pinned === active) return undefined;
+  recording.sceneSwitchNoted = true;
+  const name = tryReadValue(() => recording.scene.name);
+  const label = typeof name === "string" && name ? `"${name}"` : "the scene you started in";
+  return buildStep({
+    op: "not-replayable",
+    description: `You switched scenes — still recording ${label}`,
+  });
+}
+
 export function recordTick(seq: number): {
   seq: number;
   steps: MacroStep[];
@@ -583,9 +612,13 @@ export function recordTick(seq: number): {
   // selection read serves both the offer and the live nudge count.
   const nodes = selectedNodes();
   const offer = recording ? computeCaptureOffer(recording.lastSnapshot, nodes) : undefined;
+  // Appended AFTER collectDelta set `stepped`: the switch note is the
+  // sandbox talking, not something the user recorded, so it must not make a
+  // silent session look productive to recordStop's debug fallback.
+  const switched = recording ? sceneSwitchStep(recording) : undefined;
   return {
     seq,
-    steps: delta.steps,
+    steps: switched ? [...delta.steps, switched] : delta.steps,
     ...(offer ? { captureOffer: offer } : {}),
     ...(recording ? { selectionCount: nodes.length } : {}),
     ...(delta.debug ? { debug: delta.debug } : {}),

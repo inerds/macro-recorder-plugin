@@ -551,15 +551,12 @@ const SHAPE_CONTAINER_TYPES = ["SHAPE_LAYER", "CONTAINER", "GROUP"];
 const SHAPE_FACTORY_TYPES = ["RECTANGLE", "ELLIPSE", "POLYGON", "STAR", "PATH"];
 
 /**
- * Animatable names for a node type. SCENE_LAYER and IMAGE_LAYER are absent
- * from the snapshot registry, where an unknown type falls back to probing the
- * union of everything; here they get exactly what 1.0.1 gives them —
- * LayerMixin plus TransformMixin, the same set a shape layer has.
+ * Animatable names for a node type, straight from the snapshot registry —
+ * which names SCENE_LAYER and IMAGE_LAYER (LayerMixin plus TransformMixin,
+ * the same set a shape layer has), so nothing is special-cased here.
  */
 function animatableProps(nodeType: string): readonly string[] {
-  return nodeType === "SCENE_LAYER" || nodeType === "IMAGE_LAYER"
-    ? propsForType("CONTAINER")
-    : propsForType(nodeType);
+  return propsForType(nodeType);
 }
 
 /**

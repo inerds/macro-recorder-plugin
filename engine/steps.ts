@@ -2,7 +2,15 @@ import { newId } from "./id";
 import type { Json } from "./json";
 import { labelOf } from "./labels";
 import type { MacroStep } from "./macro";
-import type { KfSnap, MaskSnapshot, NodeSnapshot, PaintSnapshot, Path, TrimSnapshot } from "./snapshot";
+import type {
+  KfSnap,
+  MaskSnapshot,
+  NodeSnapshot,
+  PaintSnapshot,
+  Path,
+  SceneSettingKey,
+  TrimSnapshot,
+} from "./snapshot";
 
 /** Which layer a step belongs to (whole-scene recording). */
 export interface LayerRef {
@@ -74,6 +82,12 @@ export type StepPayload =
    *  scene's real layers (trace 2026-08-26T08-15-02). Absent on legacy
    *  payloads, which replay positionally with a caution note. */
   | { op: "reorder-layers"; order: number[]; layers?: LayerRef[] }
+  /**
+   * A scene-level setting (size, background, framerate, duration, name).
+   * ABSOLUTE by construction — a scene is 1920×1080 or it is not, so none of
+   * the relative transform math applies and there is no layer to bind to.
+   */
+  | { op: "set-scene"; key: SceneSettingKey; before: Json; after: Json }
   /** observable but not replayable via the plugin API (e.g. reorder) */
   | { op: "not-replayable"; description: string }
   /** legacy v1 payloads still found in saved macros */
@@ -121,7 +135,9 @@ export function kindOf(payload: StepPayload): StepKind {
       return "other";
     }
     case "set-plain":
-      return "layer";
+      // A flag on a mask belongs in the mask lane, not the layer lane —
+      // `Mask · mode` is the only structural set-plain path today.
+      return rootOf(payload.path) === "masks" ? "mask" : "layer";
     case "add-paint":
     case "replace-paint":
     case "add-fill":
@@ -141,6 +157,9 @@ export function kindOf(payload: StepPayload): StepKind {
     case "break-scene":
     case "nest-layers":
     case "reorder-layers":
+    // Scene settings are scene structure to the UI: same icon lane as the
+    // layer ops, so no new StepKind reaches the icon map.
+    case "set-scene":
       return "layer";
     case "add-shape":
     case "remove-shape":

@@ -1044,6 +1044,16 @@ export function applyStep(
       return { notes };
     }
 
+    case "set-scene": {
+      // A scene setting has no target: it is written ONCE per run against
+      // creator.activeScene, in sandbox/playback.ts#applySceneSetting, which
+      // is where playbackStep routes it. Reaching a per-target applier means
+      // a caller bypassed that routing — say so rather than writing a scene
+      // member onto a layer.
+      notes.push("a scene setting applies to the scene, not to a layer — skipped");
+      return { notes };
+    }
+
     case "not-replayable": {
       notes.push(`${payload.description} — skipped`);
       return { notes };

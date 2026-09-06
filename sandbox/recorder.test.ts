@@ -207,3 +207,61 @@ describe("selection:keyframes event fallback", () => {
     expect(recordTick(2).captureOffer?.selectedCount).toBe(0);
   });
 });
+
+describe("the recording is pinned to the scene it started in", () => {
+  it("keeps recording the pinned scene and says so ONCE when the active scene changes", () => {
+    const nextId = makeIds();
+    const layer = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const pinned = makeSceneRoot(nextId, [layer]);
+    stubCreator(pinned);
+
+    recordStart({});
+
+    // The user switches scenes mid-recording.
+    const other = makeSceneRoot(nextId, [makeNode("Elsewhere", {}, nextId)]);
+    (globalThis as Any).creator.activeScene = other;
+
+    layer.position.staticValue = { x: 10, y: 10 };
+    const tick1 = recordTick(1);
+
+    // The edit in the PINNED scene is still recorded...
+    expect(
+      tick1.steps.some((s: Any) => s.payload?.op === "set-static"),
+    ).toBe(true);
+    // ...and the switch is reported, exactly once.
+    const noted = tick1.steps.filter((s: Any) => s.payload?.op === "not-replayable");
+    expect(noted).toHaveLength(1);
+    expect(noted[0]!.replayable).toBe(false);
+    expect(noted[0]!.label).toMatch(/Main Scene/);
+
+    layer.position.staticValue = { x: 20, y: 20 };
+    const tick2 = recordTick(2);
+    expect(tick2.steps.some((s: Any) => s.payload?.op === "not-replayable")).toBe(false);
+  });
+
+  it("says nothing while the active scene is still the recorded one", () => {
+    const nextId = makeIds();
+    const layer = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const scene = makeSceneRoot(nextId, [layer]);
+    stubCreator(scene);
+
+    recordStart({});
+    layer.position.staticValue = { x: 10, y: 10 };
+    const tick = recordTick(1);
+    expect(tick.steps.every((s: Any) => s.payload?.op !== "not-replayable")).toBe(true);
+  });
+
+  it("does not let the switch note alone suppress recordStop's whole-session debug fallback", () => {
+    const nextId = makeIds();
+    const scene = makeSceneRoot(nextId, [makeNode("Layer A", {}, nextId)]);
+    stubCreator(scene);
+
+    recordStart({ debug: true });
+    (globalThis as Any).creator.activeScene = makeSceneRoot(nextId, []);
+    const tick = recordTick(1);
+    expect(tick.steps).toHaveLength(1); // the note, and nothing else
+
+    const result = recordStop();
+    expect(result.debug).toBeDefined();
+  });
+});

@@ -6,10 +6,12 @@ import type {
   NodeSnapshot,
   PaintSnapshot,
   Path,
+  SceneSettings,
   SceneSnapshot,
   StrokeSnapshot,
   TrimSnapshot,
 } from "./snapshot";
+import { SCENE_SETTING_KEYS } from "./snapshot";
 import type { LayerRef, StepPayload } from "./steps";
 
 function diffStatic(path: Path, prev: AnimatableSnapshot, next: AnimatableSnapshot, out: StepPayload[]) {
@@ -94,6 +96,18 @@ function diffPaint(basePath: Path, prev: PaintSnapshot, next: PaintSnapshot, out
     return;
   }
   if (prev.kind === "gradient" && next.kind === "gradient") {
+    // LINEAR <-> RADIAL is a different paint, not an edit to this one: the
+    // host has no writable `type`, and stops/start/end alone can never turn
+    // one into the other. Fall through to the same remove-and-recreate the
+    // solid <-> gradient swap uses.
+    if (
+      prev.gradientType !== undefined &&
+      next.gradientType !== undefined &&
+      prev.gradientType !== next.gradientType
+    ) {
+      out.push({ op: "replace-paint", path: basePath, spec: next });
+      return;
+    }
     diffAnimatable([...basePath, "stops"], prev.stops, next.stops, out);
     diffAnimatable([...basePath, "start"], prev.start, next.start, out);
     diffAnimatable([...basePath, "end"], prev.end, next.end, out);
@@ -114,6 +128,12 @@ function diffStroke(basePath: Path, prev: StrokeSnapshot, next: StrokeSnapshot, 
 }
 
 function diffMask(basePath: Path, prev: MaskSnapshot, next: MaskSnapshot, out: StepPayload[]) {
+  // `Mask.mode` is a plain mutable string on 1.0.1, so it rides the set-plain
+  // channel — the applier resolves ["masks", i] to the mask itself and writes
+  // the member. Absent on either side is structural noise, like diffPlain.
+  if (prev.mode !== undefined && next.mode !== undefined && prev.mode !== next.mode) {
+    out.push({ op: "set-plain", path: [...basePath, "mode"], before: prev.mode, after: next.mode });
+  }
   diffAnimatable([...basePath, "pathData"], prev.pathData, next.pathData, out);
   diffAnimatable([...basePath, "opacity"], prev.opacity, next.opacity, out);
 }
@@ -339,6 +359,30 @@ function positionDelta(source: NodeSnapshot, copy: NodeSnapshot): Json | undefin
   return any ? out : undefined;
 }
 
+/**
+ * Scene-level settings (size, background, framerate, duration, name). Each
+ * changed key becomes one absolute `set-scene` step — a scene is 1920×1080
+ * or it is not, so none of the relative playback math applies.
+ *
+ * A key absent on EITHER side is skipped: `undefined` means the host would
+ * not give the value up, or the snapshot predates scene-settings support.
+ * `null` is not absent — a null background is a transparent scene.
+ */
+function diffSceneSettings(
+  prev: SceneSettings | undefined,
+  next: SceneSettings | undefined,
+  out: StepPayload[],
+) {
+  if (!prev || !next) return;
+  for (const key of SCENE_SETTING_KEYS) {
+    const before = prev[key];
+    const after = next[key];
+    if (before === undefined || after === undefined) continue;
+    if (jsonEqual(before as Json, after as Json)) continue;
+    out.push({ op: "set-scene", key, before: before as Json, after: after as Json });
+  }
+}
+
 function layerRefOf(layer: NodeSnapshot): LayerRef {
   const ref: LayerRef = { id: layer.nodeId };
   if (layer.nodeName) ref.name = layer.nodeName;
@@ -354,6 +398,7 @@ function layerRefOf(layer: NodeSnapshot): LayerRef {
  */
 export function diffScene(prev: SceneSnapshot, next: SceneSnapshot): StepPayload[] {
   const out: StepPayload[] = [];
+  diffSceneSettings(prev.settings, next.settings, out);
   const prevById = new Map(prev.layers.map((layer, i) => [layer.nodeId, { layer, i }]));
   const nextById = new Map(next.layers.map((layer, i) => [layer.nodeId, { layer, i }]));
 
