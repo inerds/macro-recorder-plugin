@@ -12,7 +12,7 @@ findings belong in the failure taxonomy.
 
 ---
 
-## 2026-09-06 — Registry typings
+## 2026-09-06 — Registry typings and the API review
 
 | Issue | Fix |
 |---|---|
@@ -23,6 +23,7 @@ findings belong in the failure taxonomy.
 | Nesting layers tried four calls in sequence, including `layer.shiftTo(created)` / `shiftTo({to})`. Those threw only because the argument was not a number: `shiftTo(frame)` is a time shift, so a coercible argument would have silently retimed the user's layer instead of nesting it. | `nestIntoNewScene` now points the selection at the layers, makes one `createSceneLayer()` call, verifies the result, and removes the shell when nothing moved. The `createSceneInstance` and `createSceneLayer(layers)` rungs are gone with it (ENGINE_REV 2026-09-06.1). |
 | Several comments across the sandbox and engine described the host surface against the old 0.0.2 typings — `moveBefore`/`moveAfter`, trim paths, text layers and `roundness` called untyped, `plugin-api.d.ts` cited by name. | Each now describes 1.0.1 accurately, including the two places where the typings still do not match the runtime: per-paint opacity remains absent, and `Rectangle.roundness` is typed but still a dead proxy. |
 | **The build toolchain still installed `@lottiefiles/vite-plugin-creator` from a vendored 0.0.2 tarball.** The registry release, 0.0.7, declares a peer dependency on `vite@^8`, and the project sat on Vite 7, so the tarball was the only way to stay on a version that installed cleanly. | The toolchain moves to Vite 8.2, vitest 4.1, `@vitejs/plugin-react` 6, Tailwind 4.3 and the registry `@lottiefiles/vite-plugin-creator` 0.0.7. `vendor/` is deleted and `engines.node` is `>=22.12`, the floor Vite 8 sets. 0.0.7 also recompiles the sandbox bundle on any change under `sandbox/`, so `scripts/trace-server.ts` now touches the entry file for `engine/` edits only. |
+| The store's save rejection carried the host's own words, but the panel toasted a fixed "Could not save macro" and threw the text away. | The review-save toast shows the store's message (an RPC timeout keeps the plain line), so "Storage full — delete a macro first" and any host error reach the user. |
 | Group re-creation called `createGroup(created)` with a bare array. 1.0.1 takes `GroupOptions`, so the host read `opts.shapes` as undefined, built an EMPTY group, and left the recreated shapes loose on the layer. | `createShapeFrom` now calls `createGroup({ shapes: created })`, checks the returned group's `shapes`, and notes an empty result instead of reporting success. |
 | A re-created group got only its name, transform props and fills. Its plain flags, strokes, masks and trim paths were dropped silently. | After creation the group goes through `applyNodeSpec(group, { ...spec, shapes: [] }, notes)`, which lands everything else; its children are withheld because they are already grouped. |
 | `paintSpec` put `opacity` on every create spec. No paint has that property, and 1.0.1's `PaintOptions` has no such key, so a recorded paint opacity (recovered from the raw document) made the host reject the whole `createFill` with "✗ Invalid input". | `paintSpec` no longer emits `opacity` for solid or gradient paints. |

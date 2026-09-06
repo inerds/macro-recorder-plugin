@@ -8,7 +8,6 @@ a confirmed finding with a regression test behind it.
 **Trace bundles are large — never read one into the main context.** The triage
 agents exist for that.
 
-
 ## What a trace holds
 
 **Check `env.sandboxRev` first.** Creator evaluates `plugin.js` once at plugin
@@ -18,7 +17,7 @@ trace. See [`engine-rev.md`](engine-rev.md) for the full trap.
 
 Dev sessions write a trace bundle per record/playback run to `traces/` via a
 `POST /__macro-trace` middleware (`scripts/trace-server.ts`, wired in
-`vite.config.ts`). Two rules keep this honest:
+`vite.config.ts`). Three rules keep this honest:
 
 - **Debug payloads are opt-in per session.** The UI sends `debug: true` only
   under `import.meta.env.DEV`; the sandbox attaches snapshot pairs and target
@@ -47,7 +46,18 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   `stagger needs 2 or more` notes, and the `startFrame`/`timelineOffset`
   read-back notes) exist only from that rev — an earlier trace of a
   keyframe-free macro with stagger set is silent because the engine did
-  nothing, not because the writes failed.
+  nothing, not because the writes failed. Two more fences at rev
+  `2026-09-06.2`: keyframe capture now sets `RecordingSession.stepped` too,
+  so a capture-only session no longer gets the whole-session pair stapled on
+  at stop (traces 2026-09-04T03-47-27 and 03-51-20 show that artifact); and
+  a `nest-layers` step adopts a recorded nest that is still live, so the
+  note `already exists (its layers are inside) — using it` replaces the
+  empty duplicate an earlier trace shows (trace 2026-09-05T16-43-18). Two
+  more at rev `2026-09-06.3`: `playbackBegin` drops non-layer nodes from the
+  selection and reports one `skipped — macros replay onto layers` note; and
+  recording emits `set-scene` steps for the scene settings, a mask's `mode`,
+  and a gradient's `gradientType`. A trace before those revs is silent about
+  each of them.
 
 ## The dev strip
 

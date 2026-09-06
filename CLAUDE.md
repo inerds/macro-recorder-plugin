@@ -42,7 +42,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (504 tests, 22 files, ~1s)
+pnpm test                      # vitest run (506 tests, 22 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 pnpm bundle                    # release zip → release/macro-recorder-v<version>.zip
@@ -75,11 +75,13 @@ claiming plugin-side work is done.
    `docs/architecture.md` or `docs/design-system.md`. File a confirmed platform
    limit in [`docs/limitations.md`](docs/limitations.md) with its evidence, and
    move the entry to the improvements log if the host later lifts it.
-3. **Keep the proxy boundary.** Only `sandbox/serialize.ts` and
-   `sandbox/applier.ts` touch Creator's live node proxies. New engine logic goes
-   in `engine/`, driven by snapshots, so it stays unit-testable without a
-   Creator mock. Never make `engine/testing/fakeScene.ts` more permissive than
-   the real host.
+3. **Keep the proxy boundary.** Reads of Creator's live node proxies belong
+   in `sandbox/serialize.ts` and writes in `sandbox/applier.ts`;
+   `sandbox/playback.ts` and `sandbox/recorder.ts` touch proxies only to
+   resolve targets, run scene-level ops, and probe for diagnostics. New engine
+   logic goes in `engine/`, driven by snapshots, so it stays unit-testable
+   without a Creator mock. Never make `engine/testing/fakeScene.ts` more
+   permissive than the real host.
 4. **Never read a trace bundle into the main context.** Bundles are large. Use
    `/triage-traces`, which fans out the read-only `macro-triage` agent
    (`.claude/agents/macro-triage.md`) and the test-writing `macro-fixture`

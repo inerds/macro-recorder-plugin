@@ -17,7 +17,9 @@ internally, see `README.md`. For what the platform cannot do, see
 1. Open [creator.lottiefiles.com](https://creator.lottiefiles.com).
 2. Open the Plugins panel, and click the **+** icon at the top right.
 3. On the **Develop** tab, point it at the built plugin folder. During
-   development, enter `http://localhost:5173` instead — see `README.md`.
+   development, enter `http://localhost:5173` instead — see `README.md`. A
+   development build installs as **Macro Recorder (dev)** and keeps its own
+   macros, so it never touches the macros you saved with the released build.
 4. Open **Macro Recorder** from the plugins menu. The panel lists your saved
    macros, and it starts empty.
 
@@ -46,6 +48,9 @@ and if your system asks for reduced motion the reels stay still.
 In a very short panel, under about 352px tall, the deck scales down but keeps
 whole, turning reels. Nothing moves anywhere else.
 
+The panel wears one skin and keeps it. Only the surround around the panel
+follows Creator's own light or dark setting.
+
 > If a red banner says **Plugin engine is outdated**, remove the plugin and add
 > it again: Creator caches the engine once per load.
 
@@ -66,7 +71,7 @@ whole, turning reels. Nothing moves anywhere else.
    - masks (including a mask's mode), trim paths, layer flags (visible,
      locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,
-     reordering, breaking a scene instance apart, nesting layers
+     reordering, breaking a scene layer apart, nesting layers
    - scene settings: size, background (a transparent one included), frame
      rate, duration, and the scene name
 3. Watch the steps appear live in the panel as you work. The recorder samples
@@ -146,7 +151,8 @@ properties") with two choices:
 
 The offer follows your selection: select a different layer and it updates, and
 deselect and it leaves. It shows for a single selected layer only, and not for
-scene-instance layers, because their content is shared between instances.
+a scene layer, because a scene layer's content belongs to the scene it shows,
+and every layer that shows that scene shares it.
 After **Add all**, that button disables for the layer, so a second tap cannot
 double up the steps.
 
@@ -157,8 +163,9 @@ double up the steps.
 A single drag produces a run of small steps (`position.x 0 → 12`, `12 → 40`,
 `40 → 100`). **Simplify** merges every such run into one `0 → 100` step. It
 also folds keyframe edit chains (add a keyframe, then nudge it three times)
-into one net change. Steps whose net effect is nothing (rotate 45°, rotate back)
-disappear.
+into one net change. A scene setting you changed several times — the frame
+rate, say — folds the same way, into one step from the first value to the
+last. Steps whose net effect is nothing (rotate 45°, rotate back) disappear.
 
 Simplify will *not* do the following:
 
@@ -418,6 +425,11 @@ likely to meet these:
 - **Motion-path curves** (bezier handles between position keyframes) are not
   exposed either — curved motion replays as straight lines between the same
   keyframes.
+- **A color token or slot** records as the flat color it resolves to, because
+  the binding itself is not exposed. Replay applies that color, and the target
+  keeps no token.
+- **Effects and ungroup** have no plugin API at all, so the recorder never
+  sees those edits.
 - **Nesting selected layers into a scene** cannot be replayed, because no API
   route moves existing layers into a scene. The step reports itself honestly.
   In the scene the macro was recorded in, the step uses the nested scene that
@@ -428,8 +440,8 @@ likely to meet these:
   note. Select the layer that holds the shape.
 - Layer-reorder replay is live-verified: the macro records which layers it
   reordered, and replay checks them before it moves anything. Mask creation on
-  replay is fixed in this build, and a live session has not re-verified it
-  yet. Mask *edits* replay after the mask exists.
+  replay was fixed in the 0.4.0 build, and a live session has not re-verified
+  it since. Mask *edits* replay after the mask exists.
 - Fast drags are sampled at 2 steps per second — use *Simplify*.
 - Creator's plugin sandbox blocks file downloads. That is why sharing is
   **Copy JSON** and paste into **Import**, rather than a file export.

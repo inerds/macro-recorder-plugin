@@ -33,7 +33,7 @@ Run all four before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
-pnpm test          # vitest
+pnpm test          # vitest run (506 tests, 22 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm build         # production bundle → dist/
 ```
@@ -71,8 +71,9 @@ without Creator.
 - **Engine logic** — a new diff rule, label, or transform — goes in `engine/`,
   driven by snapshots, with unit tests beside it.
 - **Reads and writes of Creator's live node proxies** go in `sandbox/serialize.ts`
-  or `sandbox/applier.ts`. Those two files are the only ones allowed to touch a
-  proxy. Everything downstream is plain data.
+  or `sandbox/applier.ts`. `sandbox/playback.ts` and `sandbox/recorder.ts`
+  touch a proxy only to resolve targets, run scene-level ops, and probe for
+  diagnostics. Everything downstream is plain data.
 - **Panel work** goes in `ui/`. Read
   [`docs/design-system.md`](docs/design-system.md) first; the skin's rules are
   load-bearing.
@@ -136,7 +137,7 @@ and this repository's own runtime findings — see its "Host skills" section.
 2. Add a dated block to `CHANGELOG.md` for the new version. Keep it
    user-visible: one line per change, in plain language.
 3. Add the release notes as `docs/releases/vX.Y.Z.md`. Follow the shape of
-   [`docs/releases/v0.5.0.md`](docs/releases/v0.5.0.md): the tagline,
+   [`docs/releases/v0.6.0.md`](docs/releases/v0.6.0.md): the tagline,
    highlights, what the build fixes, and the honest list of host limits.
 4. Run `pnpm bundle`. It builds the production output and packs
    `release/macro-recorder-v<version>.zip`, the distributable a user adds
@@ -151,8 +152,9 @@ and this repository's own runtime findings — see its "Host skills" section.
    that id, so the dev build keeps its own macro store: a tester who wipes
    the dev store keeps the macros they recorded with the release build. The
    id must stay stable — a new one abandons every macro saved under the old
-   one. Trace capture stays off there, since no dev server answers
-   the trace endpoint. Never upload the dev build as the release.
+   one. The dev build still records traces, but it cannot write them: the
+   `POST /__macro-trace` endpoint belongs to the dev server, and a zipped
+   build never reaches one. Never upload the dev build as the release.
 6. Run the four checks above one more time against the released commit,
    then commit the bump, the changelog block and the release notes together
    as "Release X.Y.Z".
@@ -164,8 +166,9 @@ and this repository's own runtime findings — see its "Host skills" section.
    ```
 
    The Release workflow (`.github/workflows/release.yml`) checks that the
-   tag matches `package.json`, runs the four checks, builds both bundles,
-   and publishes a GitHub Release named after the tag with the changelog
-   block as its body and the release zip attached. 0.x tags are marked as
-   pre-releases. The dev zip is never attached to the release; it is kept
-   as a workflow artifact for collaborators, for 30 days.
+   tag matches `package.json`, runs `pnpm type-check`, `pnpm test`, and
+   `pnpm test:quickjs`, builds both bundles, and publishes a GitHub Release
+   named after the tag with the changelog block as its body and the release
+   zip attached. 0.x tags are marked as pre-releases. The dev zip is never
+   attached to the release; it is kept as a workflow artifact for
+   collaborators, for 30 days.

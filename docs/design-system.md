@@ -14,7 +14,10 @@ one stylesheet). The architecture behind the panel is in
 ## The skin — one committed look, and how it wins
 
 `ui/theme/vintageTokens.ts` exports `VINTAGE_TOKENS`, passed to the library's
-`ThemeProvider` in `app.tsx`. That provider writes every `--*` key of its
+`ThemeProvider` in `app.tsx` with `themeName="vintage"` — the panel wears one
+skin, so the provider is told what that skin is called: `useTheme().themeName`
+is the only way anything downstream can name it, and an unnamed provider
+reports `undefined`. That provider writes every `--*` key of its
 `tokens` prop as an **inline custom property on `<html>`**, which outranks both
 `:root` and `.dark` in the library's `theme.css`. Consequences, all
 load-bearing:
@@ -37,7 +40,7 @@ load-bearing:
   chain kept identical in all:
   the index.html head script (pre-React paint of `--host-frame-bg` on
   `<html>`), `useHostBackground()` (inline on the frame div), and the CSS
-  fallback (theme.css's dark `hsl(198 16.7% 11.8)`, hardcoded because every
+  fallback (theme.css's dark `hsl(198 16.7% 11.8%)`, hardcoded because every
   live token is repainted cream). Order: pushed `--background`/`background`/
   `--base`/`base` token → `isLight` → `themeName` → fallback. The two message
   consumers also guard the same two things. The message must come from
@@ -88,6 +91,12 @@ load-bearing:
   (`h-6 px-3 rounded font-normal`) onto the same element via
   `tailwind-merge`, and a single class would lose on source order alone.
   `.key-quiet.key-quiet` is doubled for the same reason.
+- **Compose class names with the library's `cn()`**, never with a template
+  literal. `cn()` is the same `clsx` + `tailwind-merge` pair the library's own
+  components use, so a conditional class merges by Tailwind precedence instead
+  of by source order, and a false branch contributes no stray space. Skin
+  classes are not Tailwind utilities, so `tailwind-merge` leaves them alone —
+  the `.key.key` doubling above is still what wins them their specificity.
 - **Controls rank by how much chrome they wear: primary = red key
   (`.key.key-red`), secondary = cream key (`.key.key-outline`), tertiary =
   quiet (`.key-quiet`) — instrument type on nothing at all, no ink edge and
@@ -223,6 +232,14 @@ recording clock, the status lamp, and the state word.
   transform. Mismatched, it flies in diagonally from ~138px left and ~121px
   up — outside the panel. `index.css` zeroes `--tw-enter/exit-translate-*`
   for `[role="dialog"]`, leaving the intended zoom + fade.
+- **A prompt that TAKES focus gives it back.** `ConfirmInline` is the panel's
+  destructive prompt: it appears in place, it is a labelled `role="group"`
+  rather than an alertdialog (nothing traps focus at 300px), and Cancel — the
+  safe choice — autofocuses, so a stray Enter never deletes. On unmount it
+  returns focus to the element that had it before, and only then: it restores
+  nothing if the group is still connected (StrictMode's double-invoked mount
+  cleanup), if the remembered element is gone, or if focus has already moved
+  somewhere outside the prompt.
 - **The transport row is `1fr auto 1fr`.** Status legend in the first track,
   key pair in the middle, recording clock in the third. Equal outer tracks
   are what keep the keys centred on the CHASSIS rather than on the space the

@@ -13,7 +13,9 @@ test pass is someone else's job.
 
 - **Recording bug** (wrong, missing, or spurious steps) → a case in
   `engine/diff.test.ts`. These are pure: feed the captured `{ prev, next }`
-  snapshot pair to `diffSnapshots` and assert the payloads. No mocking.
+  pair to `diffScene` and assert the payloads. A trace records SCENE
+  snapshots, so `diffScene` is the entry point; use `diffSnapshots` only for
+  a single node's subtree. No mocking.
 - **Playback bug** (a step didn't apply, applied wrongly, or failed) → a case in
   `sandbox/applier.test.ts`, driving `applyStep` against a node from
   `engine/testing/fakeScene.ts`. `applyStep` returns `{ notes }` — when the
@@ -22,9 +24,12 @@ test pass is someone else's job.
 - **Label bug** → `engine/labels.test.ts`.
 - **Relative-math bug** → `engine/relative.test.ts`.
 
-Match the surrounding file's style: it uses inline builders (`anim()`, `kf()`,
-`solid()`, `makeNode()`), `describe`/`it` from vitest, and no snapshot testing.
-Reuse the existing helpers rather than adding new ones.
+Match the surrounding file's style: `engine/diff.test.ts` uses its own inline
+builders (`anim()`, `kf()`, `solid()`, `makeNode()`, `scene()`), and
+`sandbox/applier.test.ts` imports `makeNode`, `makeIds`, and
+`makeGradientFill` from `engine/testing/fakeScene.ts`. Both use `describe`/`it`
+from vitest and no snapshot testing. Reuse the existing helpers rather than
+adding new ones.
 
 ## The fake scene
 
@@ -33,7 +38,8 @@ mirrors the real API's awkward parts on purpose:
 - `staticValue` writes are **silently discarded when keyframes exist**
   (runtime quirk 4 in `docs/runtime-api.md`).
 - `getKeyframeAt(frame)` matches the real `Animatable`.
-- `makeNode` exposes every `CANDIDATE_PROPS` entry.
+- `makeNode(name, options, nextId)` exposes the registry properties for the
+  node type (`propsForType` in `engine/snapshot.ts`), not every property.
 - `node.__control.setGone()` / `.failProp(name)` and
   `prop.__failAdd(message)` inject failures.
 

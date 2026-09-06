@@ -6,30 +6,47 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- Recording now captures the scene settings: size, background (a transparent
+  one included), frame rate, duration, and the scene name. Playback applies
+  them to the active scene once per run, whatever you have selected.
+- Changing a mask's mode, or switching a gradient between linear and radial,
+  now records. Both used to record nothing.
+- A failed save now shows the reason Creator gave. "Storage full — delete a
+  macro first" appears only when Creator reports its storage cap.
+- Playing a macro with shapes in the selection now skips the shapes and says
+  so — macros replay onto layers.
+- Switching scenes while you record now adds a step that says so. The
+  recorder stays on the scene you started in, and the step never replays.
 - Replaying a nest-layers step in the scene it was recorded in no longer
   leaves a second, empty copy of the nested scene behind when something else
   is selected. The step uses the nested scene that already exists and says so.
 - A macro step that nests layers now says plainly when Creator could not move
   the layers into a new scene layer, and that the nested scene was rebuilt
-  from the recording instead.
-- Recording now captures the scene settings: size, background (a transparent
-  one included), frame rate, duration, and the scene name. Playback applies
-  them to the active scene once per run.
-- Changing a mask's mode, or switching a gradient between linear and radial,
-  now records. Both used to record nothing.
-- Playing a macro with shapes in the selection now skips the shapes and says
-  so — macros replay onto layers.
-- Switching scenes while you record now adds a step that says so. The
-  recorder stays on the scene you started in, and the step never replays.
+  from the recording instead. Nesting also no longer risks retiming the layers
+  it could not move.
 - A macro that adds an image layer now says it cannot re-create the layer,
   because a recording holds no image asset.
+- A group the replay re-creates now holds its shapes. It used to arrive empty,
+  with the shapes left loose on the layer, and reported success anyway.
+- A re-created group now keeps its flags, strokes, masks, and trim paths too.
+  Only its name, transform, and fills used to survive.
+- Adding or replacing a fill or a stroke no longer fails outright when the
+  recording carried a paint opacity. Creator used to reject the whole paint.
+- Removing or replacing a text layer's fill or stroke now works. The step used
+  to miss, and then claim it had added the new paint alongside the old one.
+- A macro that shifts a keyframed layer now measures the target against the
+  value you can see at the playhead, so a relative move lands where you expect.
+- The panel now reconnects to the plugin engine when the first handshake is
+  lost, instead of running on demo data for the rest of the session.
 - The panel's surround now follows Creator's own light or dark setting,
   instead of guessing from the theme name.
-- Saving a macro reports "Storage full" only when Creator names the quota, or
-  fails without a message on a store that already holds macros. Every other
-  failure now shows Creator's own words, so the advice fits the problem.
-- The development build keeps its own macro store, so testing no longer
-  touches the macros you saved with the released build.
+- The panel accepts theme updates and engine replies from Creator's own window
+  only.
+- The inline confirmation now gives focus back to the control you came from
+  when you dismiss it.
+- The development build installs as **Macro Recorder (dev)** and keeps its own
+  macro store, so testing no longer touches the macros you saved with the
+  released build.
 
 ## 0.6.0 — 2026-09-04
 

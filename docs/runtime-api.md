@@ -2,13 +2,14 @@
 
 This document records what the Creator plugin API really does at runtime. The
 published typings are `@lottiefiles/creator-api-types` 1.0.1. Version 1.0.1
-fixed most of the omissions and dropped the members that never existed, so
-this file lists what 1.0.1 still gets wrong. **Runtime introspection inside
-real Creator** established everything below — own and prototype property
-enumeration, stamped into traces — together with live replay verification
-during 2026-08-21/22. Treat this file as the authority over the typings.
-Introspect first when you add a capability; the record-start debug probe dumps
-the surfaces into traces.
+fixed most of the omissions and dropped the members that never existed. Each
+member appears once below, under the one status that describes it: verified
+live, typed but not verified yet, live but untyped, or absent from the host
+altogether. **Runtime introspection inside real Creator** established the
+findings — own and prototype property enumeration, stamped into traces —
+together with live replay verification during 2026-08-21/22. Treat this file
+as the authority over the typings. Introspect first when you add a
+capability; the record-start debug probe dumps the surfaces into traces.
 
 ## Node types (runtime `type` strings)
 
@@ -42,7 +43,10 @@ unverified.
 
 1.0.1 also types `shiftTo(frame: number)` on `LayerMixin`. It shifts the
 layer's timeline window — a TIME shift, not a move in the layer stack. This
-plugin never calls it live.
+plugin never calls it live. The engine's earlier guessed calls —
+`shiftTo(node)` and `shiftTo({to})` — threw, because neither argument is a
+number. Both are gone: a coercible argument would have retimed the user's
+layer instead of throwing.
 
 `delayLayer` (`sandbox/applier.ts`) is the only writer. It moves `startFrame`
 and `timelineOffset` by the same delta, reads both back, and reports a kept
@@ -73,19 +77,26 @@ snapshot change (`limitations.md`, 2026-08-23).
 
 - Every node/shape: `moveBefore(sib)`, `moveAfter(sib)`, `bringToFront()`,
   `sendToBack()`, `getMatrix()`, `clone()` (inserts copy after self, returns
-  it — verified). 1.0.1 types `shiftTo(frame: number)`, a shift of the layer's
-  timeline window. The engine's earlier guessed calls — `shiftTo(node)` and
-  `shiftTo({to})` — threw because neither argument is a number.
+  it — verified). 1.0.1 spreads them over three interfaces: the four reorder
+  calls on `LayerMixin` AND `ShapeMixin`, `clone()` on `BaseNodeMixin`, and
+  `getMatrix(frame?)` on `TransformMixin`, which only layers and groups
+  extend.
 - Every `Animatable`: `clearKeyframes()` (bulk animated→static),
   `getValueAt(frame)`.
-- Container: `createTrimPath()`, `trimPaths` list, `createMask`, `createFill`,
-  `createStroke` (the specs are plain objects, and the API accepts gradient
-  specs).
+- `node.data` (`PluginData`) — this plugin's OWN per-node storage:
+  `get`/`set`/`delete`/`clear`, plus a `usedQuota` number. Live, and inert:
+  the rev .51 token hunt read it on every touched node and found
+  `usedQuota: 0` with null reads. It is storage, not a document surface, so
+  no host value is ever readable through it (`limitations.md`).
+- Shape container (a shape layer or a group): `createTrimPath()`, `trimPaths`
+  list, `createMask`, `createFill`, `createStroke` (the specs are plain
+  objects, and the API accepts gradient specs). 1.0.1 calls the interface
+  `ShapeContainerMixin`; 0.0.2 called it `Container`.
 - Scene: `createShapeLayer()`, `createSceneLayer()`, `createImageLayer()`,
   `createTextLayer()`, `isNestableScene`.
 - Text layer: `text`, `fontFamily`, `fontStyle`, `alignment` (plain strings),
   `fontSize` (plain number), **singular** `fill` / `stroke` paints.
-- Scene-instance layer: `break()` (spills content into parent scene — works).
+- Scene layer: `break()` (spills content into the parent scene — works).
 - `creator.selection.keyframes` — **live but EMPTY in practice**
   (2026-08-25/26). It is a real own-property array on `creator.selection` (the
   probe surface confirms it), but it reads `array(0)` at every
@@ -119,6 +130,17 @@ one yet. Every call stays feature-detected, and each one has a fallback:
   `creator.timeline.currentFrame` when the property has keyframes, because a
   keyframed property's `staticValue` is a stale leftover. It falls back to
   `staticValue`.
+- `ShapeContainerMixin.createGroup(opts?: GroupOptions)` — an object with a
+  `shapes` array, not a bare array. `sandbox/applier.ts` called
+  `createGroup(created)`, which left `opts.shapes` undefined and built an
+  EMPTY group on the real host. It calls `createGroup({ shapes: created })`
+  since rev `2026-09-06.2`.
+- `creator.clientStorage.usedQuota()` — typed as a METHOD returning
+  `Promise<number>`. `sandbox/store.ts` accepts either the method or a
+  number-valued property, caches the last reading, and reports it in the
+  `hello` result. The host exposes the bytes USED and no maximum, so a
+  plugin cannot measure the cap: `saveMacro` blames a full store only when
+  the host's own message names the quota.
 
 ## Still untyped in 1.0.1
 
@@ -138,16 +160,13 @@ These members are live on the runtime surface, and 1.0.1 omits them:
 - Paint lists live at DIFFERENT DEPTHS per layer topology. A flat ellipse
   keeps `fills` at the layer root; a group-based layer keeps them inside
   `shapes[0]` (live: Circle 3 vs Ellipse 1, trace 2026-08-26T03-56-02).
-  Pre-existing geometry shape nodes can lack `fills` AND
-  `addFill`/`createFill` entirely. Check the capability before removal, and
-  resolve a recorded fill path by role (the nearest paint list from the root),
-  never verbatim.
-- Per-paint opacity. 1.0.1 types `SolidPaint` as `{type, color, remove}` and
-  `GradientPaint` as `{start, end, stops, remove}`. `opacity` appears only on
-  `ColorStops` entries, `Mask`, `LayerMixin`, and `Group`. See
-  `limitations.md`.
+  Pre-existing geometry shape nodes can lack `fills` AND `createFill`
+  entirely. Check the capability before removal, and resolve a recorded fill
+  path by role (the nearest paint list from the root), never verbatim.
 
-## Removed from the typings in 1.0.1
+## Absent from the runtime
+
+Nothing below exists on the live host. Do not spend a call on any of it.
 
 0.0.2 declared these members, the runtime never had them, and 1.0.1 no longer
 declares them:
@@ -166,28 +185,27 @@ declares them:
 1.0.1 also drops the names `Container`, `SceneInstance`, `PluginAPI`, and
 `PluginEvent*`.
 
+These members no version ever declared, and the runtime does not have them
+either (checked against 1.0.1 on 2026-09-06):
+
+- Per-paint opacity, on both the read side and the create side. 1.0.1 types
+  `SolidPaint` as `{type, color, remove}` and `GradientPaint` as
+  `{start, end, stops, remove}`; `opacity` appears only on `ColorStops`
+  entries, `Mask`, `LayerMixin`, and `Group`, and `PaintOptions` has no such
+  key. `sandbox/applier.ts#paintSpec` does not emit it: an unknown key makes
+  the host reject the whole `createFill` with `✗ Invalid input`, so the key
+  lost the fill as well as the opacity. See `limitations.md`.
+- `TrimPath.mode`. A 1.0.1 trim path is `start`, `end`, `offset`, and
+  `remove`, and nothing else. `sandbox/serialize.ts` reads `mode` defensively
+  and omits it when it is absent, so a host that adds the member starts
+  recording it with no change here. The member is NEVER live-verified.
+- Keyframe spatial tangents, effects, and ungroup. See the tangent section
+  above, and `limitations.md` for the other two.
+
 **Still wrong in 1.0.1:** `UIAPI.onMessage(pluginMessage: unknown): void`
 declares a member that RECEIVES a message, but the runtime takes a callback.
 `sandbox/plugin.ts` passes a function, and it compiles only because a function
 is assignable to `unknown`.
-
-## Mismatches found against 1.0.1 (2026-09-06)
-
-A review against the 1.0.1 typings found these disagreements between the
-typings and the plugin's own calls. The plugin now matches the typings:
-
-- `createGroup` takes `GroupOptions` — an object with a `shapes` array, not a
-  bare array. `createGroup(created)` left `opts.shapes` undefined, so the host
-  built an EMPTY group. `sandbox/applier.ts` calls
-  `createGroup({ shapes: created })`.
-- `TrimPath` has no `mode`. 1.0.1 gives a trim path `start`, `end`, `offset`,
-  and `remove`, and nothing else. `sandbox/serialize.ts` reads `mode`
-  defensively and omits it when it is absent, so a host that adds the member
-  starts recording it with no change here. The member is NEVER live-verified.
-- `PaintOptions` has no `opacity`. `sandbox/applier.ts#paintSpec` no longer
-  emits the key, because an unknown key makes the host reject the whole
-  `createFill` with `✗ Invalid input`. Per-paint opacity stays unreachable —
-  see `limitations.md`.
 
 ## Behavioral quirks (all live-verified, all handled in the engine)
 
@@ -208,7 +226,9 @@ Other documents cite these items by number, so keep the numbering stable:
    `closed`, and the per-point `vertex`/`inTan`/`outTan` vectors.
 6. **Per-fill opacity is unreachable** through paint proxies, which expose
    only `color`/`type`/`remove`; colors are RGB, with no alpha. The document
-   `o` exists in `toJSON()` and recording recovers it; there is no write path.
+   `o` exists in `toJSON()` and recording tries to recover it from there — on
+   a host that returns the `{id, type}` stub (see the caveat above) it finds
+   nothing. There is no write path either way.
 7. **Duplicate detection must ignore the layer's own transform.** Creator
    offsets ⌘D copies, and the copies inherit live rotation.
 8. **`createSceneLayer()` creates an EMPTY scene layer** and does not consume
@@ -222,8 +242,9 @@ Other documents cite these items by number, so keep the numbering stable:
     mechanism. `change:scenes`, `change:images`, and `change:fonts` are typed
     in 1.0.1 and not verified live. The theme route is under probe: 1.0.1
     types `creator.ui.theme` and the `change:theme` event, and the ui-library
-    docs document the same pair (ThemeProvider sync).
-    `sandbox/theme.ts` implements that relay fully feature-detected — NEVER
-    live-verified, because our introspection predates the probe. If a trace
-    shows the frame matching Creator's theme, the event exists; move this note
-    accordingly.
+    docs document the same pair (ThemeProvider sync). A `ThemeTokens` carries
+    `tokens`, `themeName`, and `isLight`, and `sandbox/theme.ts` forwards all
+    three to the panel. It implements that relay fully feature-detected —
+    NEVER live-verified, because our introspection predates the probe. If a
+    trace shows the frame matching Creator's theme, the event exists; move
+    this note accordingly.

@@ -44,6 +44,16 @@ import {
  * and still carry an editable value. A macro whose pins have all gone stale
  * plays straight away rather than showing an empty form.
  */
+/**
+ * The sandbox store passes the host's own rejection text through, or says
+ * "Storage full — delete a macro first" when the host names its cap. An RPC
+ * timeout carries no user-readable cause, so that one keeps the plain line.
+ */
+function saveFailureText(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  return message && !message.startsWith("timeout") ? message : "Could not save macro";
+}
+
 function paramDefaults(macro: Macro): Record<string, EditableValue> {
   const values: Record<string, EditableValue> = {};
   for (const param of macro.params ?? []) {
@@ -441,8 +451,11 @@ export function AppProvider({
           // row's popover can still turn it off for the session.
           playOptions: { atPlayhead: true },
         };
-        void store.save(macro).catch(() => {
-          notify("Could not save macro", "error");
+        void store.save(macro).catch((error: unknown) => {
+          // The sandbox store passes the host's own words through (or
+          // "Storage full — delete a macro first" when the host names the
+          // cap), so show them instead of a fixed line.
+          notify(saveFailureText(error), "error");
         });
         void store.remove(REVIEW_DRAFT_ID).catch(() => {});
         dispatch({ type: "REVIEW_SAVE", macro });

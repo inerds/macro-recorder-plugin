@@ -62,16 +62,19 @@ Document map:
   recorder gateway, and the paced step-by-step playback orchestrator.
 
 Recording watches the whole scene — every layer's subtree, paints, masks,
-trims, plain flags, and structure (add, duplicate, remove, nest, reorder). You
-need no selection to start. While you record, selecting one keyframed layer
-offers to **capture** its keyframes and current style into the macro.
+trims, plain flags, the scene settings, and structure (add, duplicate, remove,
+nest, reorder). You need no selection to start. While you record, selecting
+one keyframed layer offers to **capture** its keyframes and current style into
+the macro.
 
 Replay picks one of two modes. A macro that touched at most one layer applies
 to every **selected layer**: the layer's own position, rotation, and skew
 shift each target from its own start, scale multiplies, and everything else
-applies exactly. A macro that touched several layers, or that restructured the
-scene, replays as a **scene script**: each step finds its layer by recorded
-id, then by name, then skips with a note.
+applies exactly. Only layers are targets — a selected shape is dropped with a
+note, because every step addresses its layer by path. A macro that touched
+several layers, or that restructured the scene, replays as a **scene
+script**: each step finds its layer by recorded id, then by name, then skips
+with a note.
 
 Two rules govern every step:
 
@@ -96,7 +99,7 @@ pnpm dev
 ```
 
 Open `http://localhost:5173` and size the viewport to about 300×520. The
-**Dev tools** strip at the panel foot (dev builds only) loads the ten demo
+**Dev settings** strip at the panel foot (dev builds only) loads the ten demo
 macros, clears the store, controls the mock recorder and playback scenarios,
 and shows captured traces.
 
@@ -128,7 +131,7 @@ the fake scene from the console through `window.harness`.
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (504 tests, 22 files)
+pnpm test          # vitest: engine logic, reducer, demo-macro replay (506 tests, 22 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)
@@ -146,9 +149,12 @@ sandbox/        The QuickJS plugin sandbox: RPC dispatcher, serializer, applier,
 engine/         The pure engine both sides use: protocol, snapshots, differ, labels, simplify.
 ui/             The React panel: state machine, gateways, components, styles, dev strip.
 dev/harness/    Host-emulation pages for the dev server only. Never part of the build.
-scripts/        The trace server, the QuickJS smoke test, and the release bundler.
+scripts/        The trace server, the QuickJS smoke test, the release bundler, and the
+                release-notes helper.
 docs/           User guide, architecture, design system, runtime API, limitations,
                 contributing guides, release notes per version, and the history log.
+.claude/        The triage agents, the /triage-traces skill, and the two installed
+                LottieFiles Creator plugin skills.
 .github/        CI (type-check, tests, QuickJS smoke, build) and the tag-driven Release workflow.
 ```
 
@@ -191,8 +197,9 @@ sandbox reproduces bugs that are already fixed.
 
 ## Architecture pointers
 
-- `ui/state/appReducer.ts` — one discriminated-union state machine
-  (`idle → recording → reviewing`, `idle → playing`).
+- `ui/state/appReducer.ts` — one discriminated-union state machine with five
+  modes (`idle → recording → reviewing`, and `idle → playing` directly or
+  through `configuring`, the pre-play parameter form).
 - `ui/gateways/types.ts` — the three gateway interfaces the panel talks to;
   `ui/gateways/index.ts` is the single real-versus-mock seam.
 - `sandbox/serialize.ts` and `sandbox/applier.ts` — the only two files that

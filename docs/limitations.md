@@ -119,9 +119,9 @@ Recordings capture nothing, and no API sets the value on a target.
   entries, `Mask`, `LayerMixin`, and `Group`, so the limit stands.
 - 1.0.1's `PaintOptions` has no `opacity` either, so the create side is shut
   as well. `sandbox/applier.ts#paintSpec` no longer puts the key in a
-  `createFill` spec (2026-09-06): an unknown key makes the host reject the
-  whole create with `✗ Invalid input`, so the key lost the fill as well as the
-  opacity.
+  `createFill` spec (rev `2026-09-06.2`): an unknown key makes the host
+  reject the whole create with `✗ Invalid input`, so the key lost the fill as
+  well as the opacity.
 - The user confirmed that it still does not work on engine rev 2026-08-22.12.
 
 **What the user sees:** the recorder captures nothing for the edit, and no
@@ -130,10 +130,12 @@ replays correctly, and it is the practical substitute.
 
 **Path to lift:**
 - A speculative document-level capture is in place. The untyped `node.toJSON()`
-  exposes the raw document where `o` lives, and the serializer recovers fill
-  and stroke opacities from it, matched by document order. If a future trace
-  shows fill-opacity steps being recorded, the capture side works. Replay
-  stays limited to honest skip-notes, because no API sets paint opacity on a
+  is where the raw document `o` would live, and the serializer recovers fill
+  and stroke opacities from it, matched by document order. On the host probed
+  on 2026-08-26 it recovers nothing: `toJSON()` returns an `{id, type}` stub
+  there (see the caveat in `runtime-api.md`). If a future trace shows
+  fill-opacity steps being recorded, the capture side works. Replay stays
+  limited to honest skip-notes, because no API sets paint opacity on a
   target.
 - The clean fix is upstream: LottieFiles must expose `opacity` on the `Paint`
   plugin interface. The document already has the property, so this is purely a
@@ -201,10 +203,12 @@ motion between the same keyframes. No step and no note mentions the curve,
 because there is nothing observable to report on.
 
 **Path to lift:** the host exposes `inTangent` and `outTangent` on keyframe
-proxies. The engine already reads and writes them defensively
-(`KfSnap.inTangent`/`outTangent`, applier read-back verification with a note
-on refusal), so a host that adds them starts to record and replay curves with
-no code change.
+proxies. The engine already reads and writes them defensively:
+`sandbox/serialize.ts` records `KfSnap.inTangent`/`outTangent` when they
+exist, and `sandbox/applier.ts#writeTangents` writes each handle, reads it
+back, and turns every refusal into its own note ("motion-path handle
+(`inTangent`) @ 12 not supported by Creator"). A host that adds the members
+starts to record and replay curves with no code change.
 
 ---
 
@@ -243,19 +247,22 @@ Early replays produced an empty nested scene.
 - Creator's own UI nest action clearly has a path, but Creator does not expose
   it under any typed name.
 
-**Current engine behavior (rev 2026-09-06.2):** `nestIntoNewScene`
-(`sandbox/playback.ts`) sets `creator.selection.nodes` to the layers, calls
-`scene.createSceneLayer()`, and verifies the result — the created layer must
-contain the layers, or the top-level layer list must have shrunk. If neither
-holds, the engine removes the empty shell and returns undefined. The macro
-then adopts the nested scene from the recording when it is still live in the
-scene (same-scene replay), with the note "already exists (its layers are
-inside) — using it"; only when no such nest exists does it fall back to a
-rebuild of the recorded scene layer, with the note "couldn't move the layers
-into a new scene layer — rebuilt it from the recording instead". The dead rungs are gone: `createSceneInstance` never existed, `createSceneLayer(layers)`
-is typed as an options object, and the per-layer `shiftTo(created)` attempt is
-removed because `shiftTo` takes a frame — a node argument could coerce and
-retime the layer instead of throwing.
+**Current engine behavior (rev 2026-09-06.2):** the sources are the current
+selection when there is one — the macro is a tool, so "run this on those two
+layers" means those layers — and the recorded layers otherwise.
+`nestIntoNewScene` (`sandbox/playback.ts`) sets `creator.selection.nodes` to
+the sources, calls `scene.createSceneLayer()`, and verifies the result — the
+created layer must contain the layers, or the top-level layer list must have
+shrunk. If neither holds, the engine removes the empty shell and returns
+undefined. The macro then adopts the nested scene from the recording when it
+is still live in the scene (same-scene replay), with the note "already exists
+(its layers are inside) — using it"; only when no such nest exists does it
+fall back to a rebuild of the recorded scene layer, with the note "couldn't
+move the layers into a new scene layer — rebuilt it from the recording
+instead". The dead rungs are gone: `createSceneInstance` never existed,
+`createSceneLayer(layers)` is typed as an options object, and the per-layer
+`shiftTo(created)` attempt is removed because `shiftTo` takes a frame — a node
+argument could coerce and retime the layer instead of throwing.
 
 **Status: CONFIRMED (instrumented trace, 2026-08-22, rev .34).** Breadcrumbs
 from a live replay: `createSceneLayer(layers)` returned undefined;
@@ -279,12 +286,49 @@ nest.
 
 ---
 
+## Re-creating an image layer on replay — the recording has no asset
+
+**What does not work:** an `add-layer` step for an `IMAGE_LAYER`. Replay
+cannot rebuild the layer, because the macro carries no image.
+
+**Why (evidence, 2026-09-06, against the 1.0.1 typings):**
+- A recorded layer is a `NodeSnapshot` — transforms, plain flags, paints,
+  masks, and child shapes. It has no channel for an image asset, so the macro
+  carries nothing to draw.
+- The only factory that builds one is `Scene.createImageLayer(opts)`, and
+  `ImageLayerCreateOptions.image` requires an `Image` asset. That is exactly
+  what the recording lacks.
+- Building the layer with `createShapeLayer` instead would produce the
+  dishonest empty shell that a rebuilt TEXT layer used to get, where every
+  later write lands on nothing (taxonomy #12). The engine refuses to do that.
+
+**What the user sees:** the step skips with the note *can't re-create an image
+layer — the recording has no image asset — skipped*
+(`sandbox/playback.ts#createLayerFromSpec`, rev `2026-09-06.3`). Every other
+edit to that image layer — transform, opacity, timing, keyframes — replays
+normally when the layer is already in the scene.
+
+**Path to lift:** 1.0.1 types two routes, and neither is live-verified here.
+Record the source asset's identity from `ImageLayer.image` and resolve it
+against `creator.assets` on replay, then call `createImageLayer({ image })`.
+Or record `Image.uri` — a base64 data URI, `null` until the host has loaded
+the image — and rebuild through `Scene.import`. Weigh the second one against
+the store: a data URI inside a macro makes the saved entry much larger, and
+`clientStorage` reports the bytes used but no cap (`runtime-api.md`).
+
+---
+
 ## Effects, ungroup — no API surface
 
 No effect types, no effects list, and no ungroup operation exist anywhere in
 the plugin API. They are absent from 1.0.1 as well, and from the runtime
 surface that introspection found. Edits that use them are invisible to
-the recorder.
+the recorder, which reports nothing: there is no observable change to note.
+
+1.0.1 does type a layer `matte` and an `isMatte` flag. That is track matting,
+not an effect: the recorder reads `isMatte` with the other plain flags and
+nothing else of it. The path to lift is upstream — Creator must give plugins
+an effects surface first.
 
 ---
 
@@ -340,7 +384,8 @@ found `moveBefore`, `moveAfter`, `bringToFront`, and `sendToBack`, which 0.0.2
 omitted, and reorder replay now builds on them (rev 2026-08-22.14; the fake's
 model of their placement semantics is unverified against the real host until a
 reorder trace confirms it). The runtime surface also includes `toJSON()` on
-nodes, shapes, and scenes; `clearKeyframes()` and `getValueAt()` on
+nodes, shapes, and scenes (an `{id, type}` stub on the host probed on
+2026-08-26 — see `runtime-api.md`); `clearKeyframes()` and `getValueAt()` on
 animatables; `createTrimPath` and `trimPaths`; and scene-level `export`,
 `createTextLayer`, and `createImageLayer`. 0.0.2 substantially undersold the
 real API. 1.0.1 types all of those members except `toJSON()` and `export()`.

@@ -10,8 +10,8 @@ Bump `ENGINE_REV` with EVERY sandbox-behaviour change (35+ bumps in one day was
 normal). The handshake compares revisions, stamps both into traces
 (`env.sandboxRev`/`uiRev`), and shows an in-panel banner on mismatch.
 
-The current value looks like `2026-08-26.52`: the date of the change, then a
-counter within that day.
+The value is the date of the change, then a counter within that day. At the
+time of writing it is `2026-09-06.3`.
 
 ## The trap
 
@@ -21,10 +21,12 @@ you must remove and re-add the plugin in Creator. If you do not, traces
 reproduce bugs that are already fixed.
 
 The dev server recompiles `plugin.js` when any `sandbox/` or `engine/` source
-changes. `@lottiefiles/vite-plugin-creator` watches `sandbox/` itself;
-`scripts/trace-server.ts` touches the entry file for `engine/` edits, because
-the plugin ignores every path outside `sandbox/`. That keeps the bundle fresh
-on disk; it cannot make Creator re-read it.
+changes. `@lottiefiles/vite-plugin-creator` 0.0.7 watches `sandbox/` itself.
+For an `engine/` edit, `scripts/trace-server.ts` touches `sandbox/plugin.ts`
+so that watcher rebuilds, because the plugin ignores every path outside
+`sandbox/`. The touch is for `engine/` sources only, and it skips
+`*.test.ts`. That keeps the bundle fresh on disk; it cannot make Creator
+re-read it.
 
 ## When you triage
 
