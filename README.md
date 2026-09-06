@@ -73,7 +73,7 @@ shift each target from its own start, scale multiplies, and everything else
 applies exactly. Only layers are targets — a selected shape is dropped with a
 note, because every step addresses its layer by path. A macro that touched
 several layers, or that restructured the scene, replays as a **scene
-script**: each step finds its layer by recorded id, then by name, then skips
+rebuild**: each step finds its layer by recorded id, then by name, then skips
 with a note.
 
 Two rules govern every step:
@@ -134,7 +134,7 @@ the fake scene from the console through `window.harness`.
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (506 tests, 22 files)
+pnpm test          # vitest: engine logic, reducer, demo-macro replay (539 tests, 25 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)

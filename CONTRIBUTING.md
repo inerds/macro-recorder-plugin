@@ -33,7 +33,7 @@ Run all four before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
-pnpm test          # vitest run (506 tests, 22 files)
+pnpm test          # vitest run (539 tests, 25 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm build         # production bundle → dist/
 ```

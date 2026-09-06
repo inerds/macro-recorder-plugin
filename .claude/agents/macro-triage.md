@@ -29,14 +29,21 @@ Event kinds:
   keyframes: [{ frame, value, easing? }], fills, strokes, unreadable? }`.
   `notes` are **deliberate non-applies** (e.g. a static write skipped because
   the target is animated) — a step with notes is reported to the user, not
-  silent. Probe caveats by `env.sandboxRev`: before `2026-08-24.41`, a
+  silent. Each note is `{ target, message, kind }` from rev `2026-09-06.4`:
+  `skip` when the step did not fully apply, `info` when an adaptation worked
+  ("delayed this layer by 4 frames"). A note with no `kind` comes from an
+  older sandbox; read it as a skip. A scene op's probe also reports `inner`,
+  the layer count inside a scene layer, and the layers the step touched are
+  pinned past the 25-entry cap (rev `2026-09-07.1`) — an `inner: 0` shell is
+  a nest that did not happen. Probe caveats by `env.sandboxRev`: before `2026-08-24.41`, a
   `set-plain` scalar path probes `value: null` on BOTH sides regardless of
   outcome (the probe read `.staticValue` off a raw string) and keyframe
   entries carry no `easing` — so in older traces neither signature is
   evidence of a silent no-op. From `.41` on, plain scalars probe as
   themselves and easing is included when readable. More fences arrived at revs
-  `.52`, `2026-09-04.1`, `2026-09-06.2`, and `2026-09-06.3` — read them in
-  `docs/contributing/triage.md` before you call a silence a finding.
+  `.52`, `2026-09-04.1`, `2026-09-06.2`, `2026-09-06.3`, `2026-09-06.4`, and
+  `2026-09-07.1` — read them in `docs/contributing/triage.md` before you call
+  a silence a finding.
 
 ## Method
 
@@ -57,12 +64,12 @@ Event kinds:
 
 | # | Failure | Where |
 |---|---|---|
-| 3 | Failures cascade — no per-target state after a failed step; every later step retries all targets | `sandbox/playback.ts:1190-1252`, `PlaybackSession` in `sandbox/session.ts` |
+| 3 | Failures cascade — no per-target state after a failed step; every later step retries all targets | `playbackStep`, `sandbox/playback.ts:1318-1521`, `PlaybackSession` in `sandbox/session.ts` |
 | 6 | Static-before-keyframes ordering replays a static write while still animated (now downgraded to a note by #2's fix, but the recorded step order is still wrong) | `diffAnimatable`, `engine/diff.ts:88-89` |
 | 7 | Positional fill/stroke diffing emits spurious steps on non-tail deletes (index-tail assumption) | `diffNodeInner`, `engine/diff.ts:199-225` |
 | 9 | Transient tick error hard-stops recording (the UI is told via `onEnded`, but one flaky RPC ends the session) | the `catch` in `tick()`, `ui/gateways/rpc/recorderGateway.ts:96-106` |
 | 16 | Captured scope-"all" transform statics (`position/scale/rotation/skew/skewAxis`, path length 1, before === after) replay with identical probes, no failures, no notes — matches the silent-no-op signature but is **intentional zero-delta design** (a retargeted style capture must not teleport the target; `combine()` in `engine/relative.ts:60-65` yields baseline+0 / baseline×1 deterministically). In SCENE mode they apply exactly (state restore). **Accepted, not a bug to file.** | `engine/capture.ts:323-333`, `propClassOf` in `engine/snapshot.ts:199-211` |
-| 17 | `captureOffer.selectedCount` stuck at 0 / "Add selected" disabled — `creator.selection.keyframes` is live but EMPTY in practice on the real host (docs/limitations.md, five sessions of evidence). Since rev .46 a `selection:keyframes` event listener feeds the offer when it fires; check `selectionIntrospection.events.fired` in the trace before classifying. **Platform limit, not a plugin bug.** | `sandbox/recorder.ts` selectedKeyframes/initSelectionEvents |
+| 17 | `captureOffer.selectedCount` stuck at 0 / "Add selected keyframes" disabled — `creator.selection.keyframes` is live but EMPTY in practice on the real host (docs/limitations.md, five sessions of evidence). Since rev .46 a `selection:keyframes` event listener feeds the offer when it fires; check `selectionIntrospection.events.fired` in the trace before classifying. **Platform limit, not a plugin bug.** | `sandbox/recorder.ts` selectedKeyframes/initSelectionEvents |
 
 ### Fixed — a trace showing one of these means a regression, not a known bug
 
@@ -71,18 +78,19 @@ before classifying.
 
 | # | Was | Fixed by |
 |---|---|---|
-| 1 | Keyframes matched by recorded id (never matches another node); frame fallback threw | frame-only matching with epsilon, `keyframeAt`, `sandbox/applier.ts:179-196` |
-| 2 | `set-static` on an animated property silently no-oped, reported as success | a `hasKeyframes` guard emits a note and skips, `sandbox/applier.ts:160-167` and `:770-773` |
-| 4 | One bad keyframe dropped the whole batch and skipped removed/changed | per-keyframe try/catch in `applyKeyframes`, `sandbox/applier.ts:332-383` |
-| 5 | `changed` fallback could duplicate a keyframe when `remove()` failed | remove-first, failure propagates, `writeKeyframe`, `sandbox/applier.ts:261-268` |
+| 1 | Keyframes matched by recorded id (never matches another node); frame fallback threw | frame-only matching with epsilon, `keyframeAt`, `sandbox/applier.ts:227-229` |
+| 2 | `set-static` on an animated property silently no-oped, reported as success | a `hasKeyframes` guard emits a note and skips, `sandbox/applier.ts:208-225` and `:818-821` |
+| 4 | One bad keyframe dropped the whole batch and skipped removed/changed | per-keyframe try/catch in `applyKeyframes`, `sandbox/applier.ts:334-400` |
+| 5 | `changed` fallback could duplicate a keyframe when `remove()` failed | remove-first, failure propagates, `writeKeyframe`, `sandbox/applier.ts:301-317` |
 | 12 | `add-layer` rebuilt a `TEXT_LAYER` with `createShapeLayer` — a shape shell with no text surface; later text/font `set-plain` writes landed on nothing and re-recording the layer captured nothing (aftermath: a layer named "Text 1" with `nodeType: SHAPE_LAYER` and no text plain-props, trace 2026-08-24T07-49-36-061) | typed factory pick (`TEXT_LAYER` → `createTextLayer`, feature-detected), `sandbox/playback.ts` `createLayerFromSpec` |
 | 13 | A host-swallowed `set-plain` write reported success — only a *thrown* assignment produced a note | defensive read-back after the write; mismatch → note naming the flag, unreadable → no claim, `sandbox/applier.ts` `case "set-plain"` |
 | 14 | `recordStop`'s "recorded nothing" debug fallback fired on any quiet FINAL tick, stapling the whole-session `firstSnapshot`/`lastSnapshot` pair onto an empty final delta — traces looked like an entire layer's diff was dropped when the recording was healthy | fallback gated on the whole session emitting zero steps (`RecordingSession.stepped`), `sandbox/recorder.ts:681`; from rev `2026-09-06.2` keyframe capture sets that flag too |
 | 18 | Paint topology mismatch on retarget — a fill recorded inside a GROUP (`shapes.0.fills.0`) replayed verbatim onto a flat layer resolved the bare geometry shape (no fills/addFill) and threw "this layer can't take fills" at step 0; removal ran before the capability check | role-based paint resolution (`findNearestFills` descent in `resolvePaint`), capability-before-removal + in-place spec writes in `replace-paint`, `sandbox/applier.ts` |
 | 19 | `probe()` was blind to PAINT objects — replace-paint probes read `.staticValue` off a Paint proxy (null/null, no unreadable flag) and topology-remapped writes probed at the recorded path; fill swaps were unverifiable in traces | paint summary (`{paintType, color, stops}`) + resolvePaint-following fallback in `probe()`, `sandbox/playback.ts` |
 | 20 | `set-plain` phantom writes — the best-effort shape fallback could resolve a wrong-type node and bare assignment CREATED the missing flag (read-back trivially passed) | pre-read existence check: clean `undefined` → skip note; throwing getter still writes, `sandbox/applier.ts` set-plain |
+| 21 | A `nest-layers` step with a selection adopted the recorded nest and noted "already exists (its layers are inside) — using it" while the scene did not change — `createSceneLayer()` returned an empty shell (`inner: 0`, breadcrumb `[nest] createSceneLayer() -> object, content=0`), traces 2026-09-06T17-13-19 and 17-13-38 (rev `2026-09-06.4`) | `nestByRebuild` rebuilds each selected layer inside the new scene, verifies by reads, and removes the originals; adoption is the empty-selection path alone and reads "Nested Scene 5 already exists — using it", `sandbox/playback.ts:616-786`, rev `2026-09-07.1` |
 | 8 | Missing snapshot properties: `Path.pathData`, `Mask.pathData`/`opacity`, gradient `start`/`end`; 3 dead registry entries | all of them are recorded now — `PATH: ["pathData"]`, `MaskSnapshot`, gradient `start`/`end`/`gradientType`, and the dead `SCENE_INSTANCE` entry is gone, `engine/snapshot.ts` |
-| 10 | Keyframe values applied verbatim in offset mode, unlike the same property's static form | every keyframe value runs through `computeTarget`, `sandbox/applier.ts:300-303`; `relativePaths()` covers `op: "keyframes"`, `sandbox/playback.ts:167-198` |
+| 10 | Keyframe values applied verbatim in offset mode, unlike the same property's static form | every keyframe value runs through `computeTarget`, `sandbox/applier.ts:348-351`; `relativePaths()` covers `op: "keyframes"`, `sandbox/playback.ts:175-210` |
 | 11 | Single-node recording — no child recursion, no selection listener | whole-scene recording (`serializeScene`, `sandbox/serialize.ts:403-408`) and a `selection:keyframes` listener (`initSelectionEvents`, `sandbox/recorder.ts:493-514`) |
 | 15 | `probe()` was blind to `set-plain` scalars (probed `.staticValue` off raw strings → `null`/`null`) and never captured keyframe `easing` — text applies and easing-only edits were unverifiable in traces | plain scalars probe as themselves; keyframe probe entries carry `easing?`, `sandbox/playback.ts` `probe()`, `engine/protocol.ts` `TargetProbe` |
 

@@ -54,6 +54,12 @@ follows Creator's own light or dark setting.
 > If a red banner says **Plugin engine is outdated**, remove the plugin and add
 > it again: Creator caches the engine once per load.
 
+If the panel cannot reach the plugin engine, it opens on the demo engine and
+says so: *Couldn't reach the plugin sandbox — recording and playback are
+simulated. Reload the plugin to retry.* Nothing you do there reaches your
+scene. The panel keeps asking in the background, and it reloads onto the real
+engine as soon as the engine answers.
+
 ---
 
 ## 2. Record a macro
@@ -83,9 +89,10 @@ follows Creator's own light or dark setting.
    opens.
 
 **Discard**, beside Stop at the bottom, throws the session away, and it asks
-first when steps exist. Deleting a layer while you record is itself a recorded
-step. Recording stops on its own only when the scene goes away, and it says
-so.
+first when steps exist — *Discard this recording? Its 4 steps will be lost.* —
+with **Discard recording** as the confirm key. Deleting a layer while you
+record is itself a recorded step. Recording stops on its own only when the
+scene goes away, and it says so.
 
 **One scene per recording.** The recorder stays on the scene you started in.
 If you switch scenes while you record, it adds one step that says so —
@@ -145,18 +152,18 @@ choices:
   not move a replay target, because a style should not teleport the layer it
   lands on.
 - **Add selected keyframes (n)** takes only the keyframes you selected on the
-  timeline. On current Creator builds it shows **(0), disabled**: Creator does
-  not yet report the timeline's keyframe selection to plugins. That is a host
-  limitation, not a broken button. The plugin also listens for the selection
-  event, so the key lights up by itself the moment a Creator build starts
-  delivering it. **Add all keyframes** is unaffected.
+  timeline. On current Creator builds it shows **(0)** and is off, with the
+  reason on the key: *Creator hasn't reported any selected keyframes to
+  plugins*. That is a host limitation, not a broken button. The plugin also
+  listens for the selection event, so the key lights up by itself the moment
+  a Creator build starts delivering it. **Add all keyframes** is unaffected.
 
 The offer follows your selection: select a different layer and it updates, and
 deselect and it leaves. It shows for a single selected layer only, and not for
 a scene layer, because a scene layer's content belongs to the scene it shows,
 and every layer that shows that scene shares it.
-After **Add all keyframes**, that key disables for the layer, so a second tap
-cannot double up the steps.
+After **Add all keyframes**, that key goes off for the layer and reads
+*Already added*, so a second tap cannot double up the steps.
 
 ---
 
@@ -243,10 +250,13 @@ cannot be copied, so it stays where it is: *an image layer can't be rebuilt
 inside the new scene — left it where it was*, and the count drops to *nested 2
 of the 3 selected layers*. If the rebuild fails, nothing moves: *couldn't
 rebuild your 3 selected layers inside a new scene — left them where they are*.
-With nothing selected and the recorded layers gone, the plugin rebuilds the
-nested scene from the recording: *couldn't find the layers to nest — rebuilt
-Nested Scene 5 from the recording instead*. The copies are new layers, so undo
-takes several steps.
+With nothing selected, the plugin nests the layers it recorded. If they are
+gone but the nested scene is still there — you replay in the scene you
+recorded in — it uses that scene and says so: *Nested Scene 5 already exists
+— using it*. With neither left, it rebuilds the nested scene from the
+recording: *couldn't find the layers to nest — rebuilt Nested Scene 5 from
+the recording instead*. The copies are new layers, so undo takes several
+steps.
 
 **Scene settings apply to the scene.** A step that recorded the size,
 background, frame rate, duration, or name goes to the active scene once per
@@ -273,6 +283,8 @@ time. You watch the macro happen rather than see it land all at once:
 - a step that fails swaps its number for a **red marker** and keeps it for the
   rest of the playback, even if you Continue past it
 - the row shows *Playing step X of Y* throughout
+- every other macro's Play key goes off and says why: *Another macro is
+  playing*
 
 The pace scales with the macro. A short macro steps about three times a
 second. A long one — a whole captured timeline, say — speeds up, so the walk
@@ -288,8 +300,9 @@ Three things can interrupt it:
 Anything the plugin deliberately does *not* apply — a value the layer did not
 need, or a fill it does not have — is never silent. The plugin collects it as
 a **note** and shows a toast when the playback ends ("4 steps adapted or
-skipped — this layer can't take masks (3 times) and other reasons"). The full
-list goes to the log for developers.
+skipped — this layer can't take masks (3 times) and other reasons"). That
+toast stays for eight seconds, because it is the only account of what the run
+adapted. The full list goes to the log for developers.
 
 ---
 
@@ -404,7 +417,9 @@ Three of these actions have more to them:
   macro.
 - Expand: the open card's footer keeps **Play**, the play options, and the ⋮
   menu, so nothing needs collapsing first. Hover Play for the macro's duration
-  ("Duration 30 frames").
+  ("Duration 30 frames"), and hover the **Steps (N)** heading for what the
+  macro will touch — *Applies to selected layers, or the recorded one*, or
+  *Rebuilds the scene — finds 2 layers by name*.
 
 A macro travels as plain JSON. Steps, disabled flags, and parameters ride
 along, so you can share macros between people and projects: paste the text

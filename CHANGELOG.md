@@ -6,33 +6,6 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
-- Playback notes now tell adjustments from skips: a stagger that worked says
-  "3 steps adjusted", and only a step that could not apply counts as skipped.
-  Every note speaks Creator's language ("Creator kept the in point as it
-  was") and the notes toast stays for eight seconds.
-- Keys that are off now say why when you reach them with the keyboard, the
-  deck's Stop key works during playback, a paused run scrolls its
-  Continue/Stop into view, and the screen reader hears one announcement at
-  the start and end of a run instead of one per step.
-- The panel no longer stays blank when the plugin engine cannot be reached;
-  it opens on the demo engine and says so.
-- Clearer wording: "Add all keyframes", "Discard recording", "Duration 30
-  frames", one lowercase play-options readout, and "Rebuilds the scene"
-  instead of "scene script".
-- Higher contrast on the red keys, the running and pending steps, the import
-  placeholder and the warning box; a hairline edge on light Creator themes;
-  the deck's smallest readouts never drop under 9 px.
-- Recording now captures the scene settings: size, background (a transparent
-  one included), frame rate, duration, and the scene name. Playback applies
-  them to the active scene once per run, whatever you have selected.
-- Changing a mask's mode, or switching a gradient between linear and radial,
-  now records. Both used to record nothing.
-- A failed save now shows the reason Creator gave. "Storage full — delete a
-  macro first" appears only when Creator reports its storage cap.
-- Playing a macro with shapes in the selection now skips the shapes and says
-  so — macros replay onto layers.
-- Switching scenes while you record now adds a step that says so. The
-  recorder stays on the scene you started in, and the step never replays.
 - Nesting layers now really nests them. Creator gives no plugin a way to move
   a layer into a scene, so the plugin rebuilds each selected layer inside the
   new scene, puts the new scene where the first layer was, and removes the
@@ -42,6 +15,15 @@ one row per fix — is `docs/history/improvements.md`.
   success while nothing moved, and in the scene it was recorded in it no
   longer leaves a second empty copy of the nested scene behind. Nesting also
   no longer risks retiming the layers it could not move.
+- Recording now captures the scene settings: size, background (a transparent
+  one included), frame rate, duration, and the scene name. Playback applies
+  them to the active scene once per run, whatever you have selected.
+- Changing a mask's mode, or switching a gradient between linear and radial,
+  now records. Both used to record nothing.
+- Switching scenes while you record now adds a step that says so. The
+  recorder stays on the scene you started in, and the step never replays.
+- Playing a macro with shapes in the selection now skips the shapes and says
+  so — macros replay onto layers.
 - A macro that adds an image layer now says it cannot re-create the layer,
   because a recording holds no image asset.
 - A group the replay re-creates now holds its shapes. It used to arrive empty,
@@ -54,14 +36,36 @@ one row per fix — is `docs/history/improvements.md`.
   to miss, and then claim it had added the new paint alongside the old one.
 - A macro that shifts a keyframed layer now measures the target against the
   value you can see at the playhead, so a relative move lands where you expect.
+- Simplify now folds a scene setting you changed several times — the frame
+  rate, say — into one step, the way it already folds a drag.
+- Playback notes now tell adjustments from skips: a stagger that worked says
+  "3 steps adjusted", and only a step that could not apply counts as skipped.
+  Every note speaks Creator's language ("Creator kept the in point as it
+  was"), a step that moves a layer's timeline window reads "in point" and
+  "out point", and the notes toast stays for eight seconds.
+- The panel no longer stays blank when the plugin engine cannot be reached;
+  it opens on the demo engine and says so.
 - The panel now reconnects to the plugin engine when the first handshake is
   lost, instead of running on demo data for the rest of the session.
+- A failed save now shows the reason Creator gave. "Storage full — delete a
+  macro first" appears only when Creator reports its storage cap.
+- Keys that are off now say why when you reach them with the keyboard, the
+  deck's Stop key works during playback, a paused run scrolls its
+  Continue/Stop into view, and the screen reader hears one announcement at
+  the start and end of a run instead of one per step.
+- Clearer wording: "Add all keyframes", "Discard recording", "Duration 30
+  frames", one lowercase play-options readout, one wording for every failure
+  toast ("Couldn't import the macro. Try again."), and "Rebuilds the scene"
+  instead of "scene script".
+- Higher contrast on the red keys, the running and pending steps, the import
+  placeholder and the warning box; a hairline edge on light Creator themes;
+  the deck's smallest readouts never drop under 9 px.
+- The inline confirmation now gives focus back to the control you came from
+  when you dismiss it.
 - The panel's surround now follows Creator's own light or dark setting,
   instead of guessing from the theme name.
 - The panel accepts theme updates and engine replies from Creator's own window
   only.
-- The inline confirmation now gives focus back to the control you came from
-  when you dismiss it.
 - The development build installs as **Macro Recorder (dev)** and keeps its own
   macro store, so testing no longer touches the macros you saved with the
   released build.

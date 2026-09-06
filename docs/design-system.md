@@ -197,7 +197,7 @@ recording clock, the status lamp, and the state word.
   the counter (see `.deck-clock` below); the state word is the reduced-motion
   state channel so it is the last thing allowed to truncate. Two nested
   surfaces cost two sets of padding — that collapse is what took the hero
-  from 203px to 156px on a 300x520 panel.
+  from 195px to 148px on a 300x520 panel.
 - **The stage is a studio deck's faceplate, drawn to a reference photo
   (2026-09-03).** `ReelDeck.tsx` builds it from constants: two R=44 reels
   centred at y=47, each a spun-silver flange (radial gradient + alternating
@@ -273,7 +273,7 @@ recording clock, the status lamp, and the state word.
   sliver in every corner (Creator screenshot, 2026-09-03).
 - **The window has glass over it.** `.deck-window::after` is a specular band
   plus a corner vignette, `pointer-events: none`, at `z-index: 2`. Its alpha
-  is capped at .065 on purpose: the reels' legibility cost real work (see the
+  is capped at .045 on purpose: the reels' legibility cost real work (see the
   collapse-threshold note) and a prettier sheen is not worth dimming them.
   Verify reel width and deg/250ms after touching it.
 - **Never give `#root` a z-index.** `position: relative` alone lifts it above
@@ -305,8 +305,8 @@ recording clock, the status lamp, and the state word.
   are what keep the keys centred on the CHASSIS rather than on the space the
   readouts left over. It only fits because the `REC` legend shrank the pair
   to ~122px, leaving ~84px per gutter against the ~73px the legend needs; at
-  <=286px the legend gives up tracking and size (never letters — it is the
-  reduced-motion state channel) to stay clear of the keys.
+  <=286px the legend gives up tracking (never its 9px, and never letters — it
+  is the reduced-motion state channel) to stay clear of the keys.
 - `.deck-keys` is an auto-flow column grid with `grid-auto-columns: 1fr`, so
   RECORD and STOP are exactly equal width whatever their labels say. The
   clock and the step counter share ONE recessed pane (`.lcd`, with
@@ -353,7 +353,7 @@ recording clock, the status lamp, and the state word.
   plate and the SVG only the mechanism.
 - **The collapse threshold is a real breakpoint, not a round number.**
   `@container panel (max-height: 352px)` (needs `container: panel / size` on
-  `.panel-root`) is set where the *list* stops working — hero ~156px, list
+  `.panel-root`) is set where the *list* stops working — hero 148px, list
   needs ~150px for its header, a row, and a peek. Re-derive it whenever the
   hero's height changes. It was 520px once,
   which is exactly the panel height README tells you to develop at, so the
@@ -378,7 +378,7 @@ recording clock, the status lamp, and the state word.
   or the bar's `stop-recording-button`.
 
 - Pseudo-element budget on the hero is fully spent: `.deck-chassis::before`
-  (scanline grain + raking highlight) / `::after` (chamfer bevel);
+  (brushed grain — the raking highlight is gone) / `::after` (chamfer bevel);
   `.deck-window::after` (the one glass layer — never add a second sheen on
   `.deck-stage`, the reels dim under two); `.deck-stage::after` (recording
   glow, z 0, under the SVG at z 1); `.key-plate::after` (keycap side wall);
@@ -470,10 +470,11 @@ language. Two rules keep it coherent:
   FRAMES (via `engine/steps.ts#keyframeSpan` — the UI never learns fps, a
   timecode would be a lie) rides the play key's `title` and an sr-only
   span; it lost its visible seat to the key.
-- **Steps are ONE `.step-strip`** (one `bg-card` surface, 8px radius,
-  `overflow: clip`, dotted rules between rows). Rows keep `bg-card`
-  individually because `StepRow`'s hover action lane paints `bg-inherit` and
-  needs a solid ground. `RecordingView`'s feed AND the review screen seat
+- **Steps are ONE `.step-strip`** (one `--background` well, 4px radius — the
+  wells tier — `overflow: clip`, dotted rules between rows). The rows and
+  `StepRow`'s hover action lane both paint `bg-inherit`, so the strip's own
+  ground carries down and the lane always floats on a solid surface.
+  `RecordingView`'s feed AND the review screen seat
   the strip in a `rack rack-drawer` well (one list, one dressing, 2026-09-03
   audit); the pop-out card's interior is uniform card.
   The drawer's playback-mode hint is a `quietHint` (tooltip + sr-only);

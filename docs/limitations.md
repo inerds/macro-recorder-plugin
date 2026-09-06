@@ -12,8 +12,9 @@ the user sees instead, and any path that could lift it.
 
 ## Selected keyframes (`creator.selection.keyframes`) — empty in practice
 
-**What does not work:** the capture offer's "Add selected", which pulls only
-the keyframes that the user selected on the timeline into a recording.
+**What does not work:** the capture offer's "Add selected keyframes", which
+pulls only the keyframes that the user selected on the timeline into a
+recording.
 
 **Why (evidence):** 1.0.1 types the surface (`SelectionAPI.keyframes` and the
 event `selection:keyframes`), and the surface IS live —
@@ -25,9 +26,10 @@ One of them, the "Pink Flower" session, held a layer under offer that carried
 21 keyframes of its own. The polled getter never reflects the timeline
 selection in this host build.
 
-**What the user sees:** "Add selected (0)", disabled, with the tooltip
-"Creator hasn't reported any selected keyframes to plugins". "Add all" is
-unaffected and fully live-verified.
+**What the user sees:** "Add selected keyframes (0)", off, with the reason
+"Creator hasn't reported any selected keyframes to plugins" in its tooltip and
+for a screen reader. "Add all keyframes" is unaffected and fully
+live-verified.
 
 **Path to lift:** rev .46 subscribes to the typed `selection:keyframes` event
 (feature-detected) and feeds the capture offer from the latest event payload
@@ -36,8 +38,8 @@ FIRES (`events: {supported: true, fired: 32}` — and `fired: 311` across a
 longer session, trace 2026-08-26T06-03-22) but always with empty payloads
 (`lastCount: 0`). Both typed routes exist, and neither carries the timeline
 selection. Conclusive: the ask is upstream, for Creator to populate either
-surface. The moment it does, "Add selected" starts to work with no plugin
-changes.
+surface. The moment it does, "Add selected keyframes" starts to work with no
+plugin changes.
 
 ---
 
@@ -228,10 +230,13 @@ replay (rev .52, traces 08-15-14 / 08-30-20 / 08-32-08) showed the rebuild
 could only ever produce an empty shell, because the child recursion knew the
 shape primitives in `SHAPE_FACTORIES` alone.
 
-Four things stay:
+Five things stay:
 
 - The copies are copies. Each one gets a new id, so later steps that name a
   recorded source resolve to the copy by index, not by identity.
+- The nest takes the first source's slot through `moveBefore`. A host that
+  refuses that move leaves the nest at the end of the layer list, with the
+  note "the new scene landed at the end of the layer list".
 - An image layer cannot be rebuilt: the recording holds no image asset. It
   stays where it is, with the note "an image layer can't be rebuilt inside the
   new scene — left it where it was".
@@ -241,9 +246,9 @@ Four things stay:
   17-13 traces prove only that the shell carries a `scene` whose `layers` is
   an array. See `runtime-api.md`.
 
-**What does not work:** replay of a "nest layers into a new scene" macro onto
-a selection can be unable to actually move the layers into the created scene.
-Early replays produced an empty nested scene.
+**What does not work:** no API moves an existing layer into a scene. A "nest
+layers into a new scene" macro cannot move the selected layers, and early
+replays produced an empty nested scene.
 
 **Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06):**
 - 0.0.2 promised `Scene.createSceneInstance(layers)`. Runtime introspection
@@ -280,8 +285,9 @@ selection through `isLayerNode` first, and then follows this table:
 | Empty | No | Yes | Adopt it, with a note |
 | Empty | No | No | Rebuild the recorded spec, now with its content |
 
-The adoption note names the scene: "Nested Scene 5 already exists (its layers
-are inside) — using it".
+The adoption note names the scene: "Nested Scene 5 already exists — using
+it". The longer "(its layers are inside)" wording belongs to revs
+`2026-09-06.2` and `2026-09-06.3`, where a selection could adopt as well.
 
 `nestByRebuild` runs in this order:
 

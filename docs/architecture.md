@@ -208,7 +208,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   with before === after — deep paths replay exactly, length-1 transform
   statics are additive-zero (style capture never teleports the target;
   pinned in applier.test), and `labelOf` renders equal pairs as
-  `prop = value`. "Add selected" stays keyframes-only. Rationale: that keeps capture and the diff stream disjoint by construction
+  `prop = value`. "Add selected keyframes" stays keyframes-only. Rationale: that keeps capture and the diff stream disjoint by construction
   (a post-tick edit arrives as a diff step; nothing double-emits; ≤500ms
   staleness accepted). The walk mirrors `diffNodeInner`'s addressing exactly
   and strips host keyframe ids (recycled). `selection.keyframes` is
@@ -264,7 +264,8 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   `nest-layers` prefers the current selection as its sources (tool
   semantics); inside instance content, resolution is strictly index-ordered
   (user decision — no shape-type redirect there).
-- **Nothing applies silently**: `applyStep` returns `StepOutcome.notes` for
+- **Nothing applies silently**: `applyStep` returns `StepOutcome.notes` and
+  the parallel `noteKinds` for
   deliberate non-applies/adaptations (cross-kind recolors: gradient stops
   onto a solid LIST fill CONVERT the fill to a gradient via the
   replace-paint mechanism so the full stop values survive — user decision,
@@ -278,6 +279,14 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   unreadable read-back makes no
   claim (taxonomy #13). Hosts can accept an assignment and keep their own
   value, so a bare write is never proof of application.
+- **A note carries its kind** (rev `2026-09-06.4`): `NoteList.push` records a
+  `skip` — the step did not fully apply — and `NoteList.info` records an
+  `info`, an adaptation that worked. The kind rides the `playback.step`
+  result, and `summarizePlaybackNotes` (`ui/state/playbackNotes.ts`) counts
+  the skips alone, so a run that only adapted reads "3 steps adjusted". A
+  note from an older sandbox carries no kind, and the panel reads it as a
+  skip. `push` stays the default, so a new note is conservative until its
+  author says otherwise.
 - Keyframe machinery (applier): frame-keyed matching via `getKeyframeAt` with
   `hasKeyframes` phantom-guard, verified adds + frame-0 sentinel, same-frame
   add+remove guard (legacy macros), move re-pairing in the differ, collision
@@ -337,6 +346,12 @@ Two subtleties worth knowing before changing it:
   Creator, which is a bug, not a dev convenience. `app.tsx` renders a loud
   "Demo engine" banner for that case (`data-testid="demo-mode-banner"`) rather
   than silently showing fake data.
+- A REJECTED handshake must reach the same place. `ui/main.tsx` used to have
+  no rejection handler, so a throw inside `createGateways` left the panel
+  blank for the whole session. It now catches, builds the mock gateways
+  itself, and renders the demo-engine panel. A second failure writes one
+  plain line into `#root`: "Macro Recorder could not start. Remove and re-add
+  the plugin in Creator."
 - After falling back, the client keeps asking. A UI inside a frame re-sends
   `hello` (1s while the sandbox is probably still booting, 5s after 20s) and
   reloads the page the moment it answers, so a lost boot race costs seconds

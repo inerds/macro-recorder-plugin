@@ -57,7 +57,16 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   selection and reports one `skipped — macros replay onto layers` note; and
   recording emits `set-scene` steps for the scene settings, a mask's `mode`,
   and a gradient's `gradientType`. A trace before those revs is silent about
-  each of them. One fence at rev `2026-09-07.1`: a `nest-layers` step
+  each of them. Two more at rev `2026-09-06.4`: every note on the
+  `playback.step` result carries a `kind` — `skip` when the step did not
+  fully apply, `info` when an adaptation worked — and the panel counts the
+  skips alone, so a run that only adapted reads `3 steps adjusted`. A note
+  with no `kind` comes from an older sandbox; read it as a skip. The
+  read-back notes speak Creator's words from that rev too: `Creator kept the
+  in point as it was — the change didn't apply` replaces `the host kept
+  startFrame unchanged — the write didn't take`, and the scene-setting note
+  reads `Creator kept the scene size as it was — the change didn't apply`.
+  One fence at rev `2026-09-07.1`: a `nest-layers` step
   rebuilds the layers inside the new scene, so its scene-summary entries
   carry `inner: <count>` for a scene layer, and the probe pins the spec id,
   the source ids, and the shell past the 25-entry cap. The notes are new
@@ -65,7 +74,11 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   Creator can't move them)`, `an image layer can't be rebuilt inside the new
   scene — left it where it was`, `couldn't rebuild your 3 selected layers
   inside a new scene — left them where they are`, and `couldn't find the
-  layers to nest — rebuilt Nested Scene 5 from the recording instead`. A
+  layers to nest — rebuilt Nested Scene 5 from the recording instead`.
+  Adoption is the empty-selection path alone from that rev, and its note now
+  reads `Nested Scene 5 already exists — using it`; the
+  `(its layers are inside)` wording belongs to `2026-09-06.2` and
+  `2026-09-06.3` traces alone. A
   `[nest] shell.scene.createShapeLayer` breadcrumb is the FIRST live evidence
   for the inner-scene factories: report it, because `runtime-api.md` still
   lists them as pending.
