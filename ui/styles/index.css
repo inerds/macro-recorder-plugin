@@ -680,6 +680,50 @@ textarea {
   outline-offset: 2px;
 }
 
+/*
+ * The quiet tier, for the one control that is not a key: a checkbox and its
+ * legend. The box carries the state, so the PAIR is the object and the hover
+ * wash belongs to the pair — a wash on the legend alone reads as a highlight
+ * floating beside the box. Same legend as `.key-quiet` (10px/600 ink), no ink
+ * edge and no drop, so it cannot outrank the decision beside it.
+ */
+.check-quiet {
+  display: inline-flex;
+  align-items: center;
+  /* 24px, the WCAG 2.5.8 target floor — the same as a quiet key. */
+  height: 24px;
+  padding-inline: 6px;
+  gap: 6px;
+  border-radius: 7px; /* the keys tier */
+  transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The ink wash `.key-quiet` uses; --secondary is a 1.05:1 no-op here. */
+.check-quiet:hover:not(:has([aria-disabled="true"])) {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+/* Nothing to merge: the aria-disabled flavour of "off", so the reason stays
+   reachable (the SimplifyButton idiom). */
+.check-quiet:has([aria-disabled="true"]) {
+  opacity: 0.5;
+}
+
+.check-quiet-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* Ink, not --label-fg: a quiet CONTROL has to be distinguishable from the
+     `.instrument` caption sitting right beside it, which is that colour. */
+  color: var(--ink);
+}
+
 /* The record glyph on the empty state's Record key (the transport's REC
    wears a bare legend by user decision, 2026-08-24) — currentColor
    throughout, so it recolors with the key. */

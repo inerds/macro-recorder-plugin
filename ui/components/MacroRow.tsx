@@ -16,6 +16,7 @@ import { PlaybackStatus } from "./PlaybackStatus";
 import { ICON_KEY_CLASS } from "./iconKey";
 import { describePlayOptions } from "./playOptionsText";
 import { atPlayheadHint, PlayOptionsPopover } from "./PlayOptionsPopover";
+import { SimplifyButton } from "./SimplifyButton";
 import { StepList } from "./StepList";
 import { StepListHeader } from "./StepListHeader";
 
@@ -27,7 +28,6 @@ const PLAY_DISABLED_REASON = "Another macro is playing";
  * reason (and their place in the tab order), so they wear it by hand.
  */
 const DEAD_KEY_CLASS = "aria-disabled:cursor-default aria-disabled:opacity-40";
-
 
 export interface MacroRowProps {
   macro: Macro;
@@ -99,8 +99,7 @@ export function MacroRow({
   const playDisabledId = useId();
   const disclosureRef = useRef<HTMLButtonElement>(null);
 
-  const stepCount =
-    macro.steps.length === 1 ? "1 step" : `${macro.steps.length} steps`;
+  const stepCount = macro.steps.length === 1 ? "1 step" : `${macro.steps.length} steps`;
   const optionSummary = describePlayOptions(options);
   const mode = describePlaybackMode(macro);
 
@@ -273,38 +272,38 @@ export function MacroRow({
               so while THIS macro plays, the stop key stays even on the open
               lid; otherwise the pop-out card's lid is bare (concept). */}
           {(!expanded || isPlayingThis) && (
-          <button
-            type="button"
-            className={cn(ICON_KEY_CLASS, DEAD_KEY_CLASS)}
-            aria-label={isPlayingThis ? `Stop ${macro.name}` : `Play ${macro.name}`}
-            // aria-disabled, not disabled: a natively disabled key drops out
-            // of the tab order with its reason, and the library's
-            // `disabled:pointer-events-none` kills the tooltip that carried
-            // it. Same idiom as SimplifyButton.
-            aria-disabled={!isPlayingThis && playDisabled}
-            {...(!isPlayingThis && playDisabled
-              ? { "aria-describedby": playDisabledId, title: PLAY_DISABLED_REASON }
-              : {})}
-            onClick={() => {
-              if (isPlayingThis) onResolveFailure("stop");
-              else if (!playDisabled) onPlay(options);
-            }}
-            data-testid="play-button"
-          >
-            {isPlayingThis ? (
-              <Square
-                className={cn(
-                  "size-3 fill-current",
-                  !errorPaused && "text-[color:var(--ink-red-text)]",
-                )}
-                // A filled square needs no outline: the 2.5 stroke grew the
-                // glyph past the Play triangle beside it.
-                strokeWidth={0}
-              />
-            ) : (
-              <Play className="size-3.5 translate-x-[0.5px] fill-current" />
-            )}
-          </button>
+            <button
+              type="button"
+              className={cn(ICON_KEY_CLASS, DEAD_KEY_CLASS)}
+              aria-label={isPlayingThis ? `Stop ${macro.name}` : `Play ${macro.name}`}
+              // aria-disabled, not disabled: a natively disabled key drops out
+              // of the tab order with its reason, and the library's
+              // `disabled:pointer-events-none` kills the tooltip that carried
+              // it. Same idiom as SimplifyButton.
+              aria-disabled={!isPlayingThis && playDisabled}
+              {...(!isPlayingThis && playDisabled
+                ? { "aria-describedby": playDisabledId, title: PLAY_DISABLED_REASON }
+                : {})}
+              onClick={() => {
+                if (isPlayingThis) onResolveFailure("stop");
+                else if (!playDisabled) onPlay(options);
+              }}
+              data-testid="play-button"
+            >
+              {isPlayingThis ? (
+                <Square
+                  className={cn(
+                    "size-3 fill-current",
+                    !errorPaused && "text-[color:var(--ink-red-text)]",
+                  )}
+                  // A filled square needs no outline: the 2.5 stroke grew the
+                  // glyph past the Play triangle beside it.
+                  strokeWidth={0}
+                />
+              ) : (
+                <Play className="size-3.5 translate-x-[0.5px] fill-current" />
+              )}
+            </button>
           )}
           {!isPlayingThis && !expanded && (
             <>
@@ -327,9 +326,7 @@ export function MacroRow({
                 macroName={macro.name}
                 // The key beside this menu is hidden at <=286px; the ability
                 // it stands for is not, so the menu picks it up there.
-                {...(narrow && !playDisabled
-                  ? { onPlayOptions: () => setOptionsOpen(true) }
-                  : {})}
+                {...(narrow && !playDisabled ? { onPlayOptions: () => setOptionsOpen(true) } : {})}
                 onRename={() => {
                   setDraftName(macro.name);
                   onRenameStart();
@@ -361,10 +358,7 @@ export function MacroRow({
       )}
 
       {expanded && (
-        <div
-          id={panelId}
-          className="inline-enter px-1.5 pb-1.5 pt-0.5"
-        >
+        <div id={panelId} className="inline-enter px-1.5 pb-1.5 pt-0.5">
           {macro.steps.length === 0 ? (
             <p className="px-2 py-3 text-center text-11 text-muted-foreground">
               No steps left. Delete this macro, or record a new one.
@@ -377,7 +371,9 @@ export function MacroRow({
                   matters (what the macro will touch when it replays). */}
               <StepListHeader
                 steps={macro.steps}
-                onSimplify={onSimplify}
+                // A saved macro keeps the manual verb: it has no raw list to
+                // put back, so Simplify is a one-way edit the user asks for.
+                action={<SimplifyButton steps={macro.steps} onSimplify={onSimplify} />}
                 quietHint={playbackModeHint(mode)}
                 showLayer={false}
               />
@@ -434,9 +430,7 @@ export function MacroRow({
                         <Play className="size-3.5 translate-x-[0.5px] fill-current" />
                       )}
                     </button>
-                    {durationTitle && (
-                      <span className="sr-only">{durationTitle}</span>
-                    )}
+                    {durationTitle && <span className="sr-only">{durationTitle}</span>}
                     {/* The ×N reads as the dial's setting beside the control
                         that changes it — the label is for screen readers,
                         the footer hasn't the width for it beside two keys. */}

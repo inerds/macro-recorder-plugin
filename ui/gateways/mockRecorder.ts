@@ -1,11 +1,21 @@
-import type { CaptureOffer } from "../../engine/protocol";
+import type { CaptureOffer, ScopeReport } from "../../engine/protocol";
 import { buildStep, type StepPayload } from "../../engine/steps";
 import type { MacroStep } from "../types";
-import type { RecorderGateway } from "./types";
+import type { RecorderGateway, RecordingSource, ScopePreview } from "./types";
 
 export type RecorderScenario = "burst" | "long" | "silent" | "keyframes";
 
 const LAYER = { id: "mock-layer", name: "Rectangle 1" };
+
+const SCENE_NAME = "Scene 1";
+
+/** Every scenario but "silent" records the one mock layer. */
+const LAYER_SCOPE: ScopeReport = { kind: "layers", layers: [LAYER] };
+
+/** "silent" is the whole-scene demo: nothing selected, so nothing is dropped
+ *  for being out of scope — except that this mock drops three, on a timer,
+ *  so the chip's counter is reachable without the Creator API. */
+const SCENE_SCOPE: ScopeReport = { kind: "scene" };
 
 /**
  * Real StepPayloads (labels come from the same `buildStep` as production),
@@ -116,9 +126,10 @@ const LONG_SCRIPT: StepPayload[] = Array.from({ length: 20 }, (_, i) => {
 export class MockRecorderGateway implements RecorderGateway {
   private listeners = new Set<(step: MacroStep) => void>();
   private offerListeners = new Set<(offer: CaptureOffer | null) => void>();
-  private selectionListeners = new Set<(count: number) => void>();
+  private ignoredListeners = new Set<(count: number) => void>();
   private captured: MacroStep[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
+  private ignoredTimer: ReturnType<typeof setInterval> | null = null;
 
   private scenario: RecorderScenario;
   private intervalMs: number;
@@ -132,20 +143,24 @@ export class MockRecorderGateway implements RecorderGateway {
     this.scenario = scenario;
   }
 
-  async start(): Promise<null> {
+  async start(): Promise<RecordingSource> {
     this.captured = [];
     if (this.scenario === "keyframes") {
       // Quiet feed; the story is the standing offer.
       setTimeout(() => {
-        this.selectionListeners.forEach((cb) => cb(1));
         this.offerListeners.forEach((cb) => cb(CAPTURE_OFFER));
       }, this.intervalMs);
-      return null;
+      return { nodeId: LAYER.id, nodeName: LAYER.name, scope: LAYER_SCOPE };
     }
     if (this.scenario === "silent") {
-      // Demos the standing "select a layer" nudge.
-      setTimeout(() => this.selectionListeners.forEach((cb) => cb(0)), this.intervalMs);
-      return null;
+      // Demos the whole-scene chip and its running ignored counter.
+      let ignored = 0;
+      this.ignoredTimer = setInterval(() => {
+        ignored += 1;
+        this.ignoredListeners.forEach((cb) => cb(ignored));
+        if (ignored >= 3) this.clearIgnoredTimer();
+      }, this.intervalMs);
+      return { nodeId: "mock-scene", nodeName: SCENE_NAME, scope: SCENE_SCOPE };
     }
     const script = this.scenario === "long" ? LONG_SCRIPT : BURST_SCRIPT;
     let index = 0;
@@ -161,7 +176,15 @@ export class MockRecorderGateway implements RecorderGateway {
         this.clearTimer();
       }
     }, this.intervalMs);
-    return null;
+    return { nodeId: LAYER.id, nodeName: LAYER.name, scope: LAYER_SCOPE };
+  }
+
+  /** The resting panel's readout: what pressing Record would watch. */
+  async peekScope(): Promise<ScopePreview> {
+    return {
+      scope: this.scenario === "silent" ? SCENE_SCOPE : LAYER_SCOPE,
+      sceneName: SCENE_NAME,
+    };
   }
 
   /** Manually emit one step (driven from the DebugStrip). */
@@ -191,9 +214,9 @@ export class MockRecorderGateway implements RecorderGateway {
     return steps;
   }
 
-  onSelectionCount(callback: (count: number) => void): () => void {
-    this.selectionListeners.add(callback);
-    return () => this.selectionListeners.delete(callback);
+  onIgnoredCount(callback: (count: number) => void): () => void {
+    this.ignoredListeners.add(callback);
+    return () => this.ignoredListeners.delete(callback);
   }
 
   onCaptureOffer(callback: (offer: CaptureOffer | null) => void): () => void {
@@ -207,9 +230,17 @@ export class MockRecorderGateway implements RecorderGateway {
   }
 
   private clearTimer() {
+    this.clearIgnoredTimer();
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
+    }
+  }
+
+  private clearIgnoredTimer() {
+    if (this.ignoredTimer !== null) {
+      clearInterval(this.ignoredTimer);
+      this.ignoredTimer = null;
     }
   }
 }

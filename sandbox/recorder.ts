@@ -1,11 +1,13 @@
 import { captureKeyframePayloads, countKeyframes, countSelectedMatches, type SelectedKf } from "../engine/capture";
 import { diffScene } from "../engine/diff";
 import type { MacroStep } from "../engine/macro";
-import type { CaptureOffer, RecordDebug } from "../engine/protocol";
+import type { CaptureOffer, RecordDebug, ScopeReport } from "../engine/protocol";
 import { RPC_ERRORS } from "../engine/protocol";
+import type { NodeTree, RecordScope } from "../engine/scope";
+import { partitionByScope, resolveScope, scopeLayerRefs } from "../engine/scope";
 import type { SceneSnapshot } from "../engine/snapshot";
 import { buildStep } from "../engine/steps";
-import { serializeScene } from "./serialize";
+import { serializeScene, serializeSceneIndex } from "./serialize";
 import type { RecordingSession } from "./session";
 import { session } from "./session";
 import type { Json } from "../engine/json";
@@ -325,6 +327,16 @@ function introspectPaint(node: AnyProxy): Json {
   return out;
 }
 
+/** The scope as the panel reads it — layer identities, or why it is the scene. */
+function scopeReport(
+  layers: readonly NodeTree[],
+  scope: RecordScope,
+  fellBack: boolean,
+): ScopeReport {
+  if (scope.kind === "layers") return { kind: "layers", layers: scopeLayerRefs(layers, scope) };
+  return fellBack ? { kind: "scene", fallback: "unresolved" } : { kind: "scene" };
+}
+
 export function recordStart(params: { debug?: boolean }): {
   nodeId: string;
   nodeName?: string;
@@ -332,21 +344,28 @@ export function recordStart(params: { debug?: boolean }): {
   keyframeIntrospection?: Json;
   shapeIntrospection?: Json;
   selectionIntrospection?: Json;
+  scope: ScopeReport;
   selectionCount?: number;
 } {
-  // Whole-scene recording: no selection required — every layer is watched.
+  // No selection required: an empty selection is the whole-scene recording
+  // this plugin has always done. A selection narrows it to those layers.
   const scene = creator.activeScene;
   if (!scene) {
     throw new Error(RPC_ERRORS.noSelection);
   }
   const snapshot = serializeScene(scene);
+  const nodes = selectedNodes();
+  const resolved = resolveScope(snapshot.layers, selectedIds(nodes));
   session.recording = {
     scene,
     lastSnapshot: snapshot,
     firstSnapshot: snapshot,
     debug: params?.debug === true,
+    scope: resolved.scope,
+    ignored: 0,
   };
   session.playback = null;
+  const report = scopeReport(snapshot.layers, resolved.scope, resolved.fellBack);
   const result: {
     nodeId: string;
     nodeName?: string;
@@ -354,8 +373,9 @@ export function recordStart(params: { debug?: boolean }): {
     keyframeIntrospection?: Json;
     shapeIntrospection?: Json;
     selectionIntrospection?: Json;
+    scope: ScopeReport;
     selectionCount?: number;
-  } = { nodeId: snapshot.sceneId ?? "scene" };
+  } = { nodeId: snapshot.sceneId ?? "scene", scope: report };
   const sceneName = ((): string | undefined => {
     try {
       return typeof scene.name === "string" ? scene.name : undefined;
@@ -364,16 +384,25 @@ export function recordStart(params: { debug?: boolean }): {
     }
   })();
   if (sceneName) result.nodeName = sceneName;
-  result.selectionCount = selectedNodes().length;
+  // A single-layer scope names THAT layer as the macro's source: the saved
+  // macro says what it was recorded from. Replay does not depend on it — a
+  // layer-bound macro played with nothing selected takes scene mode and
+  // resolves by recorded id and name; `sourceNodeId` is read only by the
+  // targets-mode legacy fallback (sandbox/playback.ts), which this now
+  // points at a layer instead of a scene.
+  const scoped = resolved.scope;
+  if (scoped.kind === "layers" && scoped.ids.length === 1) {
+    const only = scoped.ids[0];
+    const layer = snapshot.layers.find((l) => l.nodeId === only);
+    if (layer) {
+      result.nodeId = layer.nodeId;
+      if (layer.nodeName === undefined) delete result.nodeName;
+      else result.nodeName = layer.nodeName;
+    }
+  }
+  result.selectionCount = nodes.length;
   // Debug introspection still favors the selected node's paints when present.
   if (params?.debug === true) {
-    const nodes = ((): AnyProxy[] => {
-      try {
-        return Array.isArray(creator.selection.nodes) ? [...creator.selection.nodes] : [];
-      } catch {
-        return [];
-      }
-    })();
     const probe = nodes[0] ?? (Array.isArray(snapshot.layers) ? scene.layers?.[0] : undefined);
     if (probe) {
       result.paintIntrospection = introspectPaint(probe);
@@ -401,14 +430,25 @@ function collectDelta(): { steps: MacroStep[]; debug?: RecordDebug } {
     throw new Error(RPC_ERRORS.nodeGone);
   }
   const prev = recording.lastSnapshot;
-  const payloads = diffScene(prev, next);
+  // Diff the WHOLE scene, then drop what the scope does not watch. The differ
+  // needs every layer of both snapshots (clone detection, the reorder
+  // survivors list, same-tick nest/break correlation), so the scope can only
+  // be applied to its output.
+  const partition = partitionByScope(diffScene(prev, next), recording.scope);
+  recording.scope = partition.scope;
+  recording.ignored += partition.ignored;
   recording.lastSnapshot = next;
+  const payloads = partition.kept;
   const steps = payloads.map(buildStep);
+  // Only KEPT steps count as productive: a session that ignored everything
+  // recorded nothing, and recordStop's debug fallback must still say so.
   if (steps.length > 0) recording.stepped = true;
   // Only carry the (large) snapshot pair when it says something: a tick that
-  // produced no steps and no diff is noise.
-  if (recording.debug && steps.length > 0) {
+  // produced no steps and no diff is noise. An ignored payload is something —
+  // the pair is the evidence for what the scope dropped.
+  if (recording.debug && (steps.length > 0 || partition.ignored > 0)) {
     const debug: RecordDebug = { prev, next };
+    if (partition.ignored > 0) debug.ignored = partition.ignored;
     // The record.start probe only sees keyframes that already exist; the
     // first position keyframe this session creates is the better witness.
     if (!recording.keyframeProbed) {
@@ -451,6 +491,40 @@ function selectedNodes(): AnyProxy[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * The selection as plain ids — all the scope resolver needs from it. Takes
+ * an already-read node list so a caller that needs the proxies too (the
+ * capture offer, the debug probes) does not read the selection twice.
+ */
+function selectedIds(nodes: AnyProxy[] = selectedNodes()): string[] {
+  const ids: string[] = [];
+  for (const node of nodes) {
+    // A node whose id the host will not give up cannot be scoped at all —
+    // it is skipped, not stringified into a literal "undefined" that would
+    // then read as "selected in another scene".
+    const raw = tryReadValue(() => node.id);
+    if (raw !== undefined && raw !== null) ids.push(String(raw));
+  }
+  return ids;
+}
+
+/**
+ * What `record.start` WOULD watch right now. Touches no session state and no
+ * snapshot machinery: `serializeSceneIndex` reads identities only, because
+ * the panel polls this once a second while idle and the sandbox has no
+ * timers of its own to do it any other way.
+ */
+export function selectionPeek(): { scope: ScopeReport | null; sceneName?: string } {
+  const scene = tryReadValue(() => creator.activeScene);
+  if (scene === undefined || scene === null) return { scope: null };
+  const index = serializeSceneIndex(scene);
+  const resolved = resolveScope(index.layers, selectedIds());
+  return {
+    scope: scopeReport(index.layers, resolved.scope, resolved.fellBack),
+    ...(index.sceneName === undefined ? {} : { sceneName: index.sceneName }),
+  };
 }
 
 /** Reads a host keyframe list into {frame, value} pairs, defensively. */
@@ -544,8 +618,15 @@ function selectedKeyframes(): SelectedKf[] | undefined {
  * non-SCENE layer of the snapshot, with >=1 keyframe in its subtree.
  * SCENE_INSTANCE layers are excluded — their shapes channel is the source
  * scene's shared content, and capturing it would edit every instance.
+ *
+ * A layer outside the recording's scope is excluded too: capturing it would
+ * write steps for a layer whose ordinary edits this session drops.
  */
-function computeCaptureOffer(next: SceneSnapshot, nodes: AnyProxy[]): CaptureOffer | undefined {
+function computeCaptureOffer(
+  next: SceneSnapshot,
+  nodes: AnyProxy[],
+  scope: RecordScope,
+): CaptureOffer | undefined {
   if (nodes.length !== 1) return undefined;
   let selectedId: string;
   try {
@@ -553,6 +634,7 @@ function computeCaptureOffer(next: SceneSnapshot, nodes: AnyProxy[]): CaptureOff
   } catch {
     return undefined;
   }
+  if (scope.kind === "layers" && !scope.ids.includes(selectedId)) return undefined;
   const layer = next.layers.find((l) => l.nodeId === selectedId);
   if (!layer || layer.nodeType.startsWith("SCENE")) return undefined;
   const { pathCount, keyframeCount } = countKeyframes(layer);
@@ -602,16 +684,28 @@ export function recordTick(seq: number): {
   seq: number;
   steps: MacroStep[];
   captureOffer?: CaptureOffer;
+  ignored: number;
+  scope?: ScopeReport;
   selectionCount?: number;
   debug?: RecordDebug;
 } {
   const recording = session.recording;
+  const scopeBefore = recording?.scope.kind === "layers" ? recording.scope.ids.length : -1;
   const delta = collectDelta();
   // collectDelta advanced lastSnapshot to this tick's serialization; the
   // offer is computed from that same snapshot — no second serialize. One
-  // selection read serves both the offer and the live nudge count.
+  // selection read serves both the offer and the diagnostic count.
   const nodes = selectedNodes();
-  const offer = recording ? computeCaptureOffer(recording.lastSnapshot, nodes) : undefined;
+  const offer = recording
+    ? computeCaptureOffer(recording.lastSnapshot, nodes, recording.scope)
+    : undefined;
+  // The scope only ever GROWS (a layer this recording created joined it), so
+  // a longer id list is the whole signal; the panel then names the scope as
+  // it stands, not as it started.
+  const grown =
+    recording && recording.scope.kind === "layers" && recording.scope.ids.length > scopeBefore
+      ? scopeReport(recording.lastSnapshot.layers, recording.scope, false)
+      : undefined;
   // Appended AFTER collectDelta set `stepped`: the switch note is the
   // sandbox talking, not something the user recorded, so it must not make a
   // silent session look productive to recordStop's debug fallback.
@@ -620,6 +714,10 @@ export function recordTick(seq: number): {
     seq,
     steps: switched ? [...delta.steps, switched] : delta.steps,
     ...(offer ? { captureOffer: offer } : {}),
+    // Cumulative, so the chip reads as a running count rather than a blip
+    // that clears on the next quiet tick.
+    ignored: recording?.ignored ?? 0,
+    ...(grown ? { scope: grown } : {}),
     ...(recording ? { selectionCount: nodes.length } : {}),
     ...(delta.debug ? { debug: delta.debug } : {}),
   };
@@ -644,6 +742,12 @@ export function recordCaptureKeyframes(params: {
   const layer = recording.lastSnapshot.layers.find((l) => l.nodeId === params.layerId);
   if (!layer) {
     throw new Error(RPC_ERRORS.nodeGone);
+  }
+  // The offer already withholds an out-of-scope layer; this keeps the
+  // invariant local, so a caller other than the offer cannot capture a
+  // layer the recording does not watch.
+  if (recording.scope.kind === "layers" && !recording.scope.ids.includes(layer.nodeId)) {
+    throw new Error("layer outside the recording scope");
   }
   let selected: SelectedKf[] | undefined;
   if (params.scope === "selected") {

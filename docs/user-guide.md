@@ -64,10 +64,12 @@ engine as soon as the engine answers.
 
 ## 2. Record a macro
 
-1. Click **Record** on the deck. You need no selection — the recorder watches
-   the whole active scene.
+1. Select the layer or layers you want to record, or select nothing to
+   record the whole scene. A selected shape counts as its layer. The deck's
+   readout shows what Record will watch: *RECORDS · LAYER A* or *RECORDS ·
+   WHOLE SCENE*. Then click **Record** on the deck.
 2. Edit the animation as you normally would. The recorder records all of the
-   following:
+   following on the recorded layers:
    - transform changes (position, scale, rotation, skew, opacity) and any
      property on child shapes (size, roundness, points, path geometry…)
    - keyframes: added, removed, moved, value- or easing-changed (motion-path
@@ -78,15 +80,25 @@ engine as soon as the engine answers.
      locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,
      reordering, breaking a scene layer apart, nesting layers
-   - scene settings: size, background (a transparent one included), frame
-     rate, duration, and the scene name
+   - scene settings, in a whole-scene recording only: size, background (a
+     transparent one included), frame rate, duration, and the scene name
 3. Watch the steps appear live in the panel as you work. The recorder samples
-   twice a second, so a long drag shows up as a handful of steps — see
-   *Simplify*.
+   twice a second, so a long drag shows up as a handful of steps. The review
+   sheet merges them for you — see §4.
 4. Click **Stop**: the red key at the bottom of the recording screen, or the
    same deck key you started from. Both do the same thing. If the recorder
    recorded nothing, you return to the list. Otherwise the **review sheet**
    opens.
+
+**What the recorder watches is fixed when you press Record.** A chip above
+the live feed names it: *Recording Layer A* or *Recording the whole scene*.
+When you record a layer, an edit to any other layer is not recorded, and the
+chip counts what it dropped: *2 changes outside Layer A ignored*. A layer that
+did not exist when you pressed Record is always recorded: duplicate the
+recorded layer, or any layer, and the copy joins the recording, and so does a
+new layer or a scene layer you nest the recorded layer into. Scene settings
+record only in a whole-scene recording. If your selection is not in the
+active scene, the recorder falls back to the whole scene and the chip says so.
 
 **Discard**, beside Stop at the bottom, throws the session away, and it asks
 first when steps exist — *Discard this recording? Its 4 steps will be lost.* —
@@ -117,7 +129,7 @@ including the recorded layer for a single-layer macro.
 | **Eye toggle** (*Skip step N during playback*) | Keeps the step in the macro but makes playback skip it; click again to re-enable. |
 | **Pencil** | Edits the step's value inline (see §5). |
 | **Pin** (*Ask for step N's value on every play*) | Marks the step as a parameter (see §8). |
-| **Simplify** | Collapses drag micro-steps and keyframe edit chains (see §4), and shows what it will do: `12 → 5`. |
+| **Keep every step** | Shows the recording as it was captured, instead of the merged list the sheet opens with (see §4). The readout says what was merged: `12 → 5`. |
 | **⊘ Skipped** | Not a control: Creator's plugin API cannot do this operation, so playback skips it. |
 | **Save macro** | Stores the macro in Creator's plugin storage, which follows your account, not the file. |
 | **Discard** | Drops the recording. |
@@ -125,11 +137,12 @@ including the recorded layer for a single-layer macro.
 You also get all of these controls later: expand a saved macro in the list to
 see its steps and edit them in place. Your changes save immediately.
 
-**Tip — select a layer before you record.** A macro recorded on one selected
-layer replays on *any* selected layer later. A recording that builds new
-layers replays as a scene rebuild bound to those layers. Recording with nothing
-selected still works, and that is how you make structure macros. The panel
-reminds you of the trade-off when you start that way.
+**Tip — select one layer before you record.** A macro recorded on one
+selected layer replays on *any* selected layer later, and with nothing
+selected it replays on the layer it was recorded on. A recording with nothing
+selected watches the whole scene, and that is how you make structure macros.
+It replays as a scene rebuild bound to its layers. The deck's readout tells
+you which kind you are about to make.
 
 ---
 
@@ -170,21 +183,35 @@ After **Add all keyframes**, that key goes off for the layer and reads
 ## 4. Simplify
 
 A single drag produces a run of small steps (`position.x 0 → 12`, `12 → 40`,
-`40 → 100`). **Simplify** merges every such run into one `0 → 100` step. It
+`40 → 100`). The plugin merges every such run into one `0 → 100` step. It
 also folds keyframe edit chains (add a keyframe, then nudge it three times)
 into one net change. A scene setting you changed several times — the frame
 rate, say — folds the same way, into one step from the first value to the
 last. Steps whose net effect is nothing (rotate 45°, rotate back) disappear.
+
+**The review sheet opens on the merged list.** The recorder samples twice a
+second, so three deliberate edits can arrive as five steps, and the merged
+list is the one that reads like what you did.
+
+To see the recording as it was captured, select **Keep every step** above the
+step list. The readout beside it says what was merged: `12 → 5`. Your choice
+holds for every recording until you close the panel.
+
+The switch rebuilds the list from the recording, so it also removes the step
+deletions, the value edits, and the parameter pins you made in this review.
+Make those edits after you choose the list you want.
 
 Simplify will *not* do the following:
 
 - merge across a structural step (adding a shape, duplicating a layer…) or a
   disabled step — those are boundaries
 - merge a static edit with a keyframe edit on the same property
-- run on its own — it is a button, so you decide
 
-When there is nothing to merge, the button stays put and says so (*Nothing to
+When there is nothing to merge, the switch stays put and says so (*Nothing to
 merge*) rather than disappearing.
+
+A saved macro keeps the manual **Simplify** button: expand its row in the
+list and press it to merge the steps that are stored.
 
 ---
 
@@ -288,7 +315,7 @@ time. You watch the macro happen rather than see it land all at once:
 
 The pace scales with the macro. A short macro steps about three times a
 second. A long one — a whole captured timeline, say — speeds up, so the walk
-still takes a few seconds rather than a minute.
+takes about a second and a half rather than a minute.
 
 Three things can interrupt it:
 
@@ -382,8 +409,10 @@ instead, edit the step in place with the pencil. To be *asked each play*, pin
 it.
 
 Parameters survive Copy JSON, Import, and duplicate. Deleting a pinned step
-drops its pin. *Simplify* keeps a pin when the pinned step is the first of a
-merged run (the survivor), and drops pins on the steps it merged away.
+drops its pin. A saved macro's *Simplify* keeps a pin when the pinned step is
+the first of a merged run (the survivor), and drops pins on the steps it
+merged away. The review sheet's **Keep every step** rebuilds the list from
+the recording, so it drops every pin.
 
 ---
 
@@ -434,7 +463,7 @@ which is why sharing is copy and paste.
 - **Record small, and combine on play.** A macro that does one thing (a
   pop-in, a recolor) is more reusable than a long session. *Repeat*,
   *Stagger*, and parameters do the combining.
-- **Use Simplify before you save** if you dragged controls. The macro becomes
+- **Leave the review sheet merged** if you dragged controls. The macro stays
   readable, and the replay is faster.
 - **Select before you play.** One-layer macros apply to every selected layer.
   With nothing selected, they fall back to the original layer.
@@ -477,6 +506,7 @@ likely to meet these:
   reordered, and replay checks them before it moves anything. Mask creation on
   replay was fixed in the 0.4.0 build, and a live session has not re-verified
   it since. Mask *edits* replay after the mask exists.
-- Fast drags are sampled at 2 steps per second — use *Simplify*.
+- Fast drags are sampled at 2 steps per second. The review sheet merges the
+  result before you see it.
 - Creator's plugin sandbox blocks file downloads. That is why sharing is
   **Copy JSON** and paste into **Import**, rather than a file export.

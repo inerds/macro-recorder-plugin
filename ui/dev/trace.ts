@@ -23,7 +23,10 @@ export type TraceEventKind =
   | "rpc-error"
   | "step-recorded"
   | "playback-event"
-  | "note";
+  | "note"
+  /** The idle scope poll's FIRST failure this idle period — the bridge keeps
+   *  `selection.peek` itself out of the bundle. */
+  | "scope-peek-failed";
 
 export interface TraceEvent {
   seq: number;

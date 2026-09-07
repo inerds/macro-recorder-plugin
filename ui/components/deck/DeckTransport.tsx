@@ -1,8 +1,14 @@
 import { Button } from "@lottiefiles/creator-plugins-ui";
 import type { ReactNode } from "react";
 
+import type { ScopeReport } from "../../../engine/protocol";
+import { scopeName } from "../scopeText";
 import { deckCountLabel, deckLabel, deckLamp, type DeckState } from "./deckState";
 import { useElapsed } from "./useElapsed";
+
+/** Said once, on the caption, when the selection resolved to nothing. */
+const FALLBACK_TITLE =
+  "The selection isn't in the active scene, so Record watches the whole scene.";
 
 export interface DeckTransportProps {
   state: DeckState;
@@ -16,6 +22,13 @@ export interface DeckTransportProps {
   counterOverride?: string | null;
   /** Set only while recording — the clock runs from here. */
   startedAt: number | null;
+  /**
+   * What Record will watch (idle) or is watching (recording), and which of
+   * the two it is. Null in either place leaves the caption blank — the row
+   * keeps its height, so nothing below it moves when the answer arrives.
+   */
+  scope?: ScopeReport | null;
+  scopePhase?: "idle" | "recording" | null;
   /** The reel stage, recessed into the chassis above the transport row. */
   stage: ReactNode;
   recordDisabled: boolean;
@@ -41,6 +54,8 @@ export function DeckTransport({
   stepCount,
   counterOverride = null,
   startedAt,
+  scope = null,
+  scopePhase = null,
   stage,
   recordDisabled,
   stopDisabled,
@@ -49,6 +64,9 @@ export function DeckTransport({
 }: DeckTransportProps) {
   const elapsed = useElapsed(startedAt);
   const lamp = deckLamp(state);
+  // Blank on every other screen: a review sheet and a running macro have no
+  // scope to state, and a caption that keeps the last one would be a lie.
+  const readout = scope && scopePhase ? scopeCaption(scope, scopePhase) : null;
 
   return (
     <>
@@ -126,6 +144,46 @@ export function DeckTransport({
           </span>
         </span>
       </div>
+
+      {/* What the key will do, before it is pressed. One real element in the
+          silkscreen idiom (the hero's pseudo-element budget is spent — see
+          docs/design-system.md): the legend holds its width and the layer
+          name ellipsises, and the row keeps its 13px whether or not it has
+          anything to say. */}
+      <p className="deck-scope" {...(readout?.title ? { title: readout.title } : {})}>
+        {readout && (
+          <>
+            <span className="deck-word deck-scope-legend" aria-hidden>
+              {readout.legend} ·
+            </span>
+            <span className="deck-word deck-scope-value" aria-hidden>
+              {readout.value}
+            </span>
+            {/* The two spans above are a caption abbreviated to fit a
+                faceplate; this is the sentence they abbreviate. */}
+            <span className="sr-only">{readout.label}</span>
+          </>
+        )}
+      </p>
     </>
   );
+}
+
+/** The caption's three strings: the legend, the value, and what it says. */
+function scopeCaption(
+  scope: ScopeReport,
+  phase: "idle" | "recording",
+): { legend: string; value: string; label: string; title?: string } {
+  const value = scopeName(scope);
+  // "whole scene" is a noun phrase on the faceplate and a sentence to a
+  // screen reader, which needs the article the legend has no room for.
+  const spoken = scope.kind === "scene" ? "the whole scene" : value;
+  return {
+    legend: phase === "idle" ? "Records" : "Recording",
+    value,
+    label: phase === "idle" ? `Record will watch ${spoken}` : `Recording ${spoken}`,
+    ...(scope.kind === "scene" && scope.fallback === "unresolved"
+      ? { title: FALLBACK_TITLE }
+      : {}),
+  };
 }

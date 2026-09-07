@@ -3,20 +3,29 @@ import { useState } from "react";
 
 import type { EditableValue } from "../../engine/editing";
 import type { MacroParam } from "../../engine/macro";
+import type { ScopeReport } from "../../engine/protocol";
 import { sharedLayerName } from "../../engine/labels";
 import { describePlaybackMode, playbackModeHint } from "../../engine/playbackMode";
 import type { MacroStep } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
+import { KeepEveryStepToggle } from "./KeepEveryStepToggle";
+import { scopeName } from "./scopeText";
 import { StepList } from "./StepList";
 import { StepListHeader } from "./StepListHeader";
 
 export interface ReviewPanelProps {
   name: string;
   steps: MacroStep[];
+  /** The recording as captured — the source the simplify switch reads. */
+  rawSteps: MacroStep[];
+  /** True while the sheet shows the merged list (how it opens). */
+  simplified: boolean;
   params: MacroParam[];
+  /** What the recording watched — said once, above the list it produced. */
+  scope?: ScopeReport;
   onNameChange: (name: string) => void;
   onDeleteStep: (stepId: string) => void;
-  onSimplify: () => void;
+  onSimplifiedChange: (simplified: boolean) => void;
   onToggleStep: (stepId: string) => void;
   onEditStep: (stepId: string, value: EditableValue) => void;
   onToggleParam: (stepId: string) => void;
@@ -31,10 +40,13 @@ const NAME_LIMIT = 50;
 export function ReviewPanel({
   name,
   steps,
+  rawSteps,
+  simplified,
   params,
+  scope,
   onNameChange,
   onDeleteStep,
-  onSimplify,
+  onSimplifiedChange,
   onToggleStep,
   onEditStep,
   onToggleParam,
@@ -55,13 +67,21 @@ export function ReviewPanel({
       ? `Applies to selected layers, or to ${layer} if none is selected`
       : playbackModeHint(mode);
 
+  // What was watched comes before what the list will do on replay: it is the
+  // one line that explains why a step the user expected is not in the list.
+  const scopeHint = !scope
+    ? null
+    : scope.kind === "layers" && scope.layers.length > 1
+      ? `Recorded ${scope.layers.length} layers only`
+      : scope.kind === "layers" && scope.layers.length === 1
+        ? `Recorded ${scopeName(scope)} only`
+        : "Recorded the whole scene";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="review-panel">
       <h2 className="sr-only">Review recording</h2>
       <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1 py-3">
-        <p className="instrument instrument-red enter-1 px-2 pb-2">
-          Review &amp; save
-        </p>
+        <p className="instrument instrument-red enter-1 px-2 pb-2">Review &amp; save</p>
         <div className="enter-1 flex flex-col gap-1.5 px-2">
           <div className="flex items-baseline justify-between gap-2">
             <Label htmlFor="macro-name" className="instrument">
@@ -93,8 +113,14 @@ export function ReviewPanel({
             <>
               <StepListHeader
                 steps={steps}
-                onSimplify={onSimplify}
-                hints={[modeHint]}
+                action={
+                  <KeepEveryStepToggle
+                    rawSteps={rawSteps}
+                    simplified={simplified}
+                    onSimplifiedChange={onSimplifiedChange}
+                  />
+                }
+                hints={scopeHint ? [scopeHint, modeHint] : [modeHint]}
                 className="enter-2"
               />
               {/* The same well the live feed seats its steps in — the review

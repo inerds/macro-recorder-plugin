@@ -4,6 +4,23 @@ This is the user-facing record: user-visible changes per shared version, one
 dated block per release. The engineering log — what was wrong and what changed,
 one row per fix — is `docs/history/improvements.md`.
 
+## Unreleased
+
+- The review sheet now opens on the simplified list, because a single drag is
+  recorded as a chain of micro-steps. Select **Keep every step** above the
+  step list to see the recording as it was captured; the choice holds until
+  you close the panel. A saved macro keeps its manual **Simplify** button.
+- Playback walks the step list in about a second and a half instead of four
+  and a half. Short macros pace the same as before; long ones no longer take
+  many seconds to finish.
+- What you select before you press Record now decides what the recorder
+  watches. Select a layer and only that layer records; a selected shape
+  counts as its layer. Select nothing and the whole scene records, as
+  before. The deck shows which one Record will do, and the recording screen
+  names it. Edits to other layers are dropped and counted ("2 changes
+  outside Layer A ignored"), never recorded by surprise. Duplicates and new
+  layers still record. Scene settings record in whole-scene recordings only.
+
 ## 0.7.0 — 2026-09-07
 
 - Nesting layers now really nests them. Creator gives no plugin a way to move

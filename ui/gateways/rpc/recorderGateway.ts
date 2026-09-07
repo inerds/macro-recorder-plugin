@@ -1,18 +1,26 @@
-import { RPC_ERRORS, type CaptureOffer } from "../../../engine/protocol";
+import { RPC_ERRORS, type CaptureOffer, type ScopeReport } from "../../../engine/protocol";
 import { trace } from "../../dev/trace";
 import type { MacroStep } from "../../types";
-import type { RecorderGateway, RecordingSource } from "../types";
+import type { RecorderGateway, RecordingSource, ScopePreview } from "../types";
 import type { RpcClient } from "./bridge";
 
 const TICK_MS = 500;
+
+/**
+ * The idle poll runs once a second and its answer is only a caption — a call
+ * still outstanding when the next one is due is already stale, so it fails
+ * fast instead of holding the default 10s timeout open.
+ */
+const PEEK_TIMEOUT_MS = 1000;
 
 export class RpcRecorderGateway implements RecorderGateway {
   private rpc: RpcClient;
   private stepListeners = new Set<(step: MacroStep) => void>();
   private endedListeners = new Set<(message: string) => void>();
   private offerListeners = new Set<(offer: CaptureOffer | null) => void>();
-  private selectionListeners = new Set<(count: number) => void>();
-  private lastSelectionCount: number | null = null;
+  private ignoredListeners = new Set<(count: number) => void>();
+  private scopeListeners = new Set<(scope: ScopeReport) => void>();
+  private lastIgnored: number | null = null;
   /** JSON of the last emitted offer — the tick recomputes a structurally
    *  identical offer every 500ms and re-emitting would re-render at 2Hz. */
   private lastOfferJson: string | null = null;
@@ -39,9 +47,7 @@ export class RpcRecorderGateway implements RecorderGateway {
       source = {
         nodeId: result.nodeId,
         ...(result.nodeName ? { nodeName: result.nodeName } : {}),
-        ...(typeof result.selectionCount === "number"
-          ? { selectionCount: result.selectionCount }
-          : {}),
+        scope: result.scope,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -56,7 +62,7 @@ export class RpcRecorderGateway implements RecorderGateway {
     // A stale in-flight tick can emit past stop()'s null; without this
     // reset the dedupe would swallow an identical offer next session.
     this.lastOfferJson = null;
-    this.lastSelectionCount = null;
+    this.lastIgnored = null;
     this.scheduleTick();
     return source;
   }
@@ -88,9 +94,17 @@ export class RpcRecorderGateway implements RecorderGateway {
       // will not repeat them — dropping them here would lose them for good.
       result.steps.forEach((step) => this.stepListeners.forEach((cb) => cb(step)));
       this.emitOffer(result.captureOffer ?? null);
-      if (typeof result.selectionCount === "number" && result.selectionCount !== this.lastSelectionCount) {
-        this.lastSelectionCount = result.selectionCount;
-        this.selectionListeners.forEach((cb) => cb(result.selectionCount as number));
+      // Cumulative, so it only moves when this tick dropped something —
+      // deduped for the same reason the offer is: 2Hz of an unchanged number
+      // is 2Hz of re-renders.
+      if (result.ignored !== this.lastIgnored) {
+        this.lastIgnored = result.ignored;
+        this.ignoredListeners.forEach((cb) => cb(result.ignored));
+      }
+      // Present only on the tick that grew the scope — no dedupe needed.
+      if (result.scope) {
+        const grown = result.scope;
+        this.scopeListeners.forEach((cb) => cb(grown));
       }
       if (this.active) this.scheduleTick();
     } catch (error) {
@@ -150,9 +164,24 @@ export class RpcRecorderGateway implements RecorderGateway {
     return () => this.endedListeners.delete(callback);
   }
 
-  onSelectionCount(callback: (count: number) => void): () => void {
-    this.selectionListeners.add(callback);
-    return () => this.selectionListeners.delete(callback);
+  onIgnoredCount(callback: (count: number) => void): () => void {
+    this.ignoredListeners.add(callback);
+    return () => this.ignoredListeners.delete(callback);
+  }
+
+  onScope(callback: (scope: ScopeReport) => void): () => void {
+    this.scopeListeners.add(callback);
+    return () => this.scopeListeners.delete(callback);
+  }
+
+  /** What Record would watch now — no session state, safe while idle. */
+  async peekScope(): Promise<ScopePreview | null> {
+    const result = await this.rpc.call("selection.peek", {}, PEEK_TIMEOUT_MS);
+    if (!result.scope) return null;
+    return {
+      scope: result.scope,
+      ...(result.sceneName ? { sceneName: result.sceneName } : {}),
+    };
   }
 
   onCaptureOffer(callback: (offer: CaptureOffer | null) => void): () => void {

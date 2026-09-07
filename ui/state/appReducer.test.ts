@@ -12,6 +12,11 @@ import {
   type AppState,
 } from "./appReducer";
 
+/**
+ * A step the simplifier cannot merge (its payload carries no `op`), so a stop
+ * that auto-simplifies leaves a list of these exactly as it was recorded.
+ * That is what keeps the older assertions below about RECORD_STOP honest.
+ */
 function step(id: string): MacroStep {
   return { id, kind: "transform", label: `Step ${id}`, payload: {} };
 }
@@ -50,9 +55,7 @@ describe("recording flow", () => {
 
   it("ignores RECORD_START outside idle", () => {
     const recording = recordWithSteps(1);
-    expect(
-      appReducer(recording, { type: "RECORD_START", startedAt: 2000 }),
-    ).toBe(recording);
+    expect(appReducer(recording, { type: "RECORD_START", startedAt: 2000 })).toBe(recording);
   });
 
   it("stop with steps moves to reviewing with the suggested name", () => {
@@ -138,9 +141,9 @@ describe("idle list interactions", () => {
   it("expand toggles and collapses", () => {
     const expanded = appReducer(base, { type: "EXPAND_TOGGLE", macroId: "m1" });
     expect(expanded).toMatchObject({ expandedId: "m1" });
-    expect(
-      appReducer(expanded, { type: "EXPAND_TOGGLE", macroId: "m1" }),
-    ).toMatchObject({ expandedId: null });
+    expect(appReducer(expanded, { type: "EXPAND_TOGGLE", macroId: "m1" })).toMatchObject({
+      expandedId: null,
+    });
   });
 
   it("rename commits trimmed names and rejects empty ones", () => {
@@ -182,9 +185,7 @@ describe("idle list interactions", () => {
       macroId: "m1",
       stepId: "b",
     });
-    expect(state.macros.find((m) => m.id === "m1")?.steps.map((s) => s.id)).toEqual(
-      ["a", "c"],
-    );
+    expect(state.macros.find((m) => m.id === "m1")?.steps.map((s) => s.id)).toEqual(["a", "c"]);
   });
 });
 
@@ -250,19 +251,18 @@ describe("playback flow", () => {
     });
     expect(collapsed.mode === "playing" && collapsed.expandedId).toBe("m2");
     // It wins over whatever was open before.
-    const other = appReducer(
-      idleState([macro("m1"), macro("m2")], { expandedId: "m1" }),
-      { type: "PLAY_START", macroId: "m2", total: 3 },
-    );
+    const other = appReducer(idleState([macro("m1"), macro("m2")], { expandedId: "m1" }), {
+      type: "PLAY_START",
+      macroId: "m2",
+      total: 3,
+    });
     expect(other.mode === "playing" && other.expandedId).toBe("m2");
   });
 
   it("ignores PLAY_STEP_DONE outside playing", () => {
     expect(appReducer(base, { type: "PLAY_STEP_DONE", stepIndex: 1 })).toBe(base);
     const recording = recordWithSteps(1);
-    expect(appReducer(recording, { type: "PLAY_STEP_DONE", stepIndex: 0 })).toBe(
-      recording,
-    );
+    expect(appReducer(recording, { type: "PLAY_STEP_DONE", stepIndex: 0 })).toBe(recording);
   });
 
   it("records a step failure awaiting a decision", () => {
@@ -301,10 +301,11 @@ describe("playback flow", () => {
   });
 
   it("stopping after a failure says where it stopped and that the run half-landed", () => {
-    const failed = appReducer(
-      appReducer(playing, { type: "PLAY_PROGRESS", stepIndex: 1 }),
-      { type: "PLAY_STEP_FAILED", stepIndex: 1, message: "x" },
-    );
+    const failed = appReducer(appReducer(playing, { type: "PLAY_PROGRESS", stepIndex: 1 }), {
+      type: "PLAY_STEP_FAILED",
+      stepIndex: 1,
+      message: "x",
+    });
     const stopped = appReducer(failed, {
       type: "PLAY_FAILURE_RESOLVED",
       action: "stop",
@@ -312,8 +313,7 @@ describe("playback flow", () => {
     expect(stopped.mode).toBe("idle");
     if (stopped.mode === "idle") {
       expect(stopped.notice).toMatchObject({
-        message:
-          'Stopped “Macro m1” at step 2 of 3 — earlier steps are still applied',
+        message: "Stopped “Macro m1” at step 2 of 3 — earlier steps are still applied",
         tone: "info",
       });
     }
@@ -328,8 +328,7 @@ describe("playback flow", () => {
     expect(stopped.mode).toBe("idle");
     if (stopped.mode === "idle") {
       expect(stopped.notice).toMatchObject({
-        message:
-          'Stopped “Macro m1” at step 3 of 3 — earlier steps are still applied',
+        message: "Stopped “Macro m1” at step 3 of 3 — earlier steps are still applied",
         tone: "info",
       });
     }
@@ -362,7 +361,7 @@ describe("playback flow", () => {
     expect(state.mode).toBe("idle");
     if (state.mode === "idle") {
       expect(state.notice).toMatchObject({
-        message: 'Played “Macro m1”',
+        message: "Played “Macro m1”",
         tone: "success",
       });
     }
@@ -383,9 +382,7 @@ describe("playback flow", () => {
 describe("suggestMacroName", () => {
   it("starts at Macro 1 and increments past the highest suffix", () => {
     expect(suggestMacroName([])).toBe("Macro 1");
-    expect(
-      suggestMacroName([macro("a", "Macro 4"), macro("b", "Bounce")]),
-    ).toBe("Macro 5");
+    expect(suggestMacroName([macro("a", "Macro 4"), macro("b", "Bounce")])).toBe("Macro 5");
   });
 });
 
@@ -411,9 +408,7 @@ function asReviewing(state: AppState): Extract<AppState, { mode: "reviewing" }> 
 function reviewingWith(steps: MacroStep[]): Extract<AppState, { mode: "reviewing" }> {
   let state = appReducer(initialState, { type: "RECORD_START", startedAt: 0 });
   for (const s of steps) state = appReducer(state, { type: "STEP_RECEIVED", step: s });
-  return asReviewing(
-    appReducer(state, { type: "RECORD_STOP", suggestedName: "Macro 1" }),
-  );
+  return asReviewing(appReducer(state, { type: "RECORD_STOP", suggestedName: "Macro 1" }));
 }
 
 function macroWith(steps: MacroStep[], params?: Macro["params"]): Macro {
@@ -425,6 +420,85 @@ function macroWith(steps: MacroStep[], params?: Macro["params"]): Macro {
     ...(params ? { params } : {}),
   };
 }
+
+describe("auto-simplify on stop", () => {
+  /** Three ticks of one drag on one property — a run the simplifier folds. */
+  function drag(): MacroStep[] {
+    return [editableStep("e1", 30), editableStep("e2", 60), editableStep("e3", 90)];
+  }
+
+  function stop(steps: MacroStep[], autoSimplify?: boolean): AppState {
+    let state = appReducer(initialState, { type: "RECORD_START", startedAt: 0 });
+    for (const s of steps) state = appReducer(state, { type: "STEP_RECEIVED", step: s });
+    return appReducer(state, {
+      type: "RECORD_STOP",
+      suggestedName: "Macro 1",
+      ...(autoSimplify === undefined ? {} : { autoSimplify }),
+    });
+  }
+
+  it("opens the sheet merged, and keeps the recording beside it", () => {
+    const state = asReviewing(stop(drag()));
+    expect(state.simplified).toBe(true);
+    expect(state.steps.map((s) => s.id)).toEqual(["e1"]);
+    expect(state.steps[0]?.payload).toMatchObject({ before: 0, after: 90 });
+    expect(state.rawSteps.map((s) => s.id)).toEqual(["e1", "e2", "e3"]);
+    expect(state.params).toEqual([]);
+  });
+
+  it("keeps every step when the panel remembers that choice", () => {
+    const state = asReviewing(stop(drag(), false));
+    expect(state.simplified).toBe(false);
+    expect(state.steps.map((s) => s.id)).toEqual(["e1", "e2", "e3"]);
+    expect(state.rawSteps).toBe(state.steps);
+  });
+
+  it("the switch swaps the list both ways", () => {
+    const merged = asReviewing(stop(drag()));
+    const raw = asReviewing(
+      appReducer(merged, { type: "REVIEW_SIMPLIFIED_TOGGLE", simplified: false }),
+    );
+    expect(raw.simplified).toBe(false);
+    expect(raw.steps.map((s) => s.id)).toEqual(["e1", "e2", "e3"]);
+
+    const again = asReviewing(
+      appReducer(raw, { type: "REVIEW_SIMPLIFIED_TOGGLE", simplified: true }),
+    );
+    expect(again.simplified).toBe(true);
+    expect(again.steps.map((s) => s.id)).toEqual(["e1"]);
+  });
+
+  it("clears parameter pins on the way — the two lists share no id run", () => {
+    const raw = asReviewing(stop(drag(), false));
+    const pinned = asReviewing(appReducer(raw, { type: "REVIEW_PARAM_TOGGLE", stepId: "e2" }));
+    expect(pinned.params).toHaveLength(1);
+    const merged = asReviewing(
+      appReducer(pinned, { type: "REVIEW_SIMPLIFIED_TOGGLE", simplified: true }),
+    );
+    expect(merged.params).toEqual([]);
+  });
+
+  it("is identity-stable when the flag has not changed", () => {
+    const merged = stop(drag());
+    expect(appReducer(merged, { type: "REVIEW_SIMPLIFIED_TOGGLE", simplified: true })).toBe(merged);
+  });
+
+  it("ignores the switch outside reviewing", () => {
+    const idle = idleState([macro("m1")]);
+    expect(appReducer(idle, { type: "REVIEW_SIMPLIFIED_TOGGLE", simplified: false })).toBe(idle);
+  });
+
+  it("restores a draft as the raw list, so the switch can still merge it", () => {
+    const state = asReviewing(
+      appReducer(idleState([]), {
+        type: "REVIEW_RESTORE",
+        draft: { id: REVIEW_DRAFT_ID, name: "Draft", createdAt: 0, steps: drag() },
+      }),
+    );
+    expect(state.simplified).toBe(false);
+    expect(state.rawSteps.map((s) => s.id)).toEqual(["e1", "e2", "e3"]);
+  });
+});
 
 describe("step disable / edit (review)", () => {
   const reviewing = reviewingWith([editableStep("e1"), step("s2")]);
@@ -491,14 +565,10 @@ describe("step disable / edit (review)", () => {
 
 describe("parameter pins (review)", () => {
   const reviewing = reviewingWith([editableStep("e1"), step("s2")]);
-  const pinned = asReviewing(
-    appReducer(reviewing, { type: "REVIEW_PARAM_TOGGLE", stepId: "e1" }),
-  );
+  const pinned = asReviewing(appReducer(reviewing, { type: "REVIEW_PARAM_TOGGLE", stepId: "e1" }));
 
   it("pins a step with its current label, and unpins it again", () => {
-    expect(pinned.params).toEqual([
-      { stepId: "e1", label: reviewing.steps[0]?.label },
-    ]);
+    expect(pinned.params).toEqual([{ stepId: "e1", label: reviewing.steps[0]?.label }]);
     const unpinned = appReducer(pinned, { type: "REVIEW_PARAM_TOGGLE", stepId: "e1" });
     if (unpinned.mode !== "reviewing") return expect.fail("expected reviewing state");
     expect(unpinned.params).toEqual([]);
@@ -607,15 +677,15 @@ describe("saved-macro step editing", () => {
 
   it("ignores macro step events outside idle", () => {
     const recording = recordWithSteps(1);
-    expect(
-      appReducer(recording, { type: "MACRO_STEP_TOGGLE", macroId: "m1", stepId: "e1" }),
-    ).toBe(recording);
-    expect(
-      appReducer(recording, { type: "MACRO_SET_STEPS", macroId: "m1", steps: [] }),
-    ).toBe(recording);
-    expect(
-      appReducer(recording, { type: "MACRO_PARAM_TOGGLE", macroId: "m1", stepId: "e1" }),
-    ).toBe(recording);
+    expect(appReducer(recording, { type: "MACRO_STEP_TOGGLE", macroId: "m1", stepId: "e1" })).toBe(
+      recording,
+    );
+    expect(appReducer(recording, { type: "MACRO_SET_STEPS", macroId: "m1", steps: [] })).toBe(
+      recording,
+    );
+    expect(appReducer(recording, { type: "MACRO_PARAM_TOGGLE", macroId: "m1", stepId: "e1" })).toBe(
+      recording,
+    );
   });
 });
 
@@ -762,9 +832,7 @@ describe("review draft restore (panel reload survival)", () => {
 
   it("ignores an empty draft", () => {
     const idle = idleState([]);
-    expect(
-      appReducer(idle, { type: "REVIEW_RESTORE", draft: { ...draft, steps: [] } }),
-    ).toBe(idle);
+    expect(appReducer(idle, { type: "REVIEW_RESTORE", draft: { ...draft, steps: [] } })).toBe(idle);
   });
 
   it("MACROS_LOADED never surfaces the draft as a saved macro", () => {
@@ -824,29 +892,106 @@ describe("keyframe capture offer", () => {
   });
 });
 
-describe("record selection nudge (live count)", () => {
-  it("seeds the count from RECORD_START and defaults to null (unknown)", () => {
+describe("recording scope", () => {
+  const layerScope = {
+    kind: "layers" as const,
+    layers: [{ id: "L1", name: "Layer A" }],
+  };
+
+  it("seeds the scope from RECORD_START and defaults to null (unknown)", () => {
     const bare = appReducer(initialState, { type: "RECORD_START", startedAt: 1 });
-    expect(bare.mode === "recording" && bare.selectionCount).toBeNull();
-    const nudged = appReducer(initialState, {
+    expect(bare.mode === "recording" && bare.scope).toBeNull();
+    expect(bare.mode === "recording" && bare.ignored).toBe(0);
+    const scoped = appReducer(initialState, {
       type: "RECORD_START",
       startedAt: 1,
-      selectionCount: 0,
+      scope: layerScope,
     });
-    expect(nudged.mode === "recording" && nudged.selectionCount).toBe(0);
+    expect(scoped.mode === "recording" && scoped.scope).toEqual(layerScope);
   });
 
-  it("ticks keep the count live so the nudge clears on selection", () => {
+  it("ticks keep the ignored count live, and an unchanged count re-renders nothing", () => {
     let state = appReducer(initialState, {
       type: "RECORD_START",
       startedAt: 1,
-      selectionCount: 0,
+      scope: layerScope,
     });
-    state = appReducer(state, { type: "RECORD_SELECTION_COUNT", count: 1 });
-    expect(state.mode === "recording" && state.selectionCount).toBe(1);
+    state = appReducer(state, { type: "RECORD_IGNORED_COUNT", count: 2 });
+    expect(state.mode === "recording" && state.ignored).toBe(2);
+    expect(appReducer(state, { type: "RECORD_IGNORED_COUNT", count: 2 })).toBe(state);
     // and it's ignored outside recording (late tick)
-    const idle = appReducer(idleState([]), { type: "RECORD_SELECTION_COUNT", count: 0 });
+    const idle = appReducer(idleState([]), { type: "RECORD_IGNORED_COUNT", count: 1 });
     expect(idle.mode).toBe("idle");
+  });
+
+  it("RECORD_SCOPE replaces the scope mid-recording, and is ignored outside it", () => {
+    const grown = {
+      kind: "layers" as const,
+      layers: [
+        { id: "L1", name: "Layer A" },
+        { id: "L2", name: "Layer A copy" },
+      ],
+    };
+    let state = appReducer(initialState, {
+      type: "RECORD_START",
+      startedAt: 1,
+      scope: layerScope,
+    });
+    state = appReducer(state, { type: "RECORD_SCOPE", scope: grown });
+    expect(state.mode === "recording" && state.scope).toEqual(grown);
+    const idle = appReducer(idleState([]), { type: "RECORD_SCOPE", scope: grown });
+    expect(idle.mode).toBe("idle");
+  });
+
+  it("RECORD_STOP carries the scope into review, and omits it when unknown", () => {
+    let state = appReducer(initialState, {
+      type: "RECORD_START",
+      startedAt: 1,
+      scope: layerScope,
+    });
+    state = appReducer(state, { type: "STEP_RECEIVED", step: step("s1") });
+    const reviewing = appReducer(state, {
+      type: "RECORD_STOP",
+      suggestedName: "Macro 1",
+      scope: layerScope,
+    });
+    expect(reviewing.mode === "reviewing" && reviewing.scope).toEqual(layerScope);
+    const bare = appReducer(state, { type: "RECORD_STOP", suggestedName: "Macro 1" });
+    expect(bare.mode === "reviewing" && "scope" in bare).toBe(false);
+  });
+});
+
+describe("idle scope preview (the 1 Hz peek)", () => {
+  const preview = {
+    scope: { kind: "layers" as const, layers: [{ id: "L1", name: "Layer A" }] },
+    sceneName: "Scene 1",
+  };
+
+  it("starts unknown and takes the first answer", () => {
+    expect(idleState([]).scopePreview).toBeNull();
+    const state = appReducer(idleState([]), { type: "SCOPE_PEEKED", preview });
+    expect(state.mode === "idle" && state.scopePreview).toEqual(preview);
+  });
+
+  it("hands back the SAME state for an equal answer, so polling never re-renders", () => {
+    const first = appReducer(idleState([]), { type: "SCOPE_PEEKED", preview });
+    const again = appReducer(first, {
+      type: "SCOPE_PEEKED",
+      // A structurally equal answer arrives every second with a new identity.
+      preview: {
+        scope: { kind: "layers", layers: [{ id: "L1", name: "Layer A" }] },
+        sceneName: "Scene 1",
+      },
+    });
+    expect(again).toBe(first);
+    const cleared = appReducer(first, { type: "SCOPE_PEEKED", preview: null });
+    expect(cleared.mode === "idle" && cleared.scopePreview).toBeNull();
+    expect(appReducer(cleared, { type: "SCOPE_PEEKED", preview: null })).toBe(cleared);
+  });
+
+  it("is ignored outside idle — a late answer can't disturb a recording", () => {
+    const recording = appReducer(initialState, { type: "RECORD_START", startedAt: 1 });
+    expect(appReducer(recording, { type: "SCOPE_PEEKED", preview })).toBe(recording);
   });
 });
 

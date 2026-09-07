@@ -1,9 +1,4 @@
-import {
-  cn,
-  ThemeProvider,
-  ToastProvider,
-  useToast,
-} from "@lottiefiles/creator-plugins-ui";
+import { cn, ThemeProvider, ToastProvider, useToast } from "@lottiefiles/creator-plugins-ui";
 import { useEffect, useRef, useState } from "react";
 
 import { DebugStrip } from "./dev/DebugStrip";
@@ -32,8 +27,7 @@ function NoticeToasts() {
   // region only speaks when its contents CHANGE, and "Played X" twice in a
   // row is two events the user needs to hear twice.
   const [live, setLive] = useState({ key: 0, message: "" });
-  const announce = (message: string) =>
-    setLive((previous) => ({ key: previous.key + 1, message }));
+  const announce = (message: string) => setLive((previous) => ({ key: previous.key + 1, message }));
 
   useEffect(() => {
     if (!notice) return;
@@ -56,9 +50,7 @@ function NoticeToasts() {
   useEffect(() => {
     if (mode !== "reviewing") return;
     const count = reviewCount.current;
-    announce(
-      `Recording stopped — ${count === 1 ? "1 step" : `${count} steps`} captured`,
-    );
+    announce(`Recording stopped — ${count === 1 ? "1 step" : `${count} steps`} captured`);
   }, [mode]);
 
   // The progress row itself is silent (it ticks up to ~20 times a second).
@@ -74,12 +66,7 @@ function NoticeToasts() {
   }, [playingMacroId]);
 
   return (
-    <div
-      aria-live="polite"
-      aria-atomic="true"
-      className="sr-only"
-      data-testid="notice-live"
-    >
+    <div aria-live="polite" aria-atomic="true" className="sr-only" data-testid="notice-live">
       <span key={live.key}>{live.message}</span>
     </div>
   );
@@ -163,7 +150,10 @@ function Panel({
               <strong>Plugin engine is outdated</strong> ({gateways.staleEngine.sandboxRev} vs{" "}
               {gateways.staleEngine.uiRev}). Remove and re-add the plugin in Creator.
               {import.meta.env.DEV && (
-                <> If this keeps happening, restart <code>pnpm dev</code>.</>
+                <>
+                  {" "}
+                  If this keeps happening, restart <code>pnpm dev</code>.
+                </>
               )}
             </div>
           )}
@@ -173,8 +163,8 @@ function Panel({
               role="alert"
               data-testid="demo-mode-banner"
             >
-              <strong>Demo engine.</strong> Couldn't reach the plugin sandbox —
-              recording and playback are simulated. Reload the plugin to retry.
+              <strong>Demo engine.</strong> Couldn't reach the plugin sandbox — recording and
+              playback are simulated. Reload the plugin to retry.
             </div>
           )}
           {/* One transport for every screen. Full-bleed on purpose: this is the
@@ -196,7 +186,8 @@ function Panel({
               <RecordingView
                 steps={state.steps}
                 confirmingDiscard={state.confirmingDiscard}
-                selectionCount={state.selectionCount}
+                scope={state.scope}
+                ignored={state.ignored}
                 captureOffer={state.captureOffer}
                 capturedAllLayerIds={state.capturedAllLayerIds}
                 onCapture={actions.captureLayerKeyframes}
@@ -209,10 +200,13 @@ function Panel({
               <ReviewPanel
                 name={state.name}
                 steps={state.steps}
+                rawSteps={state.rawSteps}
+                simplified={state.simplified}
                 params={state.params}
+                scope={state.scope}
                 onNameChange={actions.changeReviewName}
                 onDeleteStep={actions.deleteReviewStep}
-                onSimplify={actions.simplifyReview}
+                onSimplifiedChange={actions.setReviewSimplified}
                 onToggleStep={actions.toggleReviewStep}
                 onEditStep={actions.editReviewStep}
                 onToggleParam={actions.toggleReviewParam}
@@ -252,9 +246,7 @@ function Panel({
               // whole row of chrome that footer cost. Its other job, clearing
               // the bottom-centre toast, belongs to the wrapper above.
               <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-                <MacroList
-                  playing={state.mode === "playing" ? state.playing : null}
-                />
+                <MacroList playing={state.mode === "playing" ? state.playing : null} />
               </main>
             )}
           </div>

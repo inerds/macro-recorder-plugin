@@ -151,11 +151,12 @@ dumps node/scene surfaces into traces).
 UI tick (500ms)                     sandbox
 RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → SceneSnapshot
                                     diffScene(prev, next) → StepPayload[]
+                                    partitionByScope(payloads, scope) → kept + ignored
                    ◀─── steps ───── buildStep() → {kind, label, payload}
 ```
 
-- Recording watches the WHOLE active scene (no selection needed): every
-  layer's subtree (shapes recurse; scene-instance layers expose their source
+- Recording snapshots and diffs the WHOLE active scene every tick, whatever
+  the scope (see the scope bullet below): every layer's subtree (shapes recurse; scene-instance layers expose their source
   scene's layers as the child channel), fills/strokes/masks/trims, plain
   flags (incl. text props), names. `diffScene` matches layers by id and emits
   scene ops: `add-layer` (with structural duplicate detection → `cloneOf`,
@@ -183,14 +184,55 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   in `sandbox/playback.ts#applySceneSetting`, never per target. Both fields
   are optional: a snapshot recorded before this rev carries no `settings`, and
   `diffSceneSettings` emits nothing when either side lacks the key.
-- **Selection nudge (rev .48, inline since .49)**: `record.start` seeds and
-  every `record.tick` carries `selectionCount`; 0 → a standing dashed chip
-  above the live feed that clears ITSELF when a layer is selected (slot
-  chain: discard confirm > capture offer > nudge — offer needs a selection,
-  nudge needs none, so the last two never collide). A NUDGE, never a gate
-  (user decision: no disabled REC, no confirm interstitial, no toast) —
-  whole-scene/structure recordings are a designed feature. Toasts
-  themselves are restyled in index.css as compact ink chips (the library's
+- **Recording scope (rev 2026-09-07.2)**: `record.start` decides ONCE what
+  the recording watches, from `creator.selection.nodes`. Layers selected →
+  `{kind: "layers", ids}`; a selected shape resolves to its owning top-level
+  layer (`engine/scope.ts#resolveScope` walks each layer's `shapes`, the
+  scene-layer child channel included; masks and paints have no ids and are
+  never selected). Nothing selected → `{kind: "scene"}`, the whole scene as
+  before. A non-empty selection that matches no layer of the active scene
+  falls back to the scene with `fallback: "unresolved"`, and the panel says
+  so. User decision (2026-09-07): recording noise on unselected layers was
+  the reported bug, and selection-before-Record is the rule the user wanted,
+  with whole-scene recording kept for structure macros.
+  The scope PARTITIONS the diff; it never filters the snapshots. `diffScene`
+  still runs on the whole scene, because clone detection needs every `prev`
+  layer for `cloneOf`, the reorder rule needs the full survivor order, and
+  nest/break detection correlates the full removed and added sets in one
+  tick. `partitionByScope` then keeps a payload when its `layer` ref is in
+  scope, keeps every `add-layer` and grows the scope with its id (a layer
+  that did not exist at record.start cannot be a stray edit; a clone of an
+  unscoped layer keeps its `cloneOf`), keeps `nest-layers` and `break-scene`
+  when they touch a scoped layer and grows the scope with what they create,
+  keeps `reorder-layers` only when a scoped layer's position among the
+  survivors changed, and drops `set-scene` (scene settings belong to
+  whole-scene recordings). Growth is collected in a first pass, so payload
+  order within a tick does not matter. Dropped payloads are COUNTED:
+  `record.tick` returns a cumulative `ignored`, the recording chip shows
+  "2 changes outside Layer A ignored", and `RecordDebug.ignored` marks the
+  tick in traces. Nothing is dropped in silence. When the scope grows, that
+  tick's result carries the grown `scope`, so the chip and the review hint
+  name what is watched now. A single-layer scope also saves that layer, not
+  the scene, as the macro's `source`; replay does not depend on it (a
+  layer-bound macro with nothing selected takes scene mode and resolves by
+  recorded id and name). The capture offer is withheld for a selected layer
+  outside the scope, and `record.captureKeyframes` refuses one.
+- **Scope readout before Record**: the sandbox has no timers, so the panel
+  polls `selection.peek` at 1 Hz while idle (`AppContext`, paused when the
+  document is hidden). The handler reads a light `serializeSceneIndex` (ids,
+  types, names, shapes — no animatables) and resolves the scope the same way
+  `record.start` will. `bridge.ts` keeps `selection.peek` out of trace
+  bundles, like `hello`, or every bundle would collect a pair per second;
+  the poll itself traces its FIRST failure and backs off to 16 s while the
+  failures continue, so a stale sandbox without the method is visible once
+  and not hammered.
+  The deck's `.deck-scope` line shows `RECORDS · LAYER A` / `WHOLE SCENE`
+  while idle and `RECORDING · …` while recording (design-system.md). The
+  older selection nudge (rev .48) is gone; the scope chip took its place
+  under the discard confirm, and the capture offer stacks ABOVE the chip
+  rather than replacing it — the chip's counter is the only report of a
+  dropped edit, and a keyframed layer can stay selected all session.
+- Toasts are restyled in index.css as compact ink chips (the library's
   hardcoded dark slab is full-app-scale; attribute-contains selectors on
   the fixed z-100 viewport, same strategy as the dialog-slide fix).
 - **Keyframe capture (rev .42)**: while recording, `record.tick`'s result
@@ -301,6 +343,13 @@ Where each piece lives and the invariants worth keeping:
   and a static edit never merges with a keyframe edit on the same path (the
   value's meaning changed). `foldKeyframes` is the net-delta algebra —
   extend it with a test per new case, it's easy to get a sign wrong.
+- The review sheet opens on the SIMPLIFIED list: `RECORD_STOP` carries an
+  `autoSimplify` flag (absent means true) and the reviewing state keeps
+  `rawSteps` beside `steps` so `REVIEW_SIMPLIFIED_TOGGLE` can swap between
+  them. The user's choice lives in an `autoSimplifyRef` in `AppContext` —
+  a session memory, not storage: the plugin iframe has no reliable
+  `localStorage`, and `clientStorage` is a sandbox round trip that a
+  preference does not earn.
 - `engine/editing.ts` is the single definition of "editable": the review
   row, the macro detail, and the parameter form must all go through
   `editableValueOf`/`withEditedValue` so a value kind that's editable in one

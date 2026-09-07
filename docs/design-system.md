@@ -99,9 +99,10 @@ load-bearing:
   8px — a fourth tier — and the rack 4; a well inside a 4px well with 4px
   padding, or inside a 10px card with a 6px inset, wants 4.
 - Small red text uses `--ink-red-text` (#B5301F, 5.2:1), never `--primary`
-  (#C8382B) — that one is for fills. Red is never a readout: the Simplify
-  count (`5 → 3`) is muted ink at weight 500, because a red number beside a
-  key reads as a warning (2026-09-03 audit). The red section titles
+  (#C8382B) — that one is for fills. Red is never a readout: the merge count
+  (`5 → 3`), on the drawer's Simplify key and on the review sheet's "Keep
+  every step", is muted ink at weight 500, because a red number beside a key
+  reads as a warning (2026-09-03 audit). The red section titles
   (`REVIEW & SAVE`, `LIVE STEPS`) are a deliberate mode cue and stay.
 - **The red cap's face starts at `--primary` and only darkens.** `.key-red`
   (`index.css`) and the deck's `.key-plate-red` (`deck.css`) carry the same
@@ -139,8 +140,17 @@ load-bearing:
   use `--lamp-green` (#5C9457); red on this panel always means action or
   failure, never "done". Muted body copy is `--muted-foreground`
   (#6B635B); instrument labels are `--label-fg` (#5E564F).
-- `.key`, `.key-quiet`, `.card`, `.instrument`, `.mono`, `.lamp` are the
-  skin's vocabulary. `.key` is written as `.key.key` on purpose: the
+- **`.check-quiet` is the quiet tier for the one control that is not a key.**
+  The review sheet's "Keep every step" is a checkbox, and the box carries the
+  state, so the PAIR — box plus legend — is the object: the wrapper holds the
+  24px target height and the ink hover wash, and `.check-quiet-label` carries
+  the same 10px/600 uppercase legend `.key-quiet` uses. A wash on the legend
+  alone reads as a highlight floating beside the box, the same failure the
+  rack's row hover records. The label is a SIBLING of the box, not a wrapper:
+  the library's checkbox is a `span[role="checkbox"]` beside a hidden input,
+  and a wrapping label routes one click through both.
+- `.key`, `.key-quiet`, `.check-quiet`, `.card`, `.instrument`, `.mono`,
+  `.lamp` are the skin's vocabulary. `.key` is written as `.key.key` on purpose: the
   library's `Button` merges its `size="sm"` utilities
   (`h-6 px-3 rounded font-normal`) onto the same element via
   `tailwind-merge`, and a single class would lose on source order alone.
@@ -197,7 +207,8 @@ recording clock, the status lamp, and the state word.
   the counter (see `.deck-clock` below); the state word is the reduced-motion
   state channel so it is the last thing allowed to truncate. Two nested
   surfaces cost two sets of padding — that collapse is what took the hero
-  from 195px to 148px on a 300x520 panel.
+  from 195px to 148px on a 300x520 panel; the scope caption (below) took it
+  back up to 165px.
 - **The stage is a studio deck's faceplate, drawn to a reference photo
   (2026-09-03).** `ReelDeck.tsx` builds it from constants: two R=44 reels
   centred at y=47, each a spun-silver flange (radial gradient + alternating
@@ -352,10 +363,10 @@ recording clock, the status lamp, and the state word.
   travels as `data-deck` on `.deck-stage`; the stage `div` carries the dark
   plate and the SVG only the mechanism.
 - **The collapse threshold is a real breakpoint, not a round number.**
-  `@container panel (max-height: 352px)` (needs `container: panel / size` on
-  `.panel-root`) is set where the *list* stops working — hero 148px, list
-  needs ~150px for its header, a row, and a peek. Re-derive it whenever the
-  hero's height changes. It was 520px once,
+  `@container panel (max-height: 369px)` (needs `container: panel / size` on
+  `.panel-root`) is set where the *list* stops working — hero 165px
+  (`5 + 110 + 4 + 24 + 4 + 13 + 5`), list needs ~150px for its header, a
+  row, and a peek. Re-derive it whenever the hero's height changes. It was 520px once,
   which is exactly the panel height README tells you to develop at, so the
   hero rendered collapsed at every realistic size and the reels were sliced
   through the middle. When it does collapse the stage scales the drawing DOWN
@@ -377,6 +388,21 @@ recording clock, the status lamp, and the state word.
   match Stop by name must scope to the deck's `data-testid="stop-button"`
   or the bar's `stop-recording-button`.
 
+- **The scope caption is a real element, and it never moves.** `.deck-scope`
+  sits under `.deck-row` at a fixed 13px: a legend span and a value span,
+  both in the `.deck-word` idiom (9px uppercase silkscreen, the legend at
+  `opacity: .62` — no new ink), the value `min-width: 0` so it ellipsises
+  and the legend never does. It reads `RECORDS · LAYER A` (or `LAYER A + 2
+  MORE`, `WHOLE SCENE`) while idle, from the 1 Hz `selection.peek` poll, and
+  `RECORDING · …` while recording; it is blank in every other mode and while
+  the host has not answered yet, so the list below never shifts. The
+  fallback case carries a `title` with the full sentence, and an sr-only span
+  says "Record will watch Layer A". The caption stays when the hero
+  collapses: it is what Record is about to do, not furniture. On the
+  recording screen the same scope drives the chip that replaced the
+  selection nudge (the discard confirm replaces both; the capture offer
+  stacks above the chip, never in its place), and the chip is where the "N changes outside Layer A ignored"
+  counter lives — a `role="note"`, not a live region, like the step count.
 - Pseudo-element budget on the hero is fully spent: `.deck-chassis::before`
   (brushed grain — the raking highlight is gone) / `::after` (chamfer bevel);
   `.deck-window::after` (the one glass layer — never add a second sheen on

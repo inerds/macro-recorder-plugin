@@ -1,6 +1,7 @@
 import type { Json } from "./json";
 import type { Macro, MacroStep } from "./macro";
 import type { Path, SceneSnapshot } from "./snapshot";
+import type { LayerRef } from "./steps";
 
 export const PROTOCOL_VERSION = 3;
 
@@ -10,7 +11,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-09-07.1";
+export const ENGINE_REV = "2026-09-07.2";
 
 /**
  * What a note says about its step. `skip` means the step did not fully apply;
@@ -38,6 +39,7 @@ export type RpcMethod =
   | "record.captureKeyframes"
   | "record.stop"
   | "record.discard"
+  | "selection.peek"
   | "playback.begin"
   | "playback.step"
   | "playback.end";
@@ -70,10 +72,25 @@ export interface CaptureOffer {
   selectedCount?: number;
 }
 
+/**
+ * What a recording watches, as reported to the panel. Decided once, at
+ * `record.start`, from the selection: layers selected → those layers only
+ * (a selected shape resolves to its owning top-level layer); nothing
+ * selected → the whole scene. `fallback: "unresolved"` marks a non-empty
+ * selection that matched no layer of the active scene, so the recording
+ * fell back to the whole scene. `selection.peek` reports the same shape
+ * for the idle deck's readout.
+ */
+export type ScopeReport =
+  | { kind: "scene"; fallback?: "unresolved" }
+  | { kind: "layers"; layers: LayerRef[] };
+
 /** The scene-snapshot pair a tick's steps were derived from. */
 export interface RecordDebug {
   prev: SceneSnapshot;
   next: SceneSnapshot;
+  /** Payloads this tick dropped as outside the recording's layer scope. */
+  ignored?: number;
   /** Attached on the first tick that emits a position keyframe step: the
    *  live keyframe proxy's real surface (do spatial tangents exist?). */
   keyframeIntrospection?: Json;
@@ -139,8 +156,10 @@ export interface RpcContracts {
       shapeIntrospection?: Json;
       /** Debug-only: creator.selection's real surface — is `.keyframes` live? */
       selectionIntrospection?: Json;
-      /** How many nodes were selected when recording began — the UI nudges
-       *  toward single-layer recordings (retargetable macros) when 0. */
+      /** What this recording watches. See ScopeReport. */
+      scope: ScopeReport;
+      /** Diagnostic only: how many nodes were selected when recording began.
+       *  Older traces read it; the panel no longer does. */
       selectionCount?: number;
     };
   };
@@ -151,7 +170,14 @@ export interface RpcContracts {
       steps: MacroStep[];
       /** See CaptureOffer — absent when no single keyframed layer is selected. */
       captureOffer?: CaptureOffer;
-      /** Live selection size — drives the standing "select a layer" nudge. */
+      /** Payloads dropped so far this session as outside the layer scope —
+       *  cumulative, so the panel shows a running count. 0 in scene scope. */
+      ignored: number;
+      /** Present only on a tick that GREW the scope — a duplicate, a new
+       *  layer, a nest's scene layer — so the panel names what it watches
+       *  now, not what it started with. Never present in scene scope. */
+      scope?: ScopeReport;
+      /** Diagnostic only: live selection size. The panel no longer reads it. */
       selectionCount?: number;
       debug?: RecordDebug;
     };
@@ -165,6 +191,15 @@ export interface RpcContracts {
     result: { steps: MacroStep[]; debug?: RecordDebug };
   };
   "record.discard": { params: Record<string, never>; result: null };
+  /**
+   * What `record.start` WOULD watch right now, for the idle deck's readout.
+   * Touches no session state. `scope: null` means there is no active scene.
+   * The sandbox has no timers, so the panel polls this while idle.
+   */
+  "selection.peek": {
+    params: Record<string, never>;
+    result: { scope: ScopeReport | null; sceneName?: string };
+  };
   "playback.begin": {
     params: {
       steps: MacroStep[];

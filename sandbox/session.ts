@@ -1,5 +1,6 @@
 import type { Json } from "../engine/json";
 import type { MacroStep } from "../engine/macro";
+import type { RecordScope } from "../engine/scope";
 import type { SceneSnapshot } from "../engine/snapshot";
 
 type AnyProxy = any;
@@ -11,6 +12,12 @@ export interface RecordingSession {
   firstSnapshot: SceneSnapshot;
   /** Dev diagnostics opted into at record.start. */
   debug: boolean;
+  /** What this session watches. Fixed from the selection at record.start,
+   *  then grown by the layers the recording itself creates. */
+  scope: RecordScope;
+  /** Payloads dropped so far as outside the scope — cumulative, so the panel
+   *  can show a running count instead of a per-tick blip. */
+  ignored: number;
   /** Debug: the keyframe-surface probe has already run this session. */
   keyframeProbed?: boolean;
   /** Any tick or keyframe capture emitted a step this session — gates

@@ -5,7 +5,8 @@
  * is a recess cut into it and the transport row sits on its surface. The old
  * shape (a cream card containing a dark plate, with a status strip above it)
  * cost two materials, two paddings and a whole extra row — 195px of a 520px
- * panel. The arithmetic now is 5 + 110 + 4 + 24 + 5 = 148px, and the reels got
+ * panel. The arithmetic now is 5 + 110 + 4 + 24 + 4 + 13 + 5 = 165px (the last
+ * 17 are the scope caption and its gap, added 2026-09-07), and the reels got
  * BIGGER doing it (102px across, up from 83px).
  *
  * Split out of index.css so the hero is one readable unit; Vite still inlines
@@ -455,6 +456,40 @@
   white-space: nowrap;
 }
 
+/*
+ * The scope caption: one line under the transport row saying what Record will
+ * watch, before it is pressed. A real element, not a pseudo — the hero's
+ * pseudo-element budget is spent (docs/design-system.md).
+ *
+ * Its height is FIXED whether or not it has anything to say. The line fills a
+ * second after the panel rests (the idle poll) and empties again on the review
+ * sheet; a caption that collapsed when empty would shunt the whole macro list
+ * up and down as the user selected things.
+ */
+.deck-scope {
+  display: flex;
+  height: 13px;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding-left: 2px;
+}
+
+/* Both spans are `.deck-word`: same silkscreen, so the caption reads as more
+   of the faceplate rather than a second typographic voice on it. */
+.deck-scope-legend {
+  flex: none;
+  /* One step back — the label is furniture and the layer name is the answer.
+     Opacity, not a second colour: the chassis has one silkscreen ink. */
+  opacity: 0.62;
+}
+
+/* The name is what gives way when the panel is narrow: `.deck-word` already
+   ellipsises, and this is the min-width a flex item needs to let it. */
+.deck-scope-value {
+  min-width: 0;
+}
+
 /* ----------------------------------------------------------- keycaps ----- */
 
 /*
@@ -649,12 +684,15 @@
 /*
  * Height guard, re-tuned for the one-chassis hero. It is a real breakpoint,
  * not a round number: the list below needs ~150px for its header, a row and a
- * peek, and with a 148px hero (was 195px) that point moves down by ~47px —
- * 400px becomes 352px. Below it the deck is decoration competing with the
- * list it introduces: keep the reels (they carry state) and drop the
- * furniture.
+ * peek, and with a 148px hero (was 195px) that point moved down by ~47px —
+ * 400px became 352px. The scope caption then put 17px back on the hero
+ * (13px line + 4px gap), so the threshold climbs with it: 352 + 17 = 369px.
+ * Re-derive it again whenever the hero's height changes. Below it the deck is
+ * decoration competing with the list it introduces: keep the reels (they
+ * carry state) and drop the furniture. The caption stays — it is what Record
+ * is about to do, not furniture.
  */
-@container panel (max-height: 352px) {
+@container panel (max-height: 369px) {
   /* Scaled down, never sliced: `meet` keeps whole reels (letterboxing onto
      the stage's own plate colour, so the crop is invisible). A reel cut
      through its middle reads as texture and the rotation has nothing to

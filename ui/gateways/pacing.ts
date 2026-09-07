@@ -9,17 +9,20 @@
  * presentation choice and the panel is the only thing that owns timing).
  *
  * The budget is per RUN, not per step: a 3-step macro can afford 300ms a
- * step, a 200-step capture cannot. `4500 / n` spends about four and a half
- * seconds walking the list, clamped so short macros never crawl and long
- * ones stay perceptible (45ms is still one distinct frame of feedback).
+ * step, a 200-step capture cannot. `1500 / n` spends about a second and a
+ * half walking the list, clamped so short macros never crawl and long ones
+ * stay perceptible (20ms is about one frame of feedback, the least a row
+ * can register in). The budget was 4500ms with a 45ms floor until
+ * 2026-09-07; a 15-step macro took four and a half seconds and a 200-step
+ * capture nine, and the user asked for a run to feel like one action.
  */
 
 /** The whole-run walk budget, in ms, before clamping. */
-const RUN_BUDGET_MS = 4500;
-/** Slowest dwell — a 15-step macro and anything shorter. */
+const RUN_BUDGET_MS = 1500;
+/** Slowest dwell — a 5-step macro and anything shorter. */
 const MAX_DELAY_MS = 300;
 /** Fastest dwell — still long enough to see a row light up. */
-const MIN_DELAY_MS = 45;
+const MIN_DELAY_MS = 20;
 
 /**
  * The beat held between "this step is selected" and executing it, for a run

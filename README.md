@@ -61,11 +61,16 @@ Document map:
 - `ui/gateways/rpc/` is the panel side: the RPC bridge, the tick-loop
   recorder gateway, and the paced step-by-step playback orchestrator.
 
-Recording watches the whole scene — every layer's subtree, paints, masks,
-trims, plain flags, the scene settings, and structure (add, duplicate, remove,
-nest, reorder). You need no selection to start. While you record, selecting
-one keyframed layer offers to **capture** its keyframes and current style into
-the macro.
+What you select before you press Record decides what the recorder watches.
+Select one or more layers, and it records those layers only: their subtrees,
+paints, masks, trims, plain flags, and structure. A selected shape counts as
+its layer. Layers that appear while you record, such as duplicates and new
+layers, join the recording. Select nothing, and it records the whole scene,
+the scene settings included. The deck shows which one Record will do. An
+edit outside the recorded layers is dropped and counted on the recording
+screen, never dropped in silence. While you record, selecting one keyframed
+recorded layer offers to **capture** its keyframes and current style into the
+macro.
 
 Replay picks one of two modes. A macro that touched at most one layer applies
 to every **selected layer**: the layer's own position, rotation, and skew
@@ -134,7 +139,7 @@ the fake scene from the console through `window.harness`.
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (539 tests, 25 files)
+pnpm test          # vitest: engine logic, reducer, demo-macro replay (590 tests, 27 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)

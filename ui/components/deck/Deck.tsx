@@ -30,6 +30,16 @@ export function Deck() {
         ? Math.min(state.playing.currentStep + 1, state.playing.total)
         : 0;
 
+  // The caption follows the APP mode, not the deck's: "done" is a decoration
+  // that outlives a run by 900ms, and a scope caption under it would name
+  // what Record will watch while the reels are still coasting.
+  const scope =
+    state.mode === "idle"
+      ? (state.scopePreview?.scope ?? null)
+      : state.mode === "recording"
+        ? state.scope
+        : null;
+
   // The reels can be spun by hand, but only while nothing else is turning
   // them: "idle" is the state whose word is "Ready", and "paused" holds the
   // reels still mid-run. Every other state animates `rotate` from CSS, and
@@ -46,6 +56,10 @@ export function Deck() {
         stepCount={stepCount}
         counterOverride={spinCounter}
         startedAt={state.mode === "recording" ? state.startedAt : null}
+        scope={scope}
+        scopePhase={
+          state.mode === "idle" ? "idle" : state.mode === "recording" ? "recording" : null
+        }
         stage={<ReelDeck state={deckState} stageRef={stageRef} interactive={spinnable} />}
         // Recording is only reachable from rest: mid-review or mid-playback
         // the key is dead, not a second way to lose work.

@@ -1,7 +1,7 @@
 import type { Macro } from "../engine/macro";
 import { ENGINE_REV, isRpcMessage, PROTOCOL_VERSION } from "../engine/protocol";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
-import { initSelectionEvents, recordCaptureKeyframes, recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
+import { initSelectionEvents, recordCaptureKeyframes, recordDiscard, recordStart, recordStop, recordTick, selectionPeek } from "./recorder";
 import { handleMessage, registerHandler } from "./rpc-server";
 import { lastUsedQuota, listMacros, removeMacro, renameMacro, saveMacro } from "./store";
 import { sendTheme, watchTheme } from "./theme";
@@ -44,6 +44,10 @@ registerHandler("record.captureKeyframes", (params) =>
 );
 registerHandler("record.stop", () => recordStop());
 registerHandler("record.discard", () => recordDiscard());
+
+// Idle-only readout: what Record would watch right now. Session-free and
+// synchronous, because the panel polls it once a second.
+registerHandler("selection.peek", () => selectionPeek());
 
 registerHandler("playback.begin", (params) =>
   playbackBegin(params as Parameters<typeof playbackBegin>[0]),

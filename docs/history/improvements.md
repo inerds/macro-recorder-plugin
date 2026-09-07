@@ -12,6 +12,20 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-07 — Recording scope
+
+| Issue | Fix |
+|---|---|
+| A long macro took many seconds to play: the walk budget was 4.5 s with a 45 ms floor per step, so 15 steps took 4.5 s and 200 took 9 s. | `ui/gateways/pacing.ts` budgets 1.5 s with a 20 ms floor; 5 steps or fewer still dwell 300 ms each, 15 steps walk in 1.5 s, 200 in 4 s. |
+| **Recording captured edits on layers the user never touched.** Every tick diffed the whole scene, so any change Creator made to an unselected layer became a step, and a single-layer macro replayed those steps onto the user's targets. | The selection at `record.start` sets the scope: selected layers only (a shape resolves to its layer), or the whole scene when nothing is selected. `engine/scope.ts#partitionByScope` drops out-of-scope payloads after the whole-scene diff, grows the scope with new layers, and counts what it dropped (ENGINE_REV `2026-09-07.2`). |
+| The panel said nothing about scope until recording had started, and the "nothing selected" nudge could not say what WAS being recorded. | The deck's idle readout shows what Record will watch, from a 1 Hz `selection.peek` poll. The nudge is now a scope chip: "Recording Layer A." with a running "2 changes outside Layer A ignored" counter, or "Recording the whole scene." |
+| A single-layer recording saved the SCENE as the macro's `source`, and the targets-mode legacy fallback pointed `findNodeById` at a scene id. | A single-layer scope returns that layer as `nodeId`/`nodeName`. Replay of a layer-bound macro does not depend on it (scene mode resolves by recorded id and name). |
+| The capture offer took the chip's slot, so a keyframed layer kept selected hid the ignored counter for the whole session. | The offer stacks above the scope chip instead of replacing it. |
+| The chip and the review hint named the scope as it STARTED; after a duplicate joined it they still said "Recording Layer A". | `record.tick` returns `scope` on the tick that grew it; the panel updates the chip and carries the grown scope into review ("Recorded 2 layers only"). |
+| A `selection.peek` that kept failing (a stale sandbox without the method) was retried once a second with no trace. | The idle poll backs off to 16 s after repeated failures and traces the first one. |
+| The capture offer appeared for a layer selected mid-recording even when the scope excluded it. | `computeCaptureOffer` returns nothing for a layer outside a layers scope. |
+| **The review sheet opened on the raw recording, and Simplify was a button few pressed.** The 500 ms tick loop turns one drag into a chain of micro-steps: a real session left 5 raw steps for 3 deliberate edits, and the macro read as noise unless the user found the button. | The sheet opens simplified. `RECORD_STOP` carries `autoSimplify` (absent means true) and the reviewing state keeps `rawSteps`, so the new "Keep every step" switch swaps the two lists. The choice is remembered for the panel session in an `autoSimplifyRef`. A saved macro's drawer keeps the manual Simplify button. |
+
 ## 2026-09-07 — Nest by rebuild
 
 | Issue | Fix |

@@ -139,8 +139,12 @@ check(
 posted.length = 0;
 sendToPlugin({ t: "req", id: 2, method: "record.start", params: {} });
 check(
-  "record.start sync response (whole scene, selection counted)",
-  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.nodeId === "scene1" &&
+  // The fake selection holds the one layer, so the scope is that layer and
+  // it — not the scene — is the macro's source node.
+  "record.start sync response (layer scope, selection counted)",
+  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.nodeId === "n1" &&
+    posted[0]?.result?.scope?.kind === "layers" &&
+    posted[0]?.result?.scope?.layers?.[0]?.id === "n1" &&
     posted[0]?.result?.selectionCount === 1,
   JSON.stringify(posted[0] ?? null),
 );
@@ -350,6 +354,66 @@ check(
   JSON.stringify(posted[0]?.result ?? null),
 );
 sendToPlugin({ t: "req", id: 18, method: "playback.end", params: {} });
+
+// 11. Selection scope. `selection.peek` must answer from the same
+//     invocation (the panel polls it while idle), and a scoped recording
+//     must drop — and count — edits to layers it does not watch.
+vm.unwrapResult(
+  vm.evalCode(`
+    globalThis.__fakeNodes.push({
+      id: "n2", name: "Layer 2", type: "SHAPE_LAYER",
+      startFrame: 0, endFrame: 150, timelineOffset: 0,
+      position: {
+        isAnimated: false,
+        staticValue: { x: 300, y: 20 },
+        keyframes: [],
+        addKeyframes(list) {},
+      },
+      fills: [], strokes: [], masks: [], shapes: [],
+    });
+    // Select the RECTANGLE inside Layer 1: the scope resolves to its owner.
+    globalThis.__fakeSelection = [globalThis.__fakeNodes[0].shapes[0]];
+  `),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 30, method: "selection.peek", params: {} });
+const peek = posted[0]?.result;
+check(
+  "selection.peek names the owning layer with NO job pump",
+  posted.length === 1 &&
+    posted[0]?.ok === true &&
+    peek?.scope?.kind === "layers" &&
+    peek?.scope?.layers?.length === 1 &&
+    peek?.scope?.layers?.[0]?.id === "n1" &&
+    peek?.sceneName === "Main Scene",
+  JSON.stringify(peek ?? posted[0] ?? null),
+);
+
+posted.length = 0;
+sendToPlugin({ t: "req", id: 31, method: "record.start", params: {} });
+const scoped = posted[0]?.result;
+check(
+  "record.start scopes to the selected shape's layer and names it as the source",
+  posted.length === 1 &&
+    scoped?.scope?.kind === "layers" &&
+    scoped?.scope?.layers?.[0]?.id === "n1" &&
+    scoped?.nodeId === "n1",
+  JSON.stringify(scoped ?? posted[0] ?? null),
+);
+
+vm.unwrapResult(
+  vm.evalCode(`globalThis.__fakeNodes[1].position.staticValue = { x: 310, y: 20 };`),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 32, method: "record.tick", params: { seq: 1 } });
+check(
+  "an edit outside the scope is counted, not recorded",
+  posted.length === 1 &&
+    posted[0]?.result?.steps?.length === 0 &&
+    posted[0]?.result?.ignored === 1,
+  JSON.stringify(posted[0]?.result ?? null),
+);
+sendToPlugin({ t: "req", id: 33, method: "record.discard", params: {} });
 
 onMessageCallback.dispose();
 vm.dispose();
