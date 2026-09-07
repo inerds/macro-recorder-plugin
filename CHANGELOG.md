@@ -4,7 +4,7 @@ This is the user-facing record: user-visible changes per shared version, one
 dated block per release. The engineering log — what was wrong and what changed,
 one row per fix — is `docs/history/improvements.md`.
 
-## Unreleased
+## 0.7.0 — 2026-09-07
 
 - Nesting layers now really nests them. Creator gives no plugin a way to move
   a layer into a scene, so the plugin rebuilds each selected layer inside the
