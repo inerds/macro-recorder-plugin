@@ -122,6 +122,49 @@ load-bearing:
   headroom over the 4.5 bar, so the change that reads is the lower two thirds
   (`#A62C1C` → `#B5301F`). The 1px inset sheen and the lamp colours are not
   part of this and do not move.
+- **Red is the action colour; blue is red's exact-values mode, on the two
+  Record keys and nowhere else.** Holding Option (macOS) or Alt (Windows) on
+  a Record key records a layer's transform steps as their end values, and the
+  key says so by turning cobalt — while the modifier is held over it, and for
+  the whole recording it starts. The blue is `--ink-blue` (#2B6BCB), with
+  `--ink-blue-hover` (#255BAD) for the twin of `--primary-hover`. It is not a
+  second action colour and it never appears on any other control: a blue key
+  anywhere else would read as a second kind of "this does something".
+- **The blue is the red at the same weight, not a blue that looked right.**
+  Every stop is a cobalt at hue 216 and 65% saturation whose lightness is
+  solved so its relative luminance EQUALS the red stop it replaces, which
+  makes every contrast ratio identical to two decimals — the same face that
+  survives on the dark chassis survives here, and the same `#FFF3EE` legend
+  clears the same bar. `.key-plate-blue` (`deck.css`) and `.key-blue`
+  (`index.css`) carry the same three values and retune together, the way the
+  red pair does. Measured against `#FFF3EE`, and against the `--deck` chassis
+  (#1C1A18) the plate cap sits on:
+
+  | State | Gradient | Top | Middle | Bottom |
+  |---|---|---|---|---|
+  | Rest | `#2B6BCB → #2660B5 60% → #2357A6` | 4.76:1 | 5.67:1 | 6.44:1 |
+  | Hover | `#2C6DCE → #2660B5` | 4.62:1 | 5.67:1 | — |
+  | Pressed | `#2459A8 → #1E4B8D` | 6.30:1 | 7.93:1 | — |
+
+  Against the chassis the rest face reads 3.35 / 2.82 / 2.48:1, and on the
+  cream `--background` the paper cap reads 4.36 / 5.19 / 5.89:1 — the red's
+  own numbers in both places. The cap's side wall is `#1F4D92 → #163667`.
+- **The dead exact key is a dark BLUE key.** Record is reachable only from
+  rest, so an exact recording disables the very key that says it is exact.
+  `.key-plate-blue:disabled` keeps the hue and takes the dead cap's own
+  darkness (`#344661 → #273549`, hue 216 at 30% over the grey dead cap's
+  luminances, wall `#29374B → #18202C`), so "a dead key is a dark key" and
+  "this recording is exact" are both still true and the inherited `#9A9289`
+  legend reads 3.12:1 and 4.06:1 on it — the grey cap's own numbers.
+- **The modifier is read from the pointer first, and from the keys only while
+  the pointer is over the key.** A plugin runs in an iframe, and an iframe
+  gets `keydown` only while it has focus — a user who last clicked in
+  Creator's canvas presses Option and the panel hears nothing. Every mouse
+  event carries `altKey` whatever holds focus, so `useExactModifierHover`
+  (`ui/components/recordModifier.ts`) reads `onMouseEnter` / `onMouseMove`
+  first and binds `keydown` / `keyup` on `window` only while hovering, which
+  catches a modifier pressed with the pointer already at rest on the key.
+  A `blur` clears it: a window that loses focus never sends the keyup.
 - **A destructive confirm is `.key.key-armed`, never `.key-red`.**
   `ConfirmInline`'s confirm wore the exact cap that Save wears, so "Delete"
   and "Save" were one object in one place and the word was the only thing

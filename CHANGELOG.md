@@ -6,6 +6,11 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- Hold Option (macOS) or Alt (Windows) while you press Record to record exact
+  values. The Record key turns blue, and every change to a layer's own
+  position, rotation, scale, skew, and skew axis is recorded as a **Set to**
+  step rather than as a delta — for macros that put things in fixed places.
+  Both Record keys take the modifier, from the pointer or from the keyboard.
 - The panel opens at 320 × 560 instead of 300 × 520: two more rows in the
   list, and the reels a touch larger.
 - What you select before you press Record now decides what the recorder

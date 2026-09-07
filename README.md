@@ -70,7 +70,9 @@ the scene settings included. The deck shows which one Record will do. An
 edit outside the recorded layers is dropped and counted on the recording
 screen, never dropped in silence. While you record, selecting one keyframed
 recorded layer offers to **capture** its keyframes and current style into the
-macro.
+macro. Hold Option (macOS) or Alt (Windows) while you press Record, and the
+recording stores every layer-transform step as the value it ended at rather
+than as a delta.
 
 Replay picks one of two modes. A macro that touched at most one layer applies
 to every **selected layer**: the layer's own position, rotation, and skew
@@ -143,7 +145,7 @@ the fake scene from the console through `window.harness`.
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (716 tests, 31 files)
+pnpm test          # vitest: engine logic, reducer, demo-macro replay (734 tests, 33 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)

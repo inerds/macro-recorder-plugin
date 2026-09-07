@@ -93,7 +93,12 @@ function paramDefaults(macro: Macro): Record<string, EditableValue> {
 }
 
 export interface AppActions {
-  startRecording(): void;
+  /**
+   * Starts a recording. `exact` — the Option/Alt modifier held on the Record
+   * key — records this session's layer-transform steps as their end values
+   * rather than as deltas. Per press, never remembered.
+   */
+  startRecording(options?: { exact?: boolean }): void;
   /** Pull the offered layer's existing timeline keyframes into the recording. */
   captureLayerKeyframes(scope: "all" | "selected"): void;
   stopRecording(): void;
@@ -420,17 +425,20 @@ export function AppProvider({ gateways, children }: { gateways: Gateways; childr
 
   const actions = useMemo<AppActions>(
     () => ({
-      startRecording() {
+      startRecording(options) {
         recorder
           .start()
           .then((source) => {
             recordingSourceRef.current = source ?? null;
             // The scope is fixed here, at start, and the chip says so for the
-            // whole session — the selection is free to move after this.
+            // whole session — the selection is free to move after this. The
+            // exact-values modifier is fixed the same way, and for the same
+            // reason: what the key said it would do is what the session does.
             dispatch({
               type: "RECORD_START",
               startedAt: Date.now(),
               ...(source?.scope ? { scope: source.scope } : {}),
+              ...(options?.exact ? { exact: true } : {}),
             });
           })
           .catch((error: unknown) => {

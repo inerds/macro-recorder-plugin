@@ -481,6 +481,15 @@ that pattern; it is what makes late-arriving gateway callbacks (a tick that land
 after stop) harmless. The reducer is pure and fully unit-tested; side effects
 live in `ui/state/AppContext.tsx`.
 
+**The exact-values modifier is stamped in the reducer, not in the sandbox.**
+Option or Alt on either Record key sets `exact` on the recording state, and
+`STEP_RECEIVED` then passes each step through `engine/exact.ts#withExactApply`,
+which writes `apply = { scale: 0, offset: after }` onto an eligible
+`set-static` and rebuilds its label. The modifier changes how the panel STORES
+what the host reported, never what the host is asked for, so the recorder
+gateway, `sandbox/recorder.ts`, and `ENGINE_REV` are all untouched — and the
+stamp stays a pure function the reducer tests cover.
+
 ## Runtime environments this code must survive
 
 Three, and they differ in what globals exist:

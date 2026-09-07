@@ -1,7 +1,8 @@
-import { Button } from "@lottiefiles/creator-plugins-ui";
+import { Button, cn } from "@lottiefiles/creator-plugins-ui";
 import type { ReactNode } from "react";
 
 import type { ScopeReport } from "../../../engine/protocol";
+import { isExactActivation, isExactModifier, useExactModifierHover } from "../recordModifier";
 import { scopeName } from "../scopeText";
 import { deckCountLabel, deckLabel, deckLamp, type DeckState } from "./deckState";
 import { useElapsed } from "./useElapsed";
@@ -33,8 +34,15 @@ export interface DeckTransportProps {
   stage: ReactNode;
   recordDisabled: boolean;
   stopDisabled: boolean;
-  onRecord: () => void;
+  /**
+   * `exact` reports the Option/Alt modifier the press carried — the key that
+   * reads the modifier is the key that starts the recording, so the two can
+   * never disagree.
+   */
+  onRecord: (options: { exact: boolean }) => void;
   onStop: () => void;
+  /** An exact-values recording is running: the key stays blue for the session. */
+  recordingExact?: boolean;
 }
 
 /** The counter is a four-digit mechanical readout: it never changes width. */
@@ -61,8 +69,14 @@ export function DeckTransport({
   stopDisabled,
   onRecord,
   onStop,
+  recordingExact = false,
 }: DeckTransportProps) {
   const elapsed = useElapsed(startedAt);
+  // Blue under the modifier, and blue for the whole session once an exact
+  // recording runs: the key says what the next press will do, then what the
+  // running recording IS doing.
+  const exactModifier = useExactModifierHover();
+  const exact = recordingExact || exactModifier.held;
   const lamp = deckLamp(state);
   // Blank on every other screen: a review sheet and a running macro have no
   // scope to state, and a caption that keeps the last one would be a lie.
@@ -98,11 +112,21 @@ export function DeckTransport({
         <span className="deck-keys">
           <Button
             size="sm"
-            className="key-plate key-plate-red"
+            className={cn("key-plate", exact ? "key-plate-blue" : "key-plate-red")}
             aria-label="Record"
             data-testid="record-button"
+            data-exact={exact ? "true" : undefined}
             disabled={recordDisabled}
-            onClick={onRecord}
+            {...exactModifier.handlers}
+            onClick={(event) => onRecord({ exact: isExactModifier(event) })}
+            // A keyboard press has to carry the modifier too. The default
+            // activation would fire its own click, so an exact activation
+            // takes the press here and cancels it.
+            onKeyDown={(event) => {
+              if (!isExactActivation(event)) return;
+              event.preventDefault();
+              onRecord({ exact: true });
+            }}
           >
             {/* The faceplate legend is the abbreviation a deck actually
                 wears. The accessible name stays the full word via
@@ -182,8 +206,6 @@ function scopeCaption(
     legend: phase === "idle" ? "Records" : "Recording",
     value,
     label: phase === "idle" ? `Record will watch ${spoken}` : `Recording ${spoken}`,
-    ...(scope.kind === "scene" && scope.fallback === "unresolved"
-      ? { title: FALLBACK_TITLE }
-      : {}),
+    ...(scope.kind === "scene" && scope.fallback === "unresolved" ? { title: FALLBACK_TITLE } : {}),
   };
 }

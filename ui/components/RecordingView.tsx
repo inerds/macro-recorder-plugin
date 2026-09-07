@@ -14,6 +14,8 @@ export interface RecordingViewProps {
   scope?: ScopeReport | null;
   /** Running count of edits dropped as outside that scope. */
   ignored?: number;
+  /** The exact-values modifier was held on Record: the chip says so. */
+  exact?: boolean;
   captureOffer: CaptureOffer | null;
   capturedAllLayerIds: string[];
   onCapture: (scope: "all" | "selected") => void;
@@ -33,6 +35,7 @@ export function RecordingView({
   confirmingDiscard,
   scope = null,
   ignored = 0,
+  exact = false,
   captureOffer,
   capturedAllLayerIds,
   onCapture,
@@ -42,6 +45,11 @@ export function RecordingView({
   onDiscardConfirm,
 }: RecordingViewProps) {
   const isLayerScope = scope?.kind === "layers" && scope.layers.length > 0;
+  // The chip's first sentence names what is watched; the modifier only adds
+  // HOW the steps are recorded, so it rides that sentence instead of taking a
+  // line of its own on a 300px panel.
+  const what = isLayerScope ? `Recording ${scopeName(scope)}` : "Recording the whole scene";
+  const headline = exact ? `${what} · exact values.` : `${what}.`;
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="recording-view">
       <h2 className="sr-only">Recording</h2>
@@ -72,31 +80,29 @@ export function RecordingView({
               </div>
             ) : null}
             {scope ? (
-          <div className="mb-2">
-            {/* Standing statement of what is being recorded, not an alert.
+              <div className="mb-2">
+                {/* Standing statement of what is being recorded, not an alert.
                 It stacks UNDER the capture offer rather than yielding to it:
                 the counter on this chip is the only place a dropped edit is
                 ever reported, and a keyframed layer can stay selected for a
                 whole session. Not a live region either — the counter moves
                 on every dropped edit, and a screen reader reading each one
                 would talk over the work. */}
-            <div
-              className="inline-enter rounded-[10px] border border-dashed border-border bg-muted/60 p-2 text-12 text-muted-foreground"
-              role="note"
-              data-testid="scope-chip"
-            >
-              <strong className="font-medium text-foreground">
-                {isLayerScope ? `Recording ${scopeName(scope)}.` : "Recording the whole scene."}
-              </strong>{" "}
-              {isLayerScope
-                ? ignored > 0
-                  ? `${ignoredText(ignored, scope)}.`
-                  : "Edits to other layers are ignored. New layers are recorded."
-                : scope.kind === "scene" && scope.fallback === "unresolved"
-                  ? "The selection isn't in this scene."
-                  : "Select a layer before you press Record to record that layer only."}
-            </div>
-          </div>
+                <div
+                  className="inline-enter rounded-[10px] border border-dashed border-border bg-muted/60 p-2 text-12 text-muted-foreground"
+                  role="note"
+                  data-testid="scope-chip"
+                >
+                  <strong className="font-medium text-foreground">{headline}</strong>{" "}
+                  {isLayerScope
+                    ? ignored > 0
+                      ? `${ignoredText(ignored, scope)}.`
+                      : "Edits to other layers are ignored. New layers are recorded."
+                    : scope.kind === "scene" && scope.fallback === "unresolved"
+                      ? "The selection isn't in this scene."
+                      : "Select a layer before you press Record to record that layer only."}
+                </div>
+              </div>
             ) : null}
           </>
         )}
@@ -105,9 +111,7 @@ export function RecordingView({
           {/* Not a live region: at one tick every 500ms it read the count
               aloud over everything else. The total is announced once, on stop. */}
           <span className="mono shrink-0 text-10 text-muted-foreground tabular-nums">
-            {`${String(steps.length).padStart(2, "0")} ${
-              steps.length === 1 ? "step" : "steps"
-            }`}
+            {`${String(steps.length).padStart(2, "0")} ${steps.length === 1 ? "step" : "steps"}`}
           </span>
         </div>
         {/* A well, not a card: the step rows are `bg-card` themselves, so a

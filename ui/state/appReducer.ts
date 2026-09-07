@@ -1,4 +1,5 @@
 import { withEditedValue, type EditableValue } from "../../engine/editing";
+import { withExactApply } from "../../engine/exact";
 import type { CaptureOffer, ScopeReport } from "../../engine/protocol";
 import type { MacroParam } from "../../engine/macro";
 import { simplifySteps } from "../../engine/simplify";
@@ -166,6 +167,12 @@ export type AppState =
       scope: ScopeReport | null;
       /** Running count of edits dropped as outside that scope (cumulative). */
       ignored: number;
+      /**
+       * The exact-values modifier was held when Record was pressed, so every
+       * eligible transform step is stamped with its recorded end value. Fixed
+       * for the session: the modifier is read once, per press.
+       */
+      exact: boolean;
     }
   | {
       mode: "reviewing";
@@ -186,6 +193,9 @@ export type AppState =
       source?: { nodeId: string; nodeName?: string };
       /** What the recording watched — the review sheet says so in a hint. */
       scope?: ScopeReport;
+      /** The recording was made with the exact-values modifier held. Carried
+       *  through so the review hint can say so; the steps already carry it. */
+      exact?: boolean;
       /** Review has a toast channel too: Simplify reports its count here. */
       notice: Notice | null;
     }
@@ -210,7 +220,7 @@ export type AppState =
 
 export type AppEvent =
   | { type: "MACROS_LOADED"; macros: Macro[] }
-  | { type: "RECORD_START"; startedAt: number; scope?: ScopeReport }
+  | { type: "RECORD_START"; startedAt: number; scope?: ScopeReport; exact?: boolean }
   | { type: "RECORD_IGNORED_COUNT"; count: number }
   | { type: "RECORD_SCOPE"; scope: ScopeReport }
   /** The idle poll's answer. Ignored outside idle, and identity-stable when
@@ -322,11 +332,19 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         notice: null,
         scope: event.scope ?? null,
         ignored: 0,
+        exact: event.exact === true,
       };
 
     case "STEP_RECEIVED":
       if (state.mode !== "recording") return state;
-      return { ...state, steps: [...state.steps, event.step] };
+      // The stamp happens here, not in the sandbox: what the modifier changes
+      // is how the panel stores what the host reported, so the recorder and
+      // the engine revision are untouched. `withExactApply` returns every
+      // step it does not stamp as the same object.
+      return {
+        ...state,
+        steps: [...state.steps, state.exact ? withExactApply(event.step) : event.step],
+      };
 
     case "RECORD_IGNORED_COUNT":
       if (state.mode !== "recording") return state;
@@ -389,6 +407,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           notice: null,
           ...(event.source ? { source: event.source } : {}),
           ...(event.scope ? { scope: event.scope } : {}),
+          ...(state.exact ? { exact: true } : {}),
         };
       }
 

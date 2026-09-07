@@ -91,11 +91,25 @@ engine as soon as the engine answers.
    recorded nothing, you return to the list. Otherwise the **review sheet**
    opens.
 
+**Hold Option (macOS) or Alt (Windows) while you press Record to record
+exact values.** The Record key turns blue while you hold the modifier, and it
+stays blue for the recording it starts. The recorder then records each change
+to a layer's own position, rotation, scale, skew, and skew axis as a **Set to**
+step, which puts the target at that value. Without the modifier the same
+changes record as **Add** or **Multiply** steps, which move the target from
+where it is. Use exact values when you want a macro that puts things in fixed
+places. Keyframes, fills, and everything else record the same way in both
+modes. The modifier applies to one press: it is not remembered. On the
+keyboard, hold the same modifier and press Enter or Space on the Record key.
+Both Record keys take it — the deck's key and the Record key on the empty
+list.
+
 **What the recorder watches is fixed when you press Record.** A chip above
 the live feed names it: *Recording Layer A* or *Recording the whole scene*.
 When you record a layer, an edit to any other layer is not recorded, and the
-chip counts what it dropped: *2 changes outside Layer A ignored*. A layer that
-did not exist when you pressed Record is always recorded: duplicate the
+chip counts what it dropped: *2 changes outside Layer A ignored*. An exact
+recording says so in the same chip: *Recording Layer A · exact values.*
+A layer that did not exist when you pressed Record is always recorded: duplicate the
 recorded layer, or any layer, and the copy joins the recording, and so does a
 new layer or a scene layer you nest the recorded layer into. Scene settings
 record only in a whole-scene recording. If your selection is not in the
@@ -281,7 +295,8 @@ Four rules cover the rest:
 - The default is relative. A recorded drag opens as **Add** `60`, a recorded
   rotation as **Add** `45`, and a recorded scale as **Multiply** `2` —
   position, rotation, skew, and skew axis shift each target from its own
-  start, and scale multiplies.
+  start, and scale multiplies. To record these steps as **Set to** instead,
+  hold Option or Alt when you press Record — see §2.
 - A recorded rotation of 0, skew of 0, skew axis of 0, or scale of 100% opens
   as **Set to** `0` or **Set to** `100`, because it is a reset. A delta to
   zero is never what you meant. This applies to macros you recorded before

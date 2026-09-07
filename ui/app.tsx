@@ -188,6 +188,7 @@ function Panel({
                 confirmingDiscard={state.confirmingDiscard}
                 scope={state.scope}
                 ignored={state.ignored}
+                exact={state.exact}
                 captureOffer={state.captureOffer}
                 capturedAllLayerIds={state.capturedAllLayerIds}
                 onCapture={actions.captureLayerKeyframes}
@@ -204,6 +205,7 @@ function Panel({
                 simplified={state.simplified}
                 params={state.params}
                 scope={state.scope}
+                exact={state.exact}
                 onNameChange={actions.changeReviewName}
                 onDeleteStep={actions.deleteReviewStep}
                 onSimplifiedChange={actions.setReviewSimplified}

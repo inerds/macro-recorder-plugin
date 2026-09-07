@@ -12,6 +12,12 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-07 — Record exact values
+
+| Issue | Fix |
+|---|---|
+| A layer's own transform always recorded as a delta, so a macro that puts things in fixed places was only reachable by editing every step's verb to **Set to** after the fact — one edit per component, per step. | Hold Option (macOS) or Alt (Windows) on either Record key and that recording stamps every eligible `set-static` with `apply = { scale: 0, offset: after }` and relabels it in the arrow form (`engine/exact.ts#withExactApply`, applied in `STEP_RECEIVED`). The key turns cobalt under the modifier and stays cobalt for the session (`--ink-blue` #2B6BCB, luminance-matched to `--primary`, so every contrast ratio is the red's); the chip and the review hint say "· exact values". UI-only: the recorder gateway and `ENGINE_REV` are untouched. |
+
 ## 2026-09-07 — Panel size (ENGINE_REV `2026-09-07.8`)
 
 | Issue | Fix |

@@ -1113,3 +1113,73 @@ describe("store-loaded flag", () => {
     expect(saved.mode === "idle" && saved.loaded).toBe(true);
   });
 });
+
+describe("exact-values recording", () => {
+  /** The transform step the modifier stamps: a move on a layer's own position. */
+  const move = buildStep({
+    op: "set-static",
+    path: ["position"],
+    before: { x: 100, y: 20 },
+    after: { x: 160, y: 20 },
+    layer: { id: "L1", name: "Layer A" },
+  });
+
+  /** A paint step: eligible for nothing, so it must come through untouched. */
+  const fill = buildStep({
+    op: "set-static",
+    path: ["fills", 0, "color"],
+    before: { r: 0, g: 0, b: 0 },
+    after: { r: 255, g: 0, b: 0 },
+    layer: { id: "L1", name: "Layer A" },
+  });
+
+  function recorded(exact: boolean, steps: MacroStep[]): AppState {
+    let state = appReducer(initialState, { type: "RECORD_START", startedAt: 1000, exact });
+    for (const received of steps)
+      state = appReducer(state, { type: "STEP_RECEIVED", step: received });
+    return state;
+  }
+
+  it("stamps a transform step with its recorded end value", () => {
+    const state = recorded(true, [move]);
+    const stamped = state.mode === "recording" ? state.steps[0] : null;
+    expect((stamped?.payload as { apply?: unknown }).apply).toEqual({
+      x: { scale: 0, offset: 160 },
+      y: { scale: 0, offset: 20 },
+    });
+  });
+
+  it("relabels a stamped step in the arrow form", () => {
+    // Relative recording prints "position.x +60"; an exact step sets a value.
+    expect(move.label).toContain("+60");
+    const state = recorded(true, [move]);
+    const stamped = state.mode === "recording" ? state.steps[0] : null;
+    expect(stamped?.label).toContain("→");
+    expect(stamped?.label).not.toContain("+60");
+  });
+
+  it("leaves a step the modifier does not reach exactly as it arrived", () => {
+    const state = recorded(true, [fill]);
+    expect(state.mode === "recording" && state.steps[0]).toBe(fill);
+  });
+
+  it("stamps nothing when the modifier was not held", () => {
+    const state = recorded(false, [move, fill]);
+    expect(state.mode === "recording" && state.exact).toBe(false);
+    expect(state.mode === "recording" && state.steps[0]).toBe(move);
+    expect(state.mode === "recording" && state.steps[1]).toBe(fill);
+  });
+
+  it("carries the flag into the review sheet, and never invents it", () => {
+    const exact = appReducer(recorded(true, [move]), {
+      type: "RECORD_STOP",
+      suggestedName: "Place",
+    });
+    expect(exact.mode === "reviewing" && exact.exact).toBe(true);
+    const relative = appReducer(recorded(false, [move]), {
+      type: "RECORD_STOP",
+      suggestedName: "Move",
+    });
+    expect(relative.mode === "reviewing" && relative.exact).toBeUndefined();
+  });
+});

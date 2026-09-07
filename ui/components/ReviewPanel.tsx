@@ -23,6 +23,8 @@ export interface ReviewPanelProps {
   params: MacroParam[];
   /** What the recording watched — said once, above the list it produced. */
   scope?: ScopeReport;
+  /** The recording was made with the exact-values modifier held. */
+  exact?: boolean;
   onNameChange: (name: string) => void;
   onDeleteStep: (stepId: string) => void;
   onSimplifiedChange: (simplified: boolean) => void;
@@ -44,6 +46,7 @@ export function ReviewPanel({
   simplified,
   params,
   scope,
+  exact = false,
   onNameChange,
   onDeleteStep,
   onSimplifiedChange,
@@ -69,13 +72,21 @@ export function ReviewPanel({
 
   // What was watched comes before what the list will do on replay: it is the
   // one line that explains why a step the user expected is not in the list.
-  const scopeHint = !scope
+  const scopeText = !scope
     ? null
     : scope.kind === "layers" && scope.layers.length > 1
       ? `Recorded ${scope.layers.length} layers only`
       : scope.kind === "layers" && scope.layers.length === 1
         ? `Recorded ${scopeName(scope)} only`
         : "Recorded the whole scene";
+  // The modifier is part of the same answer — what was watched, and how it
+  // was written down — so it extends that line rather than adding one. With
+  // no scope to name it still has to be said: the steps replay differently.
+  const scopeHint = exact
+    ? scopeText
+      ? `${scopeText} · exact values`
+      : "Recorded exact values"
+    : scopeText;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="review-panel">

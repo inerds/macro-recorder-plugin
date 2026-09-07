@@ -68,7 +68,10 @@ export function Deck() {
         // used to be dead through the whole run, which left the only way out
         // inside the playing macro's own row.
         stopDisabled={state.mode !== "recording" && state.mode !== "playing"}
-        onRecord={actions.startRecording}
+        // The Option/Alt modifier rides the press itself; the key that read
+        // it is the key that starts the recording.
+        onRecord={(options) => actions.startRecording(options)}
+        recordingExact={state.mode === "recording" && state.exact}
         onStop={() => {
           if (state.mode === "playing") actions.resolvePlaybackFailure("stop");
           else actions.stopRecording();

@@ -603,6 +603,54 @@
   background: linear-gradient(180deg, #8f2b20, #671d15);
 }
 
+/* The exact-values cap: the SAME recipe as the red one, on a cobalt whose
+   every stop has the red stop's luminance — 4.76 / 5.67 / 6.44:1 against the
+   #FFF3EE legend, 3.35 / 2.82 / 2.48:1 against the chassis. Blue is not a
+   second action colour: it is red's exact-values mode, on the two Record keys
+   and nowhere else (design-system.md). Move it with `.key-blue` in index.css
+   and with --ink-blue, the way the red three move together. */
+.key-plate-blue.key-plate-blue:not(:disabled) {
+  color: #fff3ee;
+  background: linear-gradient(180deg, #2b6bcb 0%, #2660b5 60%, #2357a6 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 0 0 1px rgba(18, 15, 12, 0.55),
+    0 3px 0 #0b0a09,
+    0 4px 3px rgba(0, 0, 0, 0.45);
+}
+
+.key-plate-blue.key-plate-blue:not(:disabled)::after {
+  background: linear-gradient(180deg, #1f4d92, #163667);
+}
+
+/* Hover lifts the whole face one step, as the red does: 4.62 / 5.67:1. */
+.key-plate-blue.key-plate-blue:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2c6dce 0%, #2660b5 100%);
+}
+
+/* Pressed reads darker than rest: 6.30 / 7.93:1. */
+.key-plate-blue.key-plate-blue:active:not(:disabled) {
+  background: linear-gradient(180deg, #2459a8 0%, #1e4b8d 100%);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(18, 15, 12, 0.5),
+    0 1px 0 #0b0a09;
+}
+
+/* An exact recording DISABLES the key it started from (Record is reachable
+   only from rest), and the state has to survive that: the cap keeps the blue
+   and takes the dead key's own darkness, so "a dead key is a dark key" and
+   "this recording is exact" are both still true. Hue 216 at 30% — unlit, not
+   a lit cap faded — over the grey dead cap's exact luminances, so the
+   #9A9289 legend reads 3.12:1 and 4.06:1 on it, the same as on the grey. */
+.key-plate-blue.key-plate-blue:disabled {
+  background: linear-gradient(180deg, #344661 0%, #273549 100%);
+}
+
+.key-plate-blue.key-plate-blue:disabled::after {
+  background: linear-gradient(180deg, #29374b, #18202c);
+}
+
 /* Pressed reads darker than rest (6.30 / 7.06 / 7.93:1). */
 .key-plate-red.key-plate-red:active:not(:disabled) {
   background: linear-gradient(180deg, #a82d21 0%, #8f241a 100%);
