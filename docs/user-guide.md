@@ -118,16 +118,17 @@ review sheet, or leave it as a reminder.
 
 The review sheet shows the macro's name and every recorded step, in the same
 recessed list the live feed uses. Each step reads as its property and its new
-value, for example `position.x → 160`. Hover or focus a step to see the value
-it replaced. A sentence above the list names what the macro applies to,
-including the recorded layer for a single-layer macro.
+value, for example `position.x +60`. A transform step reads as the formula
+it applies (see §5). Hover or focus a step to see the value it replaced. A
+sentence above the list names what the macro applies to, including the
+recorded layer for a single-layer macro.
 
 | Control | What it does |
 |---|---|
 | **Macro name** | Defaults to *Macro N*, and Enter saves. |
 | **× on a step** (hover) | Removes the step permanently. |
 | **Eye toggle** (*Skip step N during playback*) | Keeps the step in the macro but makes playback skip it; click again to re-enable. |
-| **Pencil** | Edits the step's value inline (see §5). |
+| **Pencil** | Edits the step's value or formula inline (see §5). |
 | **Pin** (*Ask for step N's value on every play*) | Marks the step as a parameter (see §8). |
 | **Keep every step** | Shows the recording as it was captured, instead of the merged list the sheet opens with (see §4). The readout says what was merged: `12 → 5`. |
 | **⊘ Skipped** | Not a control: Creator's plugin API cannot do this operation, so playback skips it. |
@@ -217,21 +218,81 @@ list and press it to merge the steps that are stored.
 
 ## 5. Edit a step's value
 
-Hover or focus a step, then click the **pencil**. The pencil shows only for
-steps with an editable value. The label becomes an editor:
+Hover or focus a step, then click the **pencil**. The pencil shows for steps
+with an editable value, and for keyframe steps on a layer's transform. The
+label becomes an editor:
 
 | Recorded value | Editor |
 |---|---|
-| number (rotation, opacity, width…) | number field |
-| x/y vector (position, scale, size…) | one field per component |
+| position, rotation, skew, skew axis, scale | a verb and a number box per component (see below) |
+| number (opacity, width…) | number field |
+| x/y vector (size…) | one field per component |
 | color | color picker + hex field |
 | text (blend mode, layer name) | text field |
 | on/off flag | checkbox |
 | a newly created layer | its name |
 
 Press **Enter** or click away to commit. Press **Esc** to cancel. The step's
-label updates to the new value. Keyframe steps and path-geometry edits are not
-editable this way — re-record those.
+label updates to the new value. Path-geometry edits are not editable this
+way — re-record those.
+
+### The step's verb: set a value, or change it
+
+A step on a layer's own position, rotation, skew, skew axis, or scale opens as
+a verb and one number box. A vector property gets one row per component, **X**
+and **Y**. Click the verb to change what replay does:
+
+| Verb | What replay does |
+|---|---|
+| **Set to** | Sets the value to the number. |
+| **Add** | Adds the number to the target's own value. |
+| **Subtract** | Subtracts the number from the target's own value. |
+| **Multiply** | Multiplies the target's own value by the number. |
+| **Divide** | Divides the target's own value by the number. |
+| **Formula…** | Hands the box a whole expression. |
+
+You can also type the operator into the number box: a leading `+`, `-`, `*`,
+`/`, or `=` selects the verb it names and leaves the box. Under **Set to** a
+leading `-` is a negative number.
+
+The verb you choose always wins. Between **Add** and **Subtract**, or
+between **Multiply** and **Divide**, the number stays as you typed it:
+**Add** `30` becomes **Subtract** `30`. Between those pairs and **Set to**,
+the number converts through the value the step recorded, so it keeps
+meaning the same edit. A drag from 100 to 130 opens as **Add** `30`. Choose
+**Set to** and the box shows `130`. Choose **Multiply** and it shows `1.3`.
+A step recorded from 0 cannot use **Multiply** or **Divide** — those two
+items go quiet and say why.
+
+Numbers show two decimals. A number that two decimals would flatten into
+"changes nothing" — a shift of `0.00004`, a scale of `1.00001` — keeps the
+digits it needs. What you type is stored as you type it, however many decimals
+that is.
+
+**Formula** is for everything the five verbs cannot say. Choose **Formula…**,
+or type `v` anywhere in the number box and the verb changes on its own: `v` is
+the value the target holds when the macro reaches it, and the box takes `+`,
+`-`, `*`, `/`, parentheses, and one `v`. Type `v * 2 + 10` to multiply and then
+add. `current` works as a synonym for `v`.
+
+Four rules cover the rest:
+
+- The default is relative. A recorded drag opens as **Add** `60`, a recorded
+  rotation as **Add** `45`, and a recorded scale as **Multiply** `2` —
+  position, rotation, skew, and skew axis shift each target from its own
+  start, and scale multiplies.
+- A recorded rotation of 0, skew of 0, skew axis of 0, or scale of 100% opens
+  as **Set to** `0` or **Set to** `100`, because it is a reset. A delta to
+  zero is never what you meant. This applies to macros you recorded before
+  this version too.
+- Only arithmetic that is linear in `v` is accepted. The box refuses `v * v`
+  and `10 / v`, and says why in the line under it. An expression longer than
+  200 characters is refused too.
+- The box takes no references to other properties, layers, or scenes.
+
+With nothing selected, a macro recorded on one layer rebuilds the recorded
+result on that layer, and the formulas do not apply. Formulas matter when you
+play the macro onto selected layers.
 
 ---
 
@@ -249,8 +310,9 @@ selection, you get the usual *Select a layer first*.
 nothing selected, they apply to the layer they were recorded on, if it still
 exists. The values adapt per target:
 
-- the layer's own position, rotation, and skew shift each target *from its own
-  start*, and scale multiplies
+- each step on the layer's own position, rotation, skew, skew axis, or scale
+  applies the formula in its box (see §5). The default shifts each target
+  *from its own start*, and scale multiplies
 - everything else — colors, child-shape geometry, and keyframe timing —
   applies exactly as recorded
 - keyframed motion on the transform offsets the same way, anchored to the
@@ -398,8 +460,9 @@ macro, or the distance of a slide. Instead of editing the macro, do this:
 1. In review, or in the expanded macro, hover an editable step and press the
    **pin**. The step is now a parameter.
 2. Play the macro. A small **form** opens with one row per pinned step,
-   pre-filled with the recorded value. If the first pinned value is a color,
-   its picker pops open on its own — pick, then Play.
+   pre-filled with the recorded value. A pinned transform step shows its
+   formula, and you edit it for this play only. If the first pinned value is
+   a color, its picker pops open on its own — pick, then Play.
 3. Change what you want, then click **Play**. The macro replays with those
    values, and the saved macro is unchanged. **Cancel** returns to the list.
 

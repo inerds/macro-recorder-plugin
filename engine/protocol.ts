@@ -11,7 +11,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-09-07.2";
+export const ENGINE_REV = "2026-09-07.7";
 
 /**
  * What a note says about its step. `skip` means the step did not fully apply;
@@ -82,8 +82,7 @@ export interface CaptureOffer {
  * for the idle deck's readout.
  */
 export type ScopeReport =
-  | { kind: "scene"; fallback?: "unresolved" }
-  | { kind: "layers"; layers: LayerRef[] };
+  { kind: "scene"; fallback?: "unresolved" } | { kind: "layers"; layers: LayerRef[] };
 
 /** The scene-snapshot pair a tick's steps were derived from. */
 export interface RecordDebug {

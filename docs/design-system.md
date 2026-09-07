@@ -433,12 +433,90 @@ language. Two rules keep it coherent:
   the same width via `useNarrowPanel()` (a ResizeObserver on `.panel-root`,
   `NARROW_PANEL_PX` = 262, kept equal to the CSS) because the menu is
   portalled out of the container query's reach. Open cards keep everything.
+- **A transform step's value is a verb and a number box, one row per
+  component.** A compact menu button naming what replay does — SET TO, ADD,
+  SUBTRACT, MULTIPLY BY, DIVIDE BY, and FORMULA for anything the five cannot
+  say — then a 64px `Input`. Two controls before it were rejected on sight:
+  a bare expression box reading `v + 30` (user report, 2026-09-07) showed the
+  user a language rather than a control, and the five glyph keys that replaced
+  it (`= + − × ÷`) read as an equation — `X = + 30` (user report,
+  2026-09-07). Words say what the row DOES; glyphs beside a legend say what
+  it EQUALS. The verb is DERIVED from the stored text, never stored beside it
+  (`ui/components/formulaControl.ts`), so storage is unchanged and a formula
+  the engine wrote names the verb it means. `X`/`Y` sit in a 10px
+  `.instrument` column so a vector's two rows line their buttons up; a scalar
+  has no legend and the button is the first element. Measured inside the
+  well: 10 + 6 + 80 + 6 + 64 = 166px, so Subtract, the widest verb, and its
+  number both fit at Creator's 300px.
+- **The verb button is a field-shaped control, and the menu is the
+  library's.** `.key-verb` stands on its own, not on `.key-quiet`: 24px tall,
+  a fixed 80px wide — close to the 64px box beside it, so the pair reads as
+  one — and fixed so a vector's two rows line their number boxes up,
+  `1px solid var(--input)` on `--card` like the box beside it, sentence
+  case at 12px/500 in ink, `white-space: nowrap` with an ellipsis on the
+  word. The verbs are Set to, Add, Subtract, Multiply, Divide, Formula…: the
+  "by" is dropped because the number beside the verb says it, and it was
+  the two words that made the trigger wider than the box it governs. Not
+  the keys' tracked uppercase legend: MULTIPLY BY set as a legend
+  outweighed the value it governs, and the tracking wrapped the chevron
+  onto a second line at 300px (2026-09-07 screenshot). Its radius is 6px —
+  the radius `[role="menuitem"]` carries, so the button and the list it
+  opens are one object. Hover is a 7% ink wash on the card, 150ms; press is
+  `.press`'s 0.96; focus is the keys' outline. The chevron is 10px in
+  `--label-fg`, `flex: none`: an affordance, not a legend. The popup takes
+  focus when it opens and the browser drew its blue outline around the
+  whole list; `[role="menu"]:focus-visible { outline: none }` leaves the
+  highlighted item as the cue. A menu that flips upward has to paint over
+  the deck: the level goes on the library's POSITIONER (`body > div >
+  [role="presentation"]:has(> [role="menu"])`, `z-index: 50`), because its
+  placement `transform` makes it a stacking context and a z-index on the
+  popup inside it counts for nothing — verified headlessly, not inferred. The menu is `DropdownRoot`/`DropdownTrigger`/
+  `DropdownContent`/`DropdownItem`, the same four the row's overflow menu
+  uses. The current verb carries a leading `Check`; the others carry an
+  invisible one, so the words stay on one left edge. A verb the arithmetic
+  cannot reach — MULTIPLY BY or DIVIDE BY from a recorded 0 — is
+  `aria-disabled` with the reason in its `title`, never the library's
+  `disabled`: that one sets `pointer-events: none` and takes the reason with
+  it.
+- **The menu is portalled, so the row that commits on blur has to know it is
+  open.** `StepValueEditor` raises `onMenuOpenChange`, and `StepRow` holds it
+  in a ref its `onBlur` reads: opening a verb menu moves focus out of the
+  editor's subtree, and committing then would unmount the editor and the menu
+  with it — the same class of bug as the native color picker's blur, one line
+  above it.
+- **Numbers are two decimals, everywhere the user sees or types one.**
+  `formatFormula` (`engine/formula.ts`), the control's own operands
+  (`formulaControl.ts`), the row labels (`round2`), and the number fields'
+  `decimals={2}` all print two. `roundKeepingMeaning` is the exception that
+  proves it: a value two decimals would flatten onto a landmark it is not — a
+  0.00004 scale onto 0, a 1.00001 scale onto 1, a 0.00004 offset onto 0 —
+  spends up to ten digits instead. Rounding may lose precision; it may not
+  lose the arithmetic. What the USER types is stored as typed: `textOf` never
+  rounds an operand.
+- **The formula's error line is muted ink, never red, and it is what blocks
+  the save.** One line under the rows, `text-11 text-muted-foreground`, shown
+  only when a field refuses; the field points at it with `aria-describedby`.
+  The standing hint that used to sit beside it — *v is the current value.
+  Type a number to set it exactly.* — is gone: it explained a language the
+  verbs replaced, and a sentence that never changes is furniture on a 300px
+  panel. What it said the verb now says on the button, with `FORMULA_LEGEND`
+  ("Set exactly, or change the current value") as the row group's sr-only
+  description. Red on this panel means an action or a failure, and an
+  expression the user is still typing is neither: red is never a readout. One
+  function, `formulaError`, feeds both the line and the refusal, so the row's
+  Enter and the configure sheet's Play can never disagree with what the user
+  is reading.
 - **Step rows show PROPERTY → RESULT; the before value is sr-only.**
   `labelPartsOf` (engine/labels.ts) splits a label into path/before/after
   only when re-joining reproduces the stored label byte-for-byte (imported
   v1 macros may carry labels their payload no longer emits); otherwise the
-  row falls back to splitting at the last arrow. The result is capped at
-  50% of the line so a long value never pushes the property to "Trans…".
+  row falls back to splitting at the last arrow. A relative step has no
+  arrow to cut at — `position.x +60`, `scale ×2` — so `LabelParts` carries a
+  `seam`, and on `"operator"` the row prints the arithmetic with no arrow and
+  moves the recorded `80.5 → 100` into the sr-only slot. What replay applies
+  is the arithmetic; the recording it came from is what a screen reader still
+  needs to hear. The result is capped at 50% of the line so a long value
+  never pushes the property to "Trans…".
   A three-piece row with the before visible was tried and rejected: at
   250px a before squeezed to "(…" is noise where the property should be.
 - **Counts are bare mono readouts everywhere** — the list header's

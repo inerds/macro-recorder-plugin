@@ -4,8 +4,9 @@ import { useId } from "react";
 import { editableValueOf, type EditableValue } from "../../engine/editing";
 import type { PlayOptions } from "../gateways/types";
 import type { Macro } from "../types";
+import { describeControl } from "./formulaControl";
 import { describePlayOptions } from "./playOptionsText";
-import { rgbToHex, StepValueEditor } from "./StepValueEditor";
+import { formulaError, rgbToHex, StepValueEditor } from "./StepValueEditor";
 
 export interface ConfigureSheetProps {
   macro: Macro;
@@ -36,7 +37,31 @@ function formatValue(value: EditableValue): string {
       return Object.entries(value.value)
         .map(([key, n]) => `${key} ${round2(n)}`)
         .join(", ");
+    case "formula": {
+      const fields = Object.entries(value.fields);
+      // In the control's own language — `+ 30`, `= 500` — so the recorded
+      // line reads back as the keys the user is looking at, not as the
+      // engine grammar underneath them.
+      if (fields.length === 1 && fields[0]![0] === "value") return describeControl(fields[0]![1]);
+      return fields.map(([key, text]) => `${key} ${describeControl(text)}`).join(", ");
+    }
   }
+}
+
+/**
+ * Whether this value's editor lays out more than one input.
+ *
+ * A multi-field editor names each box itself — the component span carries
+ * "x" plus the label, sr-only — so a `<label htmlFor>` pointing at the first
+ * of them would name that one input twice, once from the row and once from
+ * its own span. The row labels the GROUP instead, and every box keeps one
+ * accessible name.
+ */
+export function isMultiField(value: EditableValue): boolean {
+  if (value.kind === "vector") return true;
+  if (value.kind !== "formula") return false;
+  const keys = Object.keys(value.fields);
+  return !(keys.length === 1 && keys[0] === "value");
 }
 
 /** Whether a field still holds exactly what was recorded. */
@@ -51,6 +76,14 @@ function sameValue(a: EditableValue, b: EditableValue): boolean {
   }
   if (a.kind === "color" && b.kind === "color") {
     return a.value.r === b.value.r && a.value.g === b.value.g && a.value.b === b.value.b;
+  }
+  if (a.kind === "formula" || b.kind === "formula") {
+    if (a.kind !== "formula" || b.kind !== "formula") return false;
+    const keys = Object.keys(a.fields);
+    return (
+      keys.length === Object.keys(b.fields).length &&
+      keys.every((key) => a.fields[key] === b.fields[key])
+    );
   }
   return a.value === b.value;
 }
@@ -68,6 +101,9 @@ export function ConfigureSheet({
   const rows = (macro.params ?? []).filter((param) => values[param.stepId]);
   const fieldPrefix = useId();
   const optionSummary = describePlayOptions(options);
+  // One refused formula holds the whole run: the field says what is wrong,
+  // and Play stays off until it does not.
+  const blocked = rows.some((param) => formulaError(values[param.stepId]) !== null);
 
   return (
     // Deliberately NOT a native form submission: Creator hosts this panel in
@@ -90,7 +126,7 @@ export function ConfigureSheet({
         // behavior); buttons keep their own Enter activation.
         if (target instanceof HTMLInputElement && target.type !== "checkbox") {
           event.preventDefault();
-          onPlay();
+          if (!blocked) onPlay();
         }
       }}
     >
@@ -122,30 +158,37 @@ export function ConfigureSheet({
         <div className="enter-2 mt-3 flex flex-col gap-3">
           {rows.map((param, index) => {
             const fieldId = `${fieldPrefix}-${index}`;
+            const labelId = `${fieldId}-label`;
+            const value = values[param.stepId]!;
+            const grouped = isMultiField(value);
             const step = macro.steps.find((s) => s.id === param.stepId);
             const recorded = step ? editableValueOf(step) : null;
             // Only worth saying once the field has moved away from it.
-            const changed = recorded !== null && !sameValue(recorded, values[param.stepId]!);
+            const changed = recorded !== null && !sameValue(recorded, value);
             return (
-              <div key={param.stepId} className="flex flex-col gap-1.5">
-                <label
-                  htmlFor={fieldId}
-                  className="instrument truncate"
-                  title={param.label}
-                >
-                  {param.label}
-                </label>
+              <div
+                key={param.stepId}
+                className="flex flex-col gap-1.5"
+                {...(grouped ? { role: "group", "aria-labelledby": labelId } : {})}
+              >
+                {grouped ? (
+                  <span id={labelId} className="instrument truncate" title={param.label}>
+                    {param.label}
+                  </span>
+                ) : (
+                  <label htmlFor={fieldId} className="instrument truncate" title={param.label}>
+                    {param.label}
+                  </label>
+                )}
                 <StepValueEditor
-                  id={fieldId}
+                  {...(grouped ? {} : { id: fieldId })}
                   label={param.label}
-                  value={values[param.stepId]!}
-                  onChange={(value) => onChange(param.stepId, value)}
+                  value={value}
+                  onChange={(next) => onChange(param.stepId, next)}
                   autoFocus={index === 0}
                 />
                 {recorded && changed && (
-                  <p className="text-11 text-muted-foreground">
-                    recorded: {formatValue(recorded)}
-                  </p>
+                  <p className="text-11 text-muted-foreground">recorded: {formatValue(recorded)}</p>
                 )}
               </div>
             );
@@ -167,6 +210,7 @@ export function ConfigureSheet({
           type="button"
           className="press key key-red"
           data-testid="configure-play-button"
+          disabled={blocked}
           onClick={onPlay}
         >
           Play

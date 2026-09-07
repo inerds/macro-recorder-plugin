@@ -400,6 +400,20 @@ function editableStep(id: string, after = 45): MacroStep {
   };
 }
 
+function keyframeStep(id: string): MacroStep {
+  return {
+    ...buildStep({
+      op: "keyframes",
+      path: ["rotation"],
+      added: [{ frame: 30, value: 0 }],
+      removed: [],
+      changed: [],
+      layer: { id: "L1", name: "Rect" },
+    }),
+    id,
+  };
+}
+
 function asReviewing(state: AppState): Extract<AppState, { mode: "reviewing" }> {
   if (state.mode !== "reviewing") throw new Error("expected reviewing state");
   return state;
@@ -517,16 +531,52 @@ describe("step disable / edit (review)", () => {
     expect(on.steps[0]).not.toHaveProperty("disabled");
   });
 
-  it("edit replaces the value and rebuilds the label", () => {
+  it("a formula edit writes `apply` and recomputes the recorded result", () => {
     const edited = appReducer(reviewing, {
       type: "REVIEW_STEP_EDIT",
       stepId: "e1",
-      value: { kind: "number", value: 90 },
+      value: { kind: "formula", fields: { value: "v + 5" } },
     });
     if (edited.mode !== "reviewing") return expect.fail("expected reviewing state");
-    expect(edited.steps[0]?.payload).toMatchObject({ after: 90 });
-    expect(edited.steps[0]?.label).toContain("0 → 90");
+    // The box says "current plus 5", so the step stores that pair — and the
+    // recorded result follows it from the recorded start (0 + 5).
+    expect(edited.steps[0]?.payload).toMatchObject({
+      apply: { scale: 1, offset: 5 },
+      before: 0,
+      after: 5,
+    });
     expect(edited.steps[0]?.label).not.toBe(reviewing.steps[0]?.label);
+  });
+
+  it("a plain number in the box sets the value exactly", () => {
+    const edited = appReducer(reviewing, {
+      type: "REVIEW_STEP_EDIT",
+      stepId: "e1",
+      value: { kind: "formula", fields: { value: "90" } },
+    });
+    if (edited.mode !== "reviewing") return expect.fail("expected reviewing state");
+    expect(edited.steps[0]?.payload).toMatchObject({ apply: { scale: 0, offset: 90 }, after: 90 });
+  });
+
+  it("edits a keyframe step through its formula", () => {
+    const withKf = reviewingWith([keyframeStep("k1")]);
+    const edited = appReducer(withKf, {
+      type: "REVIEW_STEP_EDIT",
+      stepId: "k1",
+      value: { kind: "formula", fields: { value: "v * 2" } },
+    });
+    if (edited.mode !== "reviewing") return expect.fail("expected reviewing state");
+    expect(edited.steps[0]?.payload).toMatchObject({ apply: { scale: 2, offset: 0 } });
+  });
+
+  it("refuses a formula the parser cannot read", () => {
+    const edited = appReducer(reviewing, {
+      type: "REVIEW_STEP_EDIT",
+      stepId: "e1",
+      value: { kind: "formula", fields: { value: "v * v" } },
+    });
+    if (edited.mode !== "reviewing") return expect.fail("expected reviewing state");
+    expect(edited.steps[0]).toEqual(reviewing.steps[0]);
   });
 
   it("ignores an edit for a step with no editable value", () => {
@@ -593,7 +643,7 @@ describe("parameter pins (review)", () => {
     const edited = appReducer(pinned, {
       type: "REVIEW_STEP_EDIT",
       stepId: "e1",
-      value: { kind: "number", value: 90 },
+      value: { kind: "formula", fields: { value: "v + 90" } },
     });
     if (edited.mode !== "reviewing") return expect.fail("expected reviewing state");
     expect(edited.params[0]?.label).toBe(edited.steps[0]?.label);
@@ -614,15 +664,19 @@ describe("saved-macro step editing", () => {
     expect(state.macros[1]).toBe(base.macros[1]);
   });
 
-  it("edits a step's value and label", () => {
+  it("edits a step's formula, and the saved step carries `apply`", () => {
     const state = appReducer(base, {
       type: "MACRO_STEP_EDIT",
       macroId: "m1",
       stepId: "e1",
-      value: { kind: "number", value: 90 },
+      value: { kind: "formula", fields: { value: "v + 5" } },
     });
-    expect(state.macros[0]?.steps[0]?.payload).toMatchObject({ after: 90 });
-    expect(state.macros[0]?.steps[0]?.label).toContain("0 → 90");
+    expect(state.macros[0]?.steps[0]?.payload).toMatchObject({
+      apply: { scale: 1, offset: 5 },
+      before: 0,
+      after: 5,
+    });
+    expect(state.macros[0]?.steps[0]?.label).not.toBe(base.macros[0]?.steps[0]?.label);
   });
 
   it("adds and removes a parameter, omitting `params` when empty", () => {

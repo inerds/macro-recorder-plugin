@@ -77,12 +77,17 @@ export function MacroList({ playing }: MacroListProps) {
           {/* A miniature of the hero's reel window — bezel, two reels, the
               tape run between them. Bare circles read as a face; the
               enclosing window is what makes them reels. */}
-          <svg
-            viewBox="0 0 56 26"
-            className="h-6 w-14 text-[color:var(--label-fg)]"
-            aria-hidden
-          >
-            <rect x="1" y="1" width="54" height="24" rx="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <svg viewBox="0 0 56 26" className="h-6 w-14 text-[color:var(--label-fg)]" aria-hidden>
+            <rect
+              x="1"
+              y="1"
+              width="54"
+              height="24"
+              rx="6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
             <circle cx="18" cy="13" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <circle cx="18" cy="13" r="1.75" fill="currentColor" />
             <circle cx="38" cy="13" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -122,7 +127,8 @@ export function MacroList({ playing }: MacroListProps) {
 
   const idle = state.mode === "idle" ? state : null;
   // Expansion survives play/configure so the running step can be watched.
-  const expandedId = state.mode === "recording" || state.mode === "reviewing" ? null : state.expandedId;
+  const expandedId =
+    state.mode === "recording" || state.mode === "reviewing" ? null : state.expandedId;
 
   return (
     <div className="p-2">

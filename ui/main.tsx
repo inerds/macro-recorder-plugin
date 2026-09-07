@@ -12,6 +12,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
+import { PanelErrorBoundary } from "./components/PanelErrorBoundary";
 import { createGateways, type GatewaysBundle } from "./gateways";
 import { LocalMacroStore } from "./gateways/localMacroStore";
 import { MockPlaybackGateway } from "./gateways/mockPlayback";
@@ -21,9 +22,11 @@ import { AppProvider } from "./state/AppContext";
 function render(gateways: GatewaysBundle, demoEngine: boolean) {
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <AppProvider gateways={gateways}>
-        <App gateways={gateways} {...(demoEngine ? { demoEngine } : {})} />
-      </AppProvider>
+      <PanelErrorBoundary>
+        <AppProvider gateways={gateways}>
+          <App gateways={gateways} {...(demoEngine ? { demoEngine } : {})} />
+        </AppProvider>
+      </PanelErrorBoundary>
     </StrictMode>,
   );
 }

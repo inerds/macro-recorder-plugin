@@ -6,6 +6,38 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- The pencil on a step for a layer's own position, rotation, skew, skew axis,
+  or scale now opens **a verb and a number box**: **Set to**, **Add**,
+  **Subtract**, **Multiply**, **Divide**, or **Formula…** for a whole
+  expression. Choose the verb, or type the operator into the box. The number
+  converts when you change the verb, so a drag from 100 to 130 reads
+  **Add** `30`, **Set to** `130`, or **Multiply** `1.3` — the same edit in
+  three ways. A vector property gets one row per component. **Formula…** hands
+  the box an expression such as `v * 2 + 10`, where `v` is the target's
+  current value. The default is unchanged — a drag opens as **Add** `60`, a
+  scale as **Multiply** `2` — so a macro you never edit behaves as it
+  always did.
+- Every number the panel prints or converts now shows **two decimals** instead
+  of four. A number that two decimals would flatten into "changes nothing"
+  keeps the digits it needs, and what you type is stored as you type it.
+- A recorded "rotation to 0", "skew to 0", or "scale to 100%" step now
+  applies **exactly**, in macros you saved before this version too. Such a
+  step used to replay as a delta, so a target at 30° ended at −15° instead
+  of 0°.
+- A pinned transform step's play-time form now shows the same verb, so you can
+  change what the step does for one play without editing the macro.
+- A keyframe step on a layer's transform now takes a formula as well, so a
+  keyframed move can be set to an exact value. A scale keyframe run keeps its
+  proportions: recorded 100% → 200% keyframes played onto a half-size layer
+  now run 50% → 100%, not 50% → 150%.
+- A step you gave a formula keeps its formula on the row and in the list, even
+  when the numbers it was recorded with do not change. `v * 2` on a recorded
+  "rotation to 0" now reads "rotation ×2" and survives **Simplify**.
+- Playing onto several layers at once no longer lets one layer's result move
+  the others. A layer that could not take a step — a property already on the
+  timeline, for instance — now keeps its own starting point for the steps that
+  follow, instead of measuring against a value only its neighbours reached.
+
 - The review sheet now opens on the simplified list, because a single drag is
   recorded as a chain of micro-steps. Select **Keep every step** above the
   step list to see the recording as it was captured; the choice holds until

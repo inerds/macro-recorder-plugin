@@ -2,13 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Json } from "./json";
 import type { MacroStep } from "./macro";
-import {
-  joinLabelParts,
-  labelOf,
-  labelPartsOf,
-  propDisplayName,
-  sharedLayerName,
-} from "./labels";
+import { joinLabelParts, labelOf, labelPartsOf, propDisplayName, sharedLayerName } from "./labels";
 import type { AnimatableSnapshot, KfSnap, PaintSnapshot, Path } from "./snapshot";
 import { buildStep, kindOf, type StepPayload } from "./steps";
 
@@ -17,13 +11,15 @@ import { buildStep, kindOf, type StepPayload } from "./steps";
  * not ASCII and are easy to mistype, so they are named here:
  *   "·" MIDDLE DOT      — the "Transform · " separator
  *   "→" RIGHTWARDS ARROW — the before → after arrow
- *   "−" MINUS SIGN       — the removed-keyframe count prefix (not "-")
+ *   "−" MINUS SIGN       — the removed-keyframe count and negative deltas (not "-")
+ *   "×" MULTIPLICATION SIGN — the ratio prefix on a multiply step (not "x")
  *   "–" EN DASH          — how fmt() renders null (not "-")
  */
 const DOT = "·";
 const ARROW = "→";
 const MINUS = "−";
 const EN_DASH = "–";
+const TIMES = "×";
 
 const RED: Json = { r: 255, g: 0, b: 0 };
 const GREEN: Json = { r: 0, g: 255, b: 0 };
@@ -73,35 +69,30 @@ function setStatic(path: Path, before: Json, after: Json): StepPayload {
 
 describe("labelOf — set-static on transform props", () => {
   it("names the single changed component of a vector", () => {
-    expect(labelOf(setStatic(["position"], { x: 100, y: 50 }, { x: 200, y: 50 }))).toBe(
-      `Transform ${DOT} position.x 100 ${ARROW} 200`,
+    // `size` is not a layer transform, so it keeps the plain arrow form.
+    expect(labelOf(setStatic(["shapes", 0, "size"], { x: 100, y: 50 }, { x: 200, y: 50 }))).toBe(
+      `Shape 1 ${DOT} size.x 100 ${ARROW} 200`,
     );
   });
 
   it("shows the whole vector when more than one component changed", () => {
-    expect(labelOf(setStatic(["position"], { x: 100, y: 50 }, { x: 200, y: 80 }))).toBe(
-      `Transform ${DOT} position (x: 100, y: 50) ${ARROW} (x: 200, y: 80)`,
+    expect(labelOf(setStatic(["shapes", 0, "size"], { x: 100, y: 50 }, { x: 200, y: 80 }))).toBe(
+      `Shape 1 ${DOT} size (x: 100, y: 50) ${ARROW} (x: 200, y: 80)`,
     );
   });
 
   it("labels a scalar transform prop", () => {
-    expect(labelOf(setStatic(["rotation"], 0, 45))).toBe(`Transform ${DOT} rotation 0 ${ARROW} 45`);
     expect(labelOf(setStatic(["opacity"], 1, 0.5))).toBe(`Transform ${DOT} opacity 1 ${ARROW} 0.5`);
   });
 
-  it("names the changed component for scale too", () => {
-    expect(labelOf(setStatic(["scale"], { x: 1, y: 1 }, { x: 2, y: 1 }))).toBe(
-      `Transform ${DOT} scale.x 1 ${ARROW} 2`,
-    );
-  });
-
   it("rounds numbers to two decimals", () => {
-    expect(labelOf(setStatic(["rotation"], 0, 45.6789))).toBe(
-      `Transform ${DOT} rotation 0 ${ARROW} 45.68`,
+    expect(labelOf(setStatic(["opacity"], 1, 0.56789))).toBe(
+      `Transform ${DOT} opacity 1 ${ARROW} 0.57`,
     );
   });
 
   it("renders a null side as an en dash", () => {
+    // A null start has no delta, so the step falls back to the arrow form.
     expect(labelOf(setStatic(["rotation"], null, 45))).toBe(
       `Transform ${DOT} rotation ${EN_DASH} ${ARROW} 45`,
     );
@@ -113,6 +104,194 @@ describe("labelOf — set-static on transform props", () => {
     expect(labelOf(setStatic(["size"], { x: 10, y: 10 }, { x: 20, y: 10 }))).toBe(
       `size.x 10 ${ARROW} 20`,
     );
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* operators — the label says whether a step sets, adds or multiplies  */
+/* ------------------------------------------------------------------ */
+
+describe("labelOf — set / add / multiply", () => {
+  it("reads an add as a signed delta on the changed component", () => {
+    expect(labelOf(setStatic(["position"], { x: 80.5, y: 50 }, { x: 100, y: 50 }))).toBe(
+      `Transform ${DOT} position.x +19.5`,
+    );
+    expect(labelOf(setStatic(["rotation"], 10, 55))).toBe(`Transform ${DOT} rotation +45`);
+  });
+
+  it("uses a MINUS SIGN for a negative delta, never a hyphen", () => {
+    expect(labelOf(setStatic(["rotation"], 45, 20))).toBe(`Transform ${DOT} rotation ${MINUS}25`);
+  });
+
+  it("reads a multi-component add per component", () => {
+    expect(labelOf(setStatic(["position"], { x: 80.5, y: 50 }, { x: 100, y: 203.1 }))).toBe(
+      `Transform ${DOT} position +19.5, +153.1`,
+    );
+  });
+
+  it("reads a scale as a ratio", () => {
+    expect(labelOf(setStatic(["scale"], { x: 100, y: 100 }, { x: 200, y: 200 }))).toBe(
+      `Transform ${DOT} scale ${TIMES}2, ${TIMES}2`,
+    );
+    expect(labelOf(setStatic(["scale"], { x: 100, y: 100 }, { x: 200, y: 150 }))).toBe(
+      `Transform ${DOT} scale ${TIMES}2, ${TIMES}1.5`,
+    );
+    expect(labelOf(setStatic(["scale"], { x: 100, y: 100 }, { x: 200, y: 100 }))).toBe(
+      `Transform ${DOT} scale.x ${TIMES}2`,
+    );
+  });
+
+  it("keeps the arrow form for a reset, which sets an exact value", () => {
+    expect(labelOf(setStatic(["rotation"], 45, 0))).toBe(`Transform ${DOT} rotation 45 ${ARROW} 0`);
+    expect(labelOf(setStatic(["scale"], { x: 50, y: 50 }, { x: 100, y: 100 }))).toBe(
+      `Transform ${DOT} scale (x: 50, y: 50) ${ARROW} (x: 100, y: 100)`,
+    );
+  });
+
+  it("keeps the arrow form for a formula that SETS a value", () => {
+    const forced: StepPayload = {
+      op: "set-static",
+      path: ["position"],
+      before: { x: 0, y: 0 },
+      after: { x: 40, y: 0 },
+      apply: { x: { scale: 0, offset: 40 }, y: { scale: 0, offset: 0 } },
+    };
+    expect(labelOf(forced)).toBe(`Transform ${DOT} position.x 0 ${ARROW} 40`);
+  });
+
+  it("reads a formula's shift, ratio, and both together", () => {
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 0, y: 0 },
+        after: { x: 10, y: 0 },
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 1, offset: 0 } },
+      }),
+    ).toBe(`Transform ${DOT} position.x +10`);
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["rotation"],
+        before: 20,
+        after: 40,
+        apply: { scale: 2, offset: 0 },
+      }),
+    ).toBe(`Transform ${DOT} rotation ${TIMES}2`);
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["scale"],
+        before: { x: 100, y: 100 },
+        after: { x: 200, y: 200 },
+        apply: { x: { scale: 2, offset: 0 }, y: { scale: 2, offset: 0 } },
+      }),
+    ).toBe(`Transform ${DOT} scale ${TIMES}2, ${TIMES}2`);
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 0, y: 0 },
+        after: { x: 10, y: 0 },
+        apply: { x: { scale: 2, offset: 10 }, y: { scale: 1, offset: 0 } },
+      }),
+    ).toBe(`Transform ${DOT} position.x ${TIMES}2 +10`);
+  });
+
+  it("labels from the formula even when the recorded pair no longer moves", () => {
+    // "rotation 0 → 45" edited to `v * 2` recomputes `after` back onto
+    // `before` — 2 × 0 is 0 — and a captured-state label ("rotation = 0")
+    // would then hide the multiply every target is about to get.
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["rotation"],
+        before: 0,
+        after: 0,
+        apply: { scale: 2, offset: 0 },
+      }),
+    ).toBe(`Transform ${DOT} rotation ${TIMES}2`);
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 0, y: 0 },
+        after: { x: 0, y: 0 },
+        apply: { x: { scale: 2, offset: 0 }, y: { scale: 3, offset: 0 } },
+      }),
+    ).toBe(`Transform ${DOT} position ${TIMES}2, ${TIMES}3`);
+    // Plain `v` writes the value back: nothing to announce, so the captured
+    // state is still the honest label.
+    expect(
+      labelOf({
+        op: "set-static",
+        path: ["rotation"],
+        before: 0,
+        after: 0,
+        apply: { scale: 1, offset: 0 },
+      }),
+    ).toBe(`Transform ${DOT} rotation = 0`);
+  });
+
+  it("keeps the arrow form when no ratio exists from 0", () => {
+    // A multiply from 0 resolves to absolute (`payloadClass`), which is what
+    // the applier does for the zero component — so the label sets a value too.
+    expect(labelOf(setStatic(["scale"], { x: 0, y: 100 }, { x: 50, y: 200 }))).toBe(
+      `Transform ${DOT} scale (x: 0, y: 100) ${ARROW} (x: 50, y: 200)`,
+    );
+  });
+
+  it("keeps the arrow form for a delta the operand form would print as +0", () => {
+    // "+0" reads as a step that does nothing. The arrow form still says
+    // something true about a move smaller than the label's own precision.
+    expect(labelOf(setStatic(["rotation"], 45, 45.001))).toBe(
+      `Transform ${DOT} rotation 45 ${ARROW} 45`,
+    );
+    expect(labelOf(setStatic(["position"], { x: 10, y: 20 }, { x: 10.002, y: 20.003 }))).toBe(
+      `Transform ${DOT} position (x: 10, y: 20) ${ARROW} (x: 10, y: 20)`,
+    );
+  });
+
+  it("keeps the arrow form for a ratio the operand form would print as ×1", () => {
+    expect(labelOf(setStatic(["scale"], { x: 100, y: 100 }, { x: 100.2, y: 100.3 }))).toBe(
+      `Transform ${DOT} scale (x: 100, y: 100) ${ARROW} (x: 100.2, y: 100.3)`,
+    );
+  });
+
+  it("still prints the operand when one component moved past the precision", () => {
+    expect(labelOf(setStatic(["position"], { x: 10, y: 20 }, { x: 60, y: 20.001 }))).toBe(
+      `Transform ${DOT} position +50, +0`,
+    );
+  });
+
+  it("spells a keyframe step's formula, and says nothing for the default", () => {
+    const kfStep: StepPayload = {
+      op: "keyframes",
+      path: ["position"],
+      added: [kf(60)],
+      removed: [],
+      changed: [],
+    };
+    expect(labelOf(kfStep)).toBe(`Keyframe ${DOT} position @ 60`);
+    expect(labelOf({ ...kfStep, apply: { scale: 2, offset: 10 } })).toBe(
+      `Keyframe ${DOT} position @ 60 ${DOT} v * 2 + 10`,
+    );
+    expect(
+      labelOf({
+        ...kfStep,
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+      }),
+    ).toBe(`Keyframe ${DOT} position @ 60 ${DOT} x: v + 10, y: 5`);
+    expect(
+      labelOf({
+        op: "keyframes",
+        path: ["position"],
+        added: [kf(0), kf(30)],
+        removed: [],
+        changed: [],
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 1, offset: 0 } },
+      }),
+    ).toBe(`Keyframes ${DOT} position (+2) ${DOT} x: v + 10, y: v`);
   });
 });
 
@@ -137,20 +316,24 @@ describe("labelOf — set-static on paints", () => {
   });
 
   it("labels a gradient stops change with the stops array", () => {
-    expect(
-      labelOf(setStatic(["fills", 0, "stops"], [], [{ offset: 0, color: RED }])),
-    ).toBe(`Fill stops ${ARROW} [(offset: 0, color: #FF0000)]`);
+    expect(labelOf(setStatic(["fills", 0, "stops"], [], [{ offset: 0, color: RED }]))).toBe(
+      `Fill stops ${ARROW} [(offset: 0, color: #FF0000)]`,
+    );
   });
 
   it("labels a stroke width change", () => {
-    expect(labelOf(setStatic(["strokes", 0, "width"], 2, 4))).toBe(`Stroke ${DOT} width 2 ${ARROW} 4`);
+    expect(labelOf(setStatic(["strokes", 0, "width"], 2, 4))).toBe(
+      `Stroke ${DOT} width 2 ${ARROW} 4`,
+    );
   });
 
   it("labels a stroke paint change as color, with 1-based index past the first", () => {
     expect(labelOf(setStatic(["strokes", 0, "fill", "color"], BLACK, RED))).toBe(
       `Stroke ${DOT} color #000000 ${ARROW} #FF0000`,
     );
-    expect(labelOf(setStatic(["strokes", 1, "width"], 2, 4))).toBe(`Stroke 2 ${DOT} width 2 ${ARROW} 4`);
+    expect(labelOf(setStatic(["strokes", 1, "width"], 2, 4))).toBe(
+      `Stroke 2 ${DOT} width 2 ${ARROW} 4`,
+    );
   });
 });
 
@@ -173,7 +356,13 @@ describe("labelOf — keyframes", () => {
 
   it("rounds the frame number in the singular form", () => {
     expect(
-      labelOf({ op: "keyframes", path: ["position"], added: [kf(12.345)], removed: [], changed: [] }),
+      labelOf({
+        op: "keyframes",
+        path: ["position"],
+        added: [kf(12.345)],
+        removed: [],
+        changed: [],
+      }),
     ).toBe(`Keyframe ${DOT} position @ 12.35`);
   });
 
@@ -191,16 +380,34 @@ describe("labelOf — keyframes", () => {
 
   it("omits empty buckets from the summary", () => {
     expect(
-      labelOf({ op: "keyframes", path: ["position"], added: [], removed: [kf(0), kf(30)], changed: [] }),
+      labelOf({
+        op: "keyframes",
+        path: ["position"],
+        added: [],
+        removed: [kf(0), kf(30)],
+        changed: [],
+      }),
     ).toBe(`Keyframes ${DOT} position (${MINUS}2)`);
     expect(
-      labelOf({ op: "keyframes", path: ["opacity"], added: [kf(0), kf(30)], removed: [], changed: [] }),
+      labelOf({
+        op: "keyframes",
+        path: ["opacity"],
+        added: [kf(0), kf(30)],
+        removed: [],
+        changed: [],
+      }),
     ).toBe(`Keyframes ${DOT} opacity (+2)`);
   });
 
   it("uses the paint prop name for keyframes on a fill", () => {
     expect(
-      labelOf({ op: "keyframes", path: ["fills", 0, "color"], added: [kf(12)], removed: [], changed: [] }),
+      labelOf({
+        op: "keyframes",
+        path: ["fills", 0, "color"],
+        added: [kf(12)],
+        removed: [],
+        changed: [],
+      }),
     ).toBe(`Keyframe ${DOT} Fill @ 12`);
   });
 
@@ -223,7 +430,10 @@ describe("labelOf — structure", () => {
 
   it("labels an added gradient fill", () => {
     expect(
-      labelOf({ op: "add-fill", spec: { kind: "gradient", stops: { animated: false, static: [] } } }),
+      labelOf({
+        op: "add-fill",
+        spec: { kind: "gradient", stops: { animated: false, static: [] } },
+      }),
     ).toBe("Add fill (gradient)");
   });
 
@@ -332,7 +542,10 @@ describe("buildStep", () => {
       [{ op: "add-fill", spec: solid(RED) }, "fill"],
       [{ op: "add-paint", path: ["fills", 0], spec: solid(RED) }, "fill"],
       [{ op: "replace-paint", path: ["fills", 0], spec: solid(RED) }, "fill"],
-      [{ op: "add-stroke", path: ["strokes", 0], spec: { width: 2, fill: solid(BLACK) } }, "stroke"],
+      [
+        { op: "add-stroke", path: ["strokes", 0], spec: { width: 2, fill: solid(BLACK) } },
+        "stroke",
+      ],
       [{ op: "add-shape", parentPath: [], spec: shapeSpec("RECTANGLE") }, "shape"],
       [{ op: "remove-shape", path: ["shapes", 0] }, "shape"],
       [{ op: "set-plain", path: ["visible"], before: true, after: false }, "layer"],
@@ -396,11 +609,31 @@ describe("sharedLayerName", () => {
 /* ------------------------------------------------------------------ */
 
 describe("labelPartsOf", () => {
-  it("splits property, before and after on a transform component edit", () => {
-    expect(labelPartsOf(setStatic(["position"], { x: 100, y: 50 }, { x: 160, y: 50 }))).toEqual({
-      path: `Transform ${DOT} position.x`,
+  it("splits property, before and after on a shape component edit", () => {
+    expect(
+      labelPartsOf(setStatic(["shapes", 0, "size"], { x: 100, y: 50 }, { x: 160, y: 50 })),
+    ).toEqual({
+      path: `Shape 1 ${DOT} size.x`,
       before: "100",
       after: "160",
+    });
+  });
+
+  it("gives an add step the operand as its value and the recording as its before", () => {
+    expect(labelPartsOf(setStatic(["position"], { x: 100, y: 50 }, { x: 160, y: 50 }))).toEqual({
+      path: `Transform ${DOT} position.x`,
+      before: `100 ${ARROW} 160`,
+      after: "+60",
+      seam: "operator",
+    });
+  });
+
+  it("gives a multiply step the ratio as its value", () => {
+    expect(labelPartsOf(setStatic(["scale"], { x: 100, y: 100 }, { x: 200, y: 100 }))).toEqual({
+      path: `Transform ${DOT} scale.x`,
+      before: `100 ${ARROW} 200`,
+      after: `${TIMES}2`,
+      seam: "operator",
     });
   });
 
@@ -443,8 +676,9 @@ describe("labelPartsOf", () => {
     });
     expect(parts).toEqual({
       path: `Rect ${DOT} Transform ${DOT} rotation`,
-      before: "0",
-      after: "45",
+      before: `0 ${ARROW} 45`,
+      after: "+45",
+      seam: "operator",
     });
   });
 
@@ -453,6 +687,10 @@ describe("labelPartsOf", () => {
       setStatic(["position"], { x: 100, y: 50 }, { x: 160, y: 50 }),
       setStatic(["position"], { x: 100, y: 50 }, { x: 160, y: 80 }),
       setStatic(["rotation"], 0, 45),
+      setStatic(["rotation"], 45, 0),
+      setStatic(["scale"], { x: 100, y: 100 }, { x: 200, y: 150 }),
+      setStatic(["scale"], { x: 0, y: 100 }, { x: 50, y: 200 }),
+      setStatic(["shapes", 0, "size"], { x: 100, y: 50 }, { x: 160, y: 50 }),
       setStatic(["opacity"], 0.5, 0.5),
       setStatic(["fills", 0, "color"], BLACK, RED),
       setStatic(["fills", 1, "color"], BLACK, GREEN),
@@ -462,6 +700,28 @@ describe("labelPartsOf", () => {
       { op: "set-plain", path: ["blendMode"], before: "NORMAL", after: "MULTIPLY" },
       { op: "set-plain", path: ["visible"], before: true, after: false },
       { op: "keyframes", path: ["position"], added: [kf(12)], removed: [], changed: [] },
+      {
+        op: "keyframes",
+        path: ["position"],
+        added: [kf(12)],
+        removed: [],
+        changed: [],
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 1, offset: 0 } },
+      },
+      {
+        op: "set-static",
+        path: ["position"],
+        before: { x: 100, y: 50 },
+        after: { x: 210, y: 50 },
+        apply: { x: { scale: 2, offset: 10 }, y: { scale: 1, offset: 0 } },
+      },
+      {
+        op: "set-static",
+        path: ["rotation"],
+        before: 45,
+        after: 0,
+        apply: { scale: 0, offset: 0 },
+      },
       { op: "add-fill", spec: solid(RED) },
       { op: "remove-paint", path: ["fills", 1] },
       { op: "add-shape", parentPath: [], spec: shapeSpec("RECTANGLE") },
@@ -533,7 +793,9 @@ describe("labelOf — a flag on a mask names the mask", () => {
     expect(
       kindOf({ op: "set-plain", path: ["masks", 0, "mode"], before: "add", after: "subtract" }),
     ).toBe("mask");
-    expect(kindOf({ op: "set-plain", path: ["visible"], before: true, after: false })).toBe("layer");
+    expect(kindOf({ op: "set-plain", path: ["visible"], before: true, after: false })).toBe(
+      "layer",
+    );
   });
 });
 

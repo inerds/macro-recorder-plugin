@@ -21,10 +21,38 @@ export interface LayerRef {
   priorName?: string;
 }
 
+/** One component's rule: target = scale × current + offset. */
+export interface LinearTerm {
+  scale: number;
+  offset: number;
+}
+
+/**
+ * How a transform step lands on a target when the macro applies to a
+ * selection, as the user wrote it in the step's box: a plain number is
+ * `{scale: 0, offset: n}`, `v + 10` is `{1, 10}`, `v * 2` is `{2, 0}`. A
+ * scalar property holds one term; a vector holds one per numeric component
+ * (`{x: …, y: …}`). Absent means the default for the step
+ * (`engine/operator.ts#payloadClass`): the path's class — position,
+ * rotation, skew, skewAxis shift, scale multiplies — unless the recorded
+ * end value is an identity, which is a reset and applies exactly.
+ * Meaningful only on a layer's own position, rotation, skew, skewAxis, and
+ * scale.
+ */
+export type StepFormula = LinearTerm | Record<string, LinearTerm>;
+
 export type StepPayload =
   /** shapeHint = the node type of the shape the path passes through, so a
    *  replay can re-find "the rectangle" when the target's indices differ. */
-  | { op: "set-static"; path: Path; before: Json; after: Json; shapeHint?: string; layer?: LayerRef }
+  | {
+      op: "set-static";
+      path: Path;
+      before: Json;
+      after: Json;
+      shapeHint?: string;
+      layer?: LayerRef;
+      apply?: StepFormula;
+    }
   | {
       op: "keyframes";
       path: Path;
@@ -33,6 +61,7 @@ export type StepPayload =
       changed: { before: KfSnap; after: KfSnap }[];
       shapeHint?: string;
       layer?: LayerRef;
+      apply?: StepFormula;
     }
   /** Plain writable layer flag (visible, locked, blendMode, …). */
   | { op: "set-plain"; path: Path; before: Json; after: Json; shapeHint?: string; layer?: LayerRef }
@@ -97,29 +126,22 @@ export type StepPayload =
   | { op: "add-fill"; spec: PaintSnapshot };
 
 export type StepKind =
-  | "transform"
-  | "fill"
-  | "stroke"
-  | "keyframe"
-  | "layer"
-  | "shape"
-  | "mask"
-  | "other";
+  "transform" | "fill" | "stroke" | "keyframe" | "layer" | "shape" | "mask" | "other";
 
-const TRANSFORM_PROPS = new Set([
-  "position",
-  "scale",
-  "rotation",
-  "skew",
-  "skewAxis",
-  "opacity",
-]);
+const TRANSFORM_PROPS = new Set(["position", "scale", "rotation", "skew", "skewAxis", "opacity"]);
 
 function rootOf(path: Path): string | number | undefined {
   // deep paths: classify by the LAST structural marker before the leaf
   for (let i = path.length - 1; i >= 0; i--) {
     const seg = path[i];
-    if (seg === "fills" || seg === "strokes" || seg === "masks" || seg === "shapes" || seg === "trimPaths") return seg;
+    if (
+      seg === "fills" ||
+      seg === "strokes" ||
+      seg === "masks" ||
+      seg === "shapes" ||
+      seg === "trimPaths"
+    )
+      return seg;
   }
   return path[0];
 }
@@ -190,9 +212,7 @@ export function buildStep(payload: StepPayload): MacroStep {
  * null when it has no keyframes. Pure — the UI's duration readout; playback's
  * own frame math lives sandbox-side (sandbox/playback.ts#earliestKeyframe).
  */
-export function keyframeSpan(
-  steps: MacroStep[],
-): { first: number; last: number } | null {
+export function keyframeSpan(steps: MacroStep[]): { first: number; last: number } | null {
   let first: number | null = null;
   let last: number | null = null;
   const see = (frame: unknown) => {

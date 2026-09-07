@@ -124,6 +124,24 @@ textarea {
   border-radius: 4px;
 }
 
+/*
+ * A menu popup has to paint above the deck. Base UI portals the menu after
+ * #root as portal > positioner > popup. The POSITIONER is the element that
+ * matters: it is `position: absolute` with a `transform` for placement, and
+ * a transform makes it a stacking context of its own — so a z-index on the
+ * popup inside it ranks the popup only against its siblings, and the
+ * positioner itself, `z-index: auto`, sits at level 0 where `.deck-chassis`
+ * (a real level 1, see deck.css) paints over it whenever the menu flips
+ * upward from the first rack rows. Verified with a headless probe on
+ * 2026-09-07: `elementFromPoint` inside the overlap returned the deck until
+ * the positioner carried the level. The library's own `z-50` class is on
+ * the popup, which is why it never worked. `:has()` finds the positioner
+ * without a class the library does not give it.
+ */
+body > div > [role="presentation"]:has(> [role="menu"]) {
+  z-index: 50;
+}
+
 [role="menu"] {
   border-radius: 10px;
 }
@@ -665,6 +683,87 @@ textarea {
 .key-quiet.key-quiet:disabled,
 .key-quiet.key-quiet[aria-disabled="true"] {
   opacity: 0.5;
+}
+
+/*
+ * The step formula control: a verb menu and one number box.
+ *
+ * The trigger is `.key-quiet` with an edge: a word that names what replay
+ * does — SET TO, ADD, MULTIPLY BY — then a 9px chevron. The glyph row it
+ * replaced (`= + − × ÷`) read as an equation, `X = + 30` (user report,
+ * 2026-09-07).
+ */
+/*
+ * The verb menu's trigger is a FIELD-shaped control, not a key: it sits in
+ * a row with a number box and has to read as that box's partner — same
+ * 24px height, same hairline, same 6px radius as the menu items it opens.
+ * Sentence case at the body size, not the keys' tracked uppercase legend:
+ * "MULTIPLY BY" set as a legend outweighs the value it governs, and a
+ * legend's tracking wraps the chevron onto a second line at this width.
+ * The width is fixed so a vector's two rows line their boxes up.
+ */
+.key-verb.key-verb {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 24px;
+  /* 80px against the 64px number box beside it — near enough in weight to
+     read as a pair. "Subtract" is the widest verb once "Multiply by" lost
+     its "by", and it fits with the chevron at this width. */
+  width: 80px;
+  box-sizing: border-box;
+  padding: 0 6px 0 8px;
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    scale 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.key-verb.key-verb > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.key-verb.key-verb:hover {
+  background: color-mix(in srgb, var(--ink) 7%, var(--card));
+}
+
+.key-verb.key-verb:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* 10px in the caption colour: the chevron is an affordance, not a legend,
+   and it must not weigh as much as the word beside it. */
+.key-verb.key-verb svg {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  color: var(--label-fg);
+}
+
+/*
+ * The menu popup takes focus when it opens, and the browser paints its own
+ * blue outline around the whole list. The highlighted item is the focus
+ * cue here; the list itself gets none.
+ */
+[role="menu"]:focus-visible {
+  outline: none;
 }
 
 /*

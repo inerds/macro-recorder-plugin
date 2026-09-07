@@ -1,7 +1,8 @@
+import { explicitFormulaOf, formatFormula, isScalarFormula, termsOf } from "./formula";
 import { jsonEqual, type Json } from "./json";
 import type { MacroStep } from "./macro";
 import type { Path } from "./snapshot";
-import type { LayerRef, StepPayload } from "./steps";
+import type { LayerRef, LinearTerm, StepFormula, StepPayload } from "./steps";
 
 function round2(n: number): string {
   return String(Math.round(n * 100) / 100);
@@ -20,7 +21,9 @@ function isColor(v: Json): v is { r: number; g: number; b: number } {
 
 function hex(v: { r: number; g: number; b: number }): string {
   const c = (n: number) =>
-    Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, "0");
   return `#${c(v.r)}${c(v.g)}${c(v.b)}`.toUpperCase();
 }
 
@@ -185,6 +188,132 @@ function fmtSetting(key: string, value: Json): string {
 
 const TRANSFORM_SET = new Set(["position", "scale", "rotation", "skew", "skewAxis", "opacity"]);
 
+/** A signed operand: "+19.5", "−19.5". The sign is MINUS SIGN, not a hyphen. */
+function signed(n: number): string {
+  return n < 0 ? `−${round2(-n)}` : `+${round2(n)}`;
+}
+
+/** A ratio operand: "×2", "×−2". */
+function times(n: number): string {
+  return n < 0 ? `×−${round2(-n)}` : `×${round2(n)}`;
+}
+
+/** The two components differ by more than float noise. */
+function moved(before: Json, after: Json): boolean {
+  if (typeof before === "number" && typeof after === "number") {
+    return Math.abs(before - after) >= 1e-6;
+  }
+  return JSON.stringify(before ?? null) !== JSON.stringify(after ?? null);
+}
+
+/**
+ * What one component's formula does, in the row's own shorthand: "+10" for
+ * `v + 10`, "×2" for `v * 2`, "×2 +10" for both. Null when the term SETS a
+ * value (scale 0) — the arrow form tells that story better.
+ */
+function termMark(term: LinearTerm): string | null {
+  if (term.scale === 0) return null;
+  if (term.scale === 1) return signed(term.offset);
+  if (term.offset === 0) return times(term.scale);
+  return `${times(term.scale)} ${signed(term.offset)}`;
+}
+
+/**
+ * A mark that reads as doing nothing. A delta smaller than the label's own
+ * precision prints as "+0", a ratio as "×1". The arrow form still says
+ * something true ("rotation 45 → 45.001"), so the label goes back to it.
+ */
+function isIdentityMark(mark: string): boolean {
+  return mark === signed(0) || mark === times(1);
+}
+
+function isObject(v: Json): v is Record<string, Json> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/** The two values name the same components — a key on one side alone has no
+ *  term to print, and an invented one replays as a real write. */
+function sameKeys(before: Json, after: Json): boolean {
+  if (!isObject(before) || !isObject(after)) return false;
+  const b = Object.keys(before);
+  const a = Object.keys(after);
+  return b.length === a.length && b.every((key) => key in after);
+}
+
+/**
+ * A transform step that SHIFTS or SCALES its target, cut where the row splits
+ * it: the property on one side, the formula's shorthand on the other. A step
+ * reads "position.x +19.5", not "position.x 80.5 → 100", because the shift is
+ * what replay applies to a target — the arrow form said the opposite of what
+ * happens.
+ *
+ * The terms come from `termsOf`, so a step with its own formula and a step
+ * following the path's default read the same way.
+ *
+ * Null when the step sets a value (the arrow form tells that story better),
+ * or when the recording holds no term to print: a null start, a ratio from 0.
+ *
+ * A step the user gave its own formula labels from that formula even when the
+ * recorded pair no longer moves: `rotation 0` edited to `v * 2` recomputes
+ * `after` back to 0, and "rotation = 0" would then hide the multiply that
+ * every target is about to get.
+ */
+function formulaLabelOf(payload: StepPayload): { path: string; value: string } | null {
+  if (payload.op !== "set-static") return null;
+  if (payload.path[payload.path.length - 1] === "pathData") return null;
+  const explicit = explicitFormulaOf(payload) !== undefined;
+  if (!explicit && jsonEqual(payload.before, payload.after)) return null;
+  const terms = termsOf(payload);
+  if (terms === undefined) return null;
+  const root = payload.path[0];
+  const prefix = typeof root === "string" && TRANSFORM_SET.has(root) ? "Transform · " : "";
+  const display = `${prefix}${propName(payload.path)}`;
+
+  if (isScalarFormula(terms)) {
+    const mark = termMark(terms);
+    return mark === null || isIdentityMark(mark) ? null : { path: display, value: mark };
+  }
+
+  const before = payload.before;
+  const after = payload.after;
+  if (!sameKeys(before, after)) return null;
+  // One component moved: name it, the way the arrow form does.
+  const component = changedComponent(before, after);
+  if (component) {
+    const term = terms[component.key];
+    if (!term) return null;
+    const mark = termMark(term);
+    return mark === null || isIdentityMark(mark)
+      ? null
+      : { path: `${display}.${component.key}`, value: mark };
+  }
+  // An explicit formula names every component it carries: the values it
+  // recomputed may not have moved, and the arithmetic still runs.
+  const keys = Object.keys(terms).filter((key) =>
+    !explicit && isObject(before) && isObject(after)
+      ? moved(before[key] ?? null, after[key] ?? null)
+      : true,
+  );
+  if (keys.length === 0) return null;
+  const values: string[] = [];
+  for (const key of keys) {
+    const mark = termMark(terms[key]!);
+    if (mark === null) return null;
+    values.push(mark);
+  }
+  if (values.every(isIdentityMark)) return null;
+  return { path: display, value: values.join(", ") };
+}
+
+/** A formula spelled the way the step's box holds it: "v * 2 + 10" for a
+ *  scalar, "x: v + 10, y: 0" per component for a vector. */
+function formulaText(formula: StepFormula): string {
+  if (isScalarFormula(formula)) return formatFormula(formula);
+  return Object.entries(formula)
+    .map(([key, term]) => `${key}: ${formatFormula(term)}`)
+    .join(", ");
+}
+
 /**
  * The layer a step is bound to, or null when it has no binding. Scene-level
  * ops are excluded on purpose: they name their layer inside the label itself,
@@ -221,6 +350,13 @@ export interface LabelParts {
   before?: string;
   /** The value the step arrived at — the half worth protecting. */
   after?: string;
+  /**
+   * How `after` joins `path`. `"arrow"` (the default) is the `before → after`
+   * form. `"operator"` is an add or a multiply: `after` already carries its
+   * own `+` or `×` sign, and `before` is the recorded transition the operand
+   * came from — spoken, never shown, because the row has room for one value.
+   */
+  seam?: "arrow" | "operator";
 }
 
 const ARROW_SEAM = " → ";
@@ -228,6 +364,7 @@ const ARROW_SEAM = " → ";
 /** Recomposes parts into the exact string `labelOf` emits. */
 export function joinLabelParts(parts: LabelParts): string {
   if (parts.after === undefined) return parts.path;
+  if (parts.seam === "operator") return `${parts.path} ${parts.after}`;
   const before = parts.before === undefined ? "" : ` ${parts.before}`;
   return `${parts.path}${before}${ARROW_SEAM}${parts.after}`;
 }
@@ -243,6 +380,22 @@ export function joinLabelParts(parts: LabelParts): string {
  * only when it is literally the text in front of the arrow.
  */
 export function labelPartsOf(payload: StepPayload): LabelParts {
+  // An add or a multiply has no arrow to cut at: the operand IS the value
+  // half, and the recorded transition rides in the sr-only slot so a screen
+  // reader still hears where the delta came from.
+  const operator = formulaLabelOf(payload);
+  if (operator && payload.op === "set-static") {
+    const layerName = layerBindingOf(payload)?.name ?? null;
+    const component = changedComponent(payload.before, payload.after);
+    const from = component ? component.before : payload.before;
+    const to = component ? component.after : payload.after;
+    return {
+      path: `${layerName ? `${layerName} · ` : ""}${operator.path}`,
+      before: `${fmt(from)}${ARROW_SEAM}${fmt(to)}`,
+      after: operator.value,
+      seam: "operator",
+    };
+  }
   const full = labelOf(payload);
   const arrowAt = full.lastIndexOf(ARROW_SEAM);
   if (arrowAt === -1) return { path: full };
@@ -295,16 +448,21 @@ function bareLabelOf(payload: StepPayload): string {
   switch (payload.op) {
     case "set-static": {
       const root = payload.path[0];
+      // A shift or a scale says so: "position.x +19.5", "scale ×2". Asked
+      // FIRST, because a step carrying its own formula reads from that
+      // formula even when its recorded pair no longer moves — only a
+      // layer's own transform ever answers here.
+      const operator = formulaLabelOf(payload);
+      if (operator) return `${operator.path} ${operator.value}`;
       // A captured state (before === after) is a value, not a transition —
-      // checked FIRST so fills/strokes read "= v" too, not "v → v".
+      // checked before the arrow form so fills/strokes read "= v" too, not
+      // "v → v".
       if (
         payload.path[payload.path.length - 1] !== "pathData" &&
         jsonEqual(payload.before, payload.after)
       ) {
         const prefix0 =
-          payload.path.length === 1 &&
-          typeof root === "string" &&
-          TRANSFORM_SET.has(root)
+          payload.path.length === 1 && typeof root === "string" && TRANSFORM_SET.has(root)
             ? "Transform · "
             : "";
         return `${prefix0}${propName(payload.path)} = ${fmt(payload.after)}`;
@@ -343,16 +501,21 @@ function bareLabelOf(payload: StepPayload): string {
     }
     case "keyframes": {
       const prop = propName(payload.path);
+      // The default needs no word — it is what a keyframe step has always
+      // done. A formula the user typed does: it is the whole story of where
+      // this motion lands.
+      const formula = explicitFormulaOf(payload);
+      const suffix = formula ? ` · ${formulaText(formula)}` : "";
       const single =
         payload.added.length === 1 && payload.removed.length === 0 && payload.changed.length === 0
           ? payload.added[0]
           : null;
-      if (single) return `Keyframe · ${prop} @ ${round2(single.frame)}`;
+      if (single) return `Keyframe · ${prop} @ ${round2(single.frame)}${suffix}`;
       const parts: string[] = [];
       if (payload.added.length) parts.push(`+${payload.added.length}`);
       if (payload.removed.length) parts.push(`−${payload.removed.length}`);
       if (payload.changed.length) parts.push(`~${payload.changed.length}`);
-      return `Keyframes · ${prop} (${parts.join(", ")})`;
+      return `Keyframes · ${prop} (${parts.join(", ")})${suffix}`;
     }
     case "set-plain": {
       // A flag on a mask/fill/stroke/shape names its OWNER, not the layer.
@@ -381,7 +544,8 @@ function bareLabelOf(payload: StepPayload): string {
       return `Add stroke ${fmt(payload.spec.width)}px`;
     case "remove-paint": {
       const last = payload.path;
-      const index = typeof last[last.length - 1] === "number" ? (last[last.length - 1] as number) : 0;
+      const index =
+        typeof last[last.length - 1] === "number" ? (last[last.length - 1] as number) : 0;
       const suffix = index > 0 ? ` ${index + 1}` : "";
       return last.includes("strokes") ? `Remove stroke${suffix}` : `Remove fill${suffix}`;
     }

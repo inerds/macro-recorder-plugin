@@ -46,6 +46,15 @@ export interface PlaybackSession {
   steps: MacroStep[];
   /** Recorded node's first-touch value per pathKey. */
   origins: Record<string, Json>;
+  /**
+   * Per-target overrides of `origins`, per pathKey — what `rebaseAfterWrite`
+   * re-anchors a path to once an absolute write LANDS on that target. It is
+   * per target because the write itself is: a target whose property is
+   * keyframed takes nothing and keeps the shared origin, and moving that
+   * origin for everyone would aim the other targets' later relative steps at
+   * a value only one of them reached.
+   */
+  originsByTarget: Record<string, Json>[];
   /** Per-target current values at begin, per pathKey. */
   baselines: Record<string, Json>[];
   /** Keyframe frame shift: currentFrame − the macro's earliest keyframe

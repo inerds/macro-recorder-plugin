@@ -354,6 +354,54 @@ Where each piece lives and the invariants worth keeping:
   row, the macro detail, and the parameter form must all go through
   `editableValueOf`/`withEditedValue` so a value kind that's editable in one
   place is editable everywhere (and relabeled the same way).
+- **A step's arithmetic is one linear form, not a set of operators.** Every
+  expression a user can type into a step's box is linear in the current
+  value, so it reduces to one pair — `target = scale × current + offset`,
+  `LinearTerm` in `engine/steps.ts`. `apply?: StepFormula` holds one term for
+  a scalar property and one per numeric component for a vector. The first cut
+  of this feature stored a three-value `StepOperator` enum and put three keys
+  in the row; exact, add, and multiply are three points in the term space, so
+  the enum bought a control the user had to read and gave nothing the pair
+  does not. One box holds all three, and every point between them.
+- **`engine/formula.ts` is the parser, and it is the only place text becomes
+  a term.** A tokenizer plus recursive descent over the usual precedence,
+  evaluating to a polynomial in `v` of degree 1. `+` and `-` add polynomials,
+  `*` needs a constant on one side, `/` needs a non-zero constant divisor,
+  and `(`, `)` group. Anything of a higher degree is refused, so `v * v` and
+  `10 / v` never reach a payload. `formatFormula` is the inverse the box
+  opens with, and `FORMULA_ERRORS` is the whole vocabulary of refusals — one
+  short line each, which the editor prints under the fields.
+- **`engine/operator.ts` still answers for a step with no formula.**
+  `payloadClass(payload)` is the single choke point the applier and the
+  origin tracker ask: the path's class — position, rotation, skew, skewAxis
+  shift, scale multiplies — unless the recorded end value is an identity,
+  which reads as a RESET and applies exactly. The heuristic is derived from
+  the payload, not stored, so it corrects macros recorded before formulas
+  existed; nothing migrates. `termsOf` (`engine/formula.ts`) turns that
+  answer into the term the box shows.
+- **An explicit formula reads the LIVE current value; a step without one
+  keeps the frozen-baseline math.** `apply` is applied per component at write
+  time against a fresh read of the target (`readBaseline`), so chained
+  formula steps compose on what the previous step actually wrote. A step with
+  no `apply` still runs `computeTarget` against the baselines frozen at
+  `playback.begin` and the first-touch origins, and `rebaseAfterWrite`
+  (`sandbox/playback.ts`) re-anchors a path after an exact set-static lands
+  so a later relative step aims at the value that was written. That re-anchor
+  is per target — `playback.originsByTarget` laid over the shared
+  `playback.origins` — because the write is: a target whose property is
+  keyframed takes nothing while its neighbours write, and a shared origin
+  would aim its later steps at a value it never reached. Explicit formulas
+  need no rebase, because they never read a frozen number.
+- **Scene mode ignores formulas and writes `after`.** A rebuild reproduces
+  the recording, and there is no per-target current value to be relative to —
+  `context.mode === "scene"` says so outright, rather than being inferred
+  from an empty baseline map. So `after` has to stay truthful:
+  `withEditedValue` recomputes it as `evalTerm(term, before)` per component on
+  every formula edit, and the label is rebuilt from the same pair.
+- `EditableValue` gains one case, `{ kind: "formula"; fields }` — one text
+  per component, `{ value }` for a scalar and `{ x, y }` for a vector — and
+  `withEditedValue(step, next)` keeps its two parameters. The UI holds text,
+  the payload holds terms, and `engine/formula.ts` is the only crossing.
 - Disabled steps never reach the sandbox: `enabledSteps` in
   `ui/gateways/types.ts` filters client-side, so playback indices are into
   the ENABLED list. Repeat ×N is also purely client-side (one

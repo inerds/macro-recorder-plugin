@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import type { MacroStep } from "./macro";
+import { payloadClass } from "./operator";
 import { simplifySteps } from "./simplify";
 import { buildStep, type StepPayload } from "./steps";
 
 const layer = { id: "L1", name: "Rect" };
 
-function stat(path: (string | number)[], before: unknown, after: unknown, extra: object = {}): MacroStep {
+function stat(
+  path: (string | number)[],
+  before: unknown,
+  after: unknown,
+  extra: object = {},
+): MacroStep {
   return buildStep({ op: "set-static", path, before, after, layer, ...extra } as StepPayload);
 }
 
@@ -28,7 +34,8 @@ describe("simplifySteps — static runs", () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.id).toBe(steps[0]!.id);
     expect(out[0]!.payload).toMatchObject({ before: { x: 0, y: 0 }, after: { x: 100, y: 0 } });
-    expect(out[0]!.label).toBe("Rect · Transform · position.x 0 → 100");
+    // A position step adds, and the label says so (engine/operator.ts).
+    expect(out[0]!.label).toBe("Rect · Transform · position.x +100");
   });
 
   it("drops a run whose net effect is nothing", () => {
@@ -44,7 +51,16 @@ describe("simplifySteps — static runs", () => {
     const addShape = buildStep({
       op: "add-shape",
       parentPath: ["shapes"],
-      spec: { nodeId: "n", nodeType: "RECTANGLE", props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [] },
+      spec: {
+        nodeId: "n",
+        nodeType: "RECTANGLE",
+        props: {},
+        plain: {},
+        fills: [],
+        strokes: [],
+        masks: [],
+        shapes: [],
+      },
       layer,
     });
     const out = simplifySteps([
@@ -70,8 +86,19 @@ describe("simplifySteps — static runs", () => {
 
   it("never merges into or across a disabled step, and keys runs per layer", () => {
     const disabled = { ...stat(["rotation"], 10, 20), disabled: true as const };
-    const other = buildStep({ op: "set-static", path: ["rotation"], before: 0, after: 5, layer: { id: "L2" } });
-    const out = simplifySteps([stat(["rotation"], 0, 10), disabled, other, stat(["rotation"], 20, 30)]);
+    const other = buildStep({
+      op: "set-static",
+      path: ["rotation"],
+      before: 0,
+      after: 5,
+      layer: { id: "L2" },
+    });
+    const out = simplifySteps([
+      stat(["rotation"], 0, 10),
+      disabled,
+      other,
+      stat(["rotation"], 20, 30),
+    ]);
     expect(out).toHaveLength(4);
     expect(out[1]).toBe(disabled);
   });
@@ -95,7 +122,12 @@ describe("simplifySteps — scene settings", () => {
       sceneStep("size", { width: 1500, height: 1080 }, { width: 1080, height: 1080 }),
     ]);
     expect(out).toHaveLength(2);
-    expect(out[0]!.payload).toMatchObject({ op: "set-scene", key: "framerate", before: 30, after: 60 });
+    expect(out[0]!.payload).toMatchObject({
+      op: "set-scene",
+      key: "framerate",
+      before: 30,
+      after: 60,
+    });
     expect(out[1]!.payload).toMatchObject({
       op: "set-scene",
       key: "size",
@@ -114,8 +146,22 @@ describe("simplifySteps — keyframe folding", () => {
   it("folds added@f + changed@f chains into one add with the final value", () => {
     const out = simplifySteps([
       kfs({ added: [{ frame: 30, value: { x: 1, y: 0 } }] }),
-      kfs({ changed: [{ before: { frame: 30, value: { x: 1, y: 0 } }, after: { frame: 30, value: { x: 5, y: 0 } } }] }),
-      kfs({ changed: [{ before: { frame: 30, value: { x: 5, y: 0 } }, after: { frame: 30, value: { x: 9, y: 0 } } }] }),
+      kfs({
+        changed: [
+          {
+            before: { frame: 30, value: { x: 1, y: 0 } },
+            after: { frame: 30, value: { x: 5, y: 0 } },
+          },
+        ],
+      }),
+      kfs({
+        changed: [
+          {
+            before: { frame: 30, value: { x: 5, y: 0 } },
+            after: { frame: 30, value: { x: 9, y: 0 } },
+          },
+        ],
+      }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]!.payload).toMatchObject({
@@ -163,5 +209,91 @@ describe("simplifySteps — keyframe folding", () => {
       kfs({ removed: [{ frame: 20, value: 0 }] }),
     ]);
     expect(out[0]!.payload).toMatchObject({ removed: [{ frame: 10, value: 0 }], changed: [] });
+  });
+});
+
+describe("simplifySteps — the merged step's formula", () => {
+  const place = { x: { scale: 0, offset: 100 }, y: { scale: 0, offset: 0 } };
+  const shift = { x: { scale: 1, offset: 90 }, y: { scale: 1, offset: 0 } };
+
+  it("keeps an explicit `apply` from the last step of the run", () => {
+    const out = simplifySteps([
+      stat(["position"], { x: 0, y: 0 }, { x: 10, y: 0 }),
+      stat(["position"], { x: 10, y: 0 }, { x: 100, y: 0 }, { apply: place }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.payload).toMatchObject({ after: { x: 100, y: 0 }, apply: place });
+  });
+
+  it("keeps an explicit `apply` set only on the first step of the run", () => {
+    const out = simplifySteps([
+      stat(["position"], { x: 0, y: 0 }, { x: 10, y: 0 }, { apply: place }),
+      stat(["position"], { x: 10, y: 0 }, { x: 100, y: 0 }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.payload).toMatchObject({ after: { x: 100, y: 0 }, apply: place });
+  });
+
+  it("lets the last explicit `apply` win over an earlier one", () => {
+    const out = simplifySteps([
+      stat(["position"], { x: 0, y: 0 }, { x: 10, y: 0 }, { apply: place }),
+      stat(["position"], { x: 10, y: 0 }, { x: 40, y: 0 }),
+      stat(["position"], { x: 40, y: 0 }, { x: 100, y: 0 }, { apply: shift }),
+    ]);
+    expect(out).toHaveLength(1);
+    // `after` is recomputed from the winning formula over the run's own
+    // start: the 100 the last step recorded came from a different operator,
+    // and a stale pair would make the label and a scene rebuild lie.
+    expect(out[0]!.payload).toMatchObject({ after: { x: 90, y: 0 }, apply: shift });
+    // A step with its own formula reads the target live, so playback tracks
+    // no origin for it: absolute, whatever the path's default class is.
+    expect(payloadClass(out[0]!.payload as StepPayload)).toBe("absolute");
+  });
+
+  it("keeps a step whose formula does something, however still its values are", () => {
+    // "rotation 0 → 45" edited to `v * 2` recomputes `after` onto `before`,
+    // and the pair alone then reads as a no-op. The formula is what replays.
+    const doubled = simplifySteps([
+      stat(["rotation"], 0, 45),
+      stat(["rotation"], 45, 0, { apply: { scale: 2, offset: 0 } }),
+    ]);
+    expect(doubled).toHaveLength(1);
+    expect(doubled[0]!.payload).toMatchObject({
+      before: 0,
+      after: 0,
+      apply: { scale: 2, offset: 0 },
+    });
+    expect(doubled[0]!.label).toBe("Rect · Transform · rotation ×2");
+  });
+
+  it("drops a step whose formula is plain `v`", () => {
+    // Scale 1, offset 0 writes the target's own value back. That IS nothing,
+    // whatever the recorded pair says.
+    const identity = simplifySteps([
+      stat(["rotation"], 0, 45),
+      stat(["rotation"], 45, 0, { apply: { scale: 1, offset: 0 } }),
+    ]);
+    expect(identity).toHaveLength(0);
+    const perComponent = simplifySteps([
+      stat(["position"], { x: 0, y: 0 }, { x: 10, y: 0 }),
+      stat(
+        ["position"],
+        { x: 10, y: 0 },
+        { x: 0, y: 0 },
+        { apply: { x: { scale: 1, offset: 0 }, y: { scale: 1, offset: 0 } } },
+      ),
+    ]);
+    expect(perComponent).toHaveLength(0);
+  });
+
+  it("leaves `apply` absent when no step in the run set one", () => {
+    const out = simplifySteps([
+      stat(["position"], { x: 0, y: 0 }, { x: 10, y: 0 }),
+      stat(["position"], { x: 10, y: 0 }, { x: 100, y: 0 }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.payload).not.toHaveProperty("apply");
+    // The merged pair decides the class the run replays with.
+    expect(payloadClass(out[0]!.payload as StepPayload)).toBe("additive");
   });
 });

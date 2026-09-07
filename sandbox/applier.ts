@@ -6,14 +6,16 @@
  * Steps that don't fit the target become notes, not run-stopping failures;
  * only genuine errors (host refusals, exceptions) throw.
  */
+import { applyFormula, isNumberRecord, explicitFormulaOf } from "../engine/formula";
 import type { Json } from "../engine/json";
 import { jsonEqual, toJson } from "../engine/json";
 import { nodeTypeName, propDisplayName } from "../engine/labels";
 import type { NoteKind } from "../engine/protocol";
 import type { KfSnap, NodeSnapshot, PaintSnapshot, Path } from "../engine/snapshot";
 import { pathKey, propClassOf } from "../engine/snapshot";
+import { payloadClass } from "../engine/operator";
 import { computeTarget } from "../engine/relative";
-import type { StepPayload } from "../engine/steps";
+import type { StepFormula, StepPayload } from "../engine/steps";
 
 type AnyProxy = any;
 
@@ -25,6 +27,14 @@ export interface ApplyContext {
   /** Added to every recorded keyframe frame before matching or placing it
    *  (apply-at-playhead / stagger). Absent = 0. */
   frameOffset?: number;
+  /**
+   * Which replay this is. Absent = `"targets"`: the macro lands on whatever
+   * the user selected, so a step's formula reads the target's LIVE value.
+   * `"scene"` rebuilds the recording onto its own layers, and a rebuild must
+   * reproduce what was recorded — formulas are ignored and the recorded end
+   * value is written verbatim.
+   */
+  mode?: "targets" | "scene";
 }
 
 /**
@@ -147,11 +157,16 @@ export function resolvePath(
       // Inside instance content, LAYER ORDER is the mapping (user decision):
       // the recorded index maps to the target's same position, never
       // redirected by shape type.
-      if (child === undefined || (!instanceContent && shapeHint !== undefined && childType !== shapeHint)) {
+      if (
+        child === undefined ||
+        (!instanceContent && shapeHint !== undefined && childType !== shapeHint)
+      ) {
         const byType =
           shapeHint === undefined
             ? undefined
-            : list.find((candidate: AnyProxy) => tryRead(() => String(candidate.type)) === shapeHint);
+            : list.find(
+                (candidate: AnyProxy) => tryRead(() => String(candidate.type)) === shapeHint,
+              );
         if (byType !== undefined && shapeHint !== undefined) {
           if (byType !== child) {
             notes?.info(`matched this layer's ${nodeTypeName(shapeHint)} shape`);
@@ -298,7 +313,12 @@ function addVerified(prop: AnyProxy, snap: KfSnap, notes: NoteList = new NoteLis
 }
 
 /** Writes a recorded keyframe's values onto an existing target keyframe. */
-function writeKeyframe(prop: AnyProxy, kf: AnyProxy, snap: KfSnap, notes: NoteList = new NoteList()): void {
+function writeKeyframe(
+  prop: AnyProxy,
+  kf: AnyProxy,
+  snap: KfSnap,
+  notes: NoteList = new NoteList(),
+): void {
   try {
     if (Math.abs(Number(kf.frame) - snap.frame) >= FRAME_EPSILON) {
       kf.frame = snap.frame;
@@ -327,6 +347,45 @@ function upsertKeyframe(prop: AnyProxy, snap: KfSnap, notes: NoteList = new Note
 }
 
 /**
+ * The formula this step replays with, or undefined when it has none — and
+ * always undefined in scene mode, where a rebuild reproduces the recording
+ * rather than reading a live target.
+ */
+function formulaOf(payload: StepPayload, context: ApplyContext): StepFormula | undefined {
+  if (context.mode === "scene") return undefined;
+  return explicitFormulaOf(payload);
+}
+
+/**
+ * A value a formula can run on: a number, or an object whose EVERY value is a
+ * number. A property the host hands back as anything else (a string, null, a
+ * `{x: 10, y: null}` half-read) has no arithmetic to do, so the recorded value
+ * stands. `engine/formula.ts` owns the answer, so the applier's gate and
+ * `applyFormula`'s own cannot drift apart.
+ */
+function isNumeric(value: Json): boolean {
+  return typeof value === "number" || isNumberRecord(value);
+}
+
+/**
+ * The recorded value a keyframes payload's motion starts from: the value at
+ * its lowest frame. The same anchor playback picks for a tracked path
+ * (`sandbox/playback.ts#relativePaths`), computed here because a step with a
+ * formula is untracked — it reads the target live instead.
+ */
+function recordedOrigin(payload: Extract<StepPayload, { op: "keyframes" }>): Json | undefined {
+  const candidates = [
+    ...payload.added,
+    ...payload.changed.map((change) => change.before),
+    ...payload.removed,
+  ];
+  if (candidates.length === 0) return undefined;
+  let first = candidates[0]!;
+  for (const snap of candidates) if (snap.frame < first.frame) first = snap;
+  return first.value;
+}
+
+/**
  * Converges the target's timeline toward the recorded end state. Removing a
  * keyframe the target never had is a no-op, not a failure. Each entry is
  * applied independently so one bad keyframe can't drop the rest.
@@ -344,11 +403,39 @@ function applyKeyframes(
   const key = pathKey(payload.path);
   const origin = context.origins[key];
   const baseline = context.baselines[key];
-  const propClass = propClassOf(payload.path);
-  const adjust = (snap: KfSnap): KfSnap =>
+  // Per-step class, not the path's fixed one: a keyframe step whose recorded
+  // motion replays absolutely writes its values verbatim on a tracked path.
+  const propClass = payloadClass(payload);
+  let adjust = (snap: KfSnap): KfSnap =>
     origin === undefined
       ? snap
       : { ...snap, value: computeTarget(baseline, origin, snap.value, propClass) };
+
+  // A formula anchors the whole recorded motion: it says where the FIRST
+  // recorded value lands on this target, and every later keyframe keeps its
+  // recorded RELATIONSHIP to it — a distance on position, rotation, skew and
+  // skew axis, a ratio on scale. `v` is therefore exactly the relative replay
+  // above, `v + 10` is that motion 10 further on, and `100` parks it at 100.
+  // The path's own class does the shift, not a fixed "additive": scale
+  // keyframes 100 → 200 anchored at 50 are 50 and 100, not 50 and 150.
+  // Evaluating the formula per keyframe instead would flatten the animation.
+  const formula = formulaOf(payload, context);
+  if (formula) {
+    const current = readProp(prop);
+    const anchor =
+      current !== undefined && isNumeric(current) ? applyFormula(formula, current) : undefined;
+    const recorded = recordedOrigin(payload);
+    if (anchor !== undefined && recorded !== undefined) {
+      // Never "absolute": that would drop the anchor and write the recording
+      // verbatim, which is the one thing a formula step must not do.
+      const anchorClass =
+        propClassOf(payload.path) === "multiplicative" ? "multiplicative" : "additive";
+      adjust = (snap: KfSnap): KfSnap => ({
+        ...snap,
+        value: computeTarget(anchor, recorded, snap.value, anchorClass),
+      });
+    }
+  }
 
   // Apply-at-playhead: the whole recorded motion slides along the timeline,
   // so lookup AND placement use shifted frames. Shift the payload once, up
@@ -372,9 +459,7 @@ function applyKeyframes(
   const alsoAdded = (frame: number) =>
     addedFrames.some((candidate) => Math.abs(candidate - frame) < FRAME_EPSILON);
   const fail = (frame: number, error: unknown) => {
-    failures.push(
-      `keyframe @ ${frame}: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    failures.push(`keyframe @ ${frame}: ${error instanceof Error ? error.message : String(error)}`);
   };
 
   for (const snap of payload.added) {
@@ -532,7 +617,11 @@ function canCreatePaint(container: AnyProxy): boolean {
 }
 
 /** One spec component written onto an existing paint prop's staticValue. */
-function writeComponent(paint: AnyProxy, key: string, snap: { static?: Json } | undefined): boolean {
+function writeComponent(
+  paint: AnyProxy,
+  key: string,
+  snap: { static?: Json } | undefined,
+): boolean {
   if (!snap || snap.static === undefined) return false;
   const prop = tryRead(() => paint[key]);
   if (prop === undefined || prop === null || typeof prop !== "object") return false;
@@ -551,11 +640,18 @@ function writeComponent(paint: AnyProxy, key: string, snap: { static?: Json } | 
  * kind writes every component; cross-kind adapts (first stop's color /
  * tint every stop) since the kind can't change without re-creation.
  */
-function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, notes: NoteList): void {
+function applySpecInPlace(
+  paint: AnyProxy,
+  spec: PaintSnapshot,
+  label: string,
+  notes: NoteList,
+): void {
   if (spec.kind === "solid") {
     if (writeComponent(paint, "color", spec.color)) {
       writeComponent(paint, "opacity", spec.opacity);
-      notes.info(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
+      notes.info(
+        `applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`,
+      );
       return;
     }
     // solid spec onto a gradient paint: tint every stop
@@ -568,7 +664,9 @@ function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, n
             ? { ...stop, color: spec.color.static as Json }
             : stop,
         );
-        notes.info(`this layer's ${label} is a gradient — applied the recorded color to every stop`);
+        notes.info(
+          `this layer's ${label} is a gradient — applied the recorded color to every stop`,
+        );
         return;
       } catch {
         // fall through
@@ -584,7 +682,9 @@ function applySpecInPlace(paint: AnyProxy, spec: PaintSnapshot, label: string, n
       writeComponent(paint, "highlightAngle", spec.highlightAngle);
       writeComponent(paint, "highlightLength", spec.highlightLength);
       writeComponent(paint, "opacity", spec.opacity);
-      notes.info(`applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`);
+      notes.info(
+        `applied the recorded fill onto this layer's existing ${label} (it can't swap fills)`,
+      );
       return;
     }
     // gradient spec onto a solid paint: first stop's color
@@ -639,7 +739,10 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: NoteLis
     }
   }
   for (const [name, snap] of Object.entries(spec.props)) {
-    seedAnimatable(tryRead(() => node[name]), snap);
+    seedAnimatable(
+      tryRead(() => node[name]),
+      snap,
+    );
   }
   for (const [flag, value] of Object.entries(spec.plain ?? {})) {
     try {
@@ -682,7 +785,10 @@ export function applyNodeSpec(node: AnyProxy, spec: NodeSnapshot, notes: NoteLis
       if (typeof node.createTrimPath === "function") {
         const created = node.createTrimPath();
         for (const propName of ["start", "end", "offset"] as const) {
-          seedAnimatable(tryRead(() => created[propName]), trim[propName]);
+          seedAnimatable(
+            tryRead(() => created[propName]),
+            trim[propName],
+          );
         }
       }
     } catch {
@@ -709,9 +815,7 @@ export function createShapeFrom(parent: AnyProxy, spec: NodeSnapshot, notes: Not
     for (const child of spec.shapes) {
       createShapeFrom(parent, child, notes);
     }
-    const after: AnyProxy[] = Array.isArray(tryRead(() => parent.shapes))
-      ? [...parent.shapes]
-      : [];
+    const after: AnyProxy[] = Array.isArray(tryRead(() => parent.shapes)) ? [...parent.shapes] : [];
     const created = after.filter((shape) => !before.includes(shape));
     if (created.length === 0) {
       notes.push("group had no re-creatable shapes — skipped");
@@ -800,9 +904,7 @@ export function applyStep(
           const trimProp = resolveTrimProp(target, payload.path, notes);
           if (trimProp) {
             if (hasKeyframes(trimProp)) {
-              notes.push(
-                `${pathKey(payload.path)} has keyframes here — static value not applied`,
-              );
+              notes.push(`${pathKey(payload.path)} has keyframes here — static value not applied`);
             } else {
               trimProp.staticValue = payload.after;
             }
@@ -821,11 +923,24 @@ export function applyStep(
       }
       const key = pathKey(payload.path);
       const origin = context.origins[key] ?? payload.before;
+      // A step that carries a formula computes its own value from what this
+      // target holds right now. Everything else converges on the recorded end
+      // state through the class the step replays with — an identity reset on a
+      // position step lands on the recorded value, not on a per-target offset.
+      const formula = formulaOf(payload, context);
+      if (formula) {
+        const current = readBaseline(target, payload.path);
+        prop.staticValue =
+          current !== undefined && isNumeric(current)
+            ? applyFormula(formula, current)
+            : payload.after;
+        return outcomeOf(notes);
+      }
       prop.staticValue = computeTarget(
         context.baselines[key],
         origin,
         payload.after,
-        propClassOf(payload.path),
+        payloadClass(payload),
       );
       return outcomeOf(notes);
     }
@@ -880,10 +995,7 @@ export function applyStep(
           missing = false;
         }
         if (missing) {
-          return skipNote(
-            notes,
-            new Error(`${String(flag)} not found on this layer`),
-          );
+          return skipNote(notes, new Error(`${String(flag)} not found on this layer`));
         }
       }
       try {
@@ -1053,7 +1165,10 @@ export function applyStep(
       }
       const created = container.createTrimPath();
       for (const propName of ["start", "end", "offset"] as const) {
-        seedAnimatable(tryRead(() => created[propName]), payload.spec[propName]);
+        seedAnimatable(
+          tryRead(() => created[propName]),
+          payload.spec[propName],
+        );
       }
       return outcomeOf(notes);
     }
@@ -1074,9 +1189,7 @@ export function applyStep(
       let container: AnyProxy;
       try {
         container =
-          payload.path.length > 0
-            ? resolvePath(target, payload.path, undefined, notes)
-            : target;
+          payload.path.length > 0 ? resolvePath(target, payload.path, undefined, notes) : target;
       } catch (error) {
         return skipNote(notes, error);
       }
@@ -1136,10 +1249,7 @@ export function reorderChildren(
     return;
   }
   const current: AnyProxy[] = [...list];
-  if (
-    typeof current[0]?.moveBefore !== "function" ||
-    typeof current[0]?.moveAfter !== "function"
-  ) {
+  if (typeof current[0]?.moveBefore !== "function" || typeof current[0]?.moveAfter !== "function") {
     notes.push("this layer can't reorder shapes — skipped");
     return;
   }
@@ -1147,7 +1257,12 @@ export function reorderChildren(
   const desired: AnyProxy[] = [];
   const used = new Set<number>();
   for (const prevIndex of order) {
-    if (Number.isInteger(prevIndex) && prevIndex >= 0 && prevIndex < current.length && !used.has(prevIndex)) {
+    if (
+      Number.isInteger(prevIndex) &&
+      prevIndex >= 0 &&
+      prevIndex < current.length &&
+      !used.has(prevIndex)
+    ) {
       desired.push(current[prevIndex]);
       used.add(prevIndex);
     }
@@ -1393,12 +1508,11 @@ function applyPaintFallback(target: AnyProxy, path: Path, after: Json, notes: No
 function resolveTrimProp(target: AnyProxy, path: Path, notes: NoteList): AnyProxy | undefined {
   const at = path.lastIndexOf("trimPaths");
   if (at < 0 || typeof path[at + 1] !== "number" || path.length !== at + 3) return undefined;
-  const container =
-    at > 0 ? tryRead(() => resolvePath(target, path.slice(0, at))) : target;
+  const container = at > 0 ? tryRead(() => resolvePath(target, path.slice(0, at))) : target;
   if (!container) return undefined;
   const index = path[at + 1] as number;
   const trims = tryRead(() => container.trimPaths);
-  let trim: AnyProxy = Array.isArray(trims) ? trims[index] ?? trims[0] : undefined;
+  let trim: AnyProxy = Array.isArray(trims) ? (trims[index] ?? trims[0]) : undefined;
   if (trim && Array.isArray(trims) && trims[index] === undefined) {
     notes.info("applied to this layer's first trim path");
   }
@@ -1498,14 +1612,16 @@ function applyPaintKeyframesFallback(
   return false;
 }
 
-/** Reads this target's current value for a path (relative baselines). */
-export function readBaseline(target: AnyProxy, path: Path): Json | undefined {
+/**
+ * Reads one resolved property's current value — the value the USER sees.
+ *
+ * An animated property's staticValue is a stale leftover: the value on screen
+ * is the one on the timeline. Relative playback, and a step's formula, both
+ * measure the target against what it shows at the playhead, so read that when
+ * the property has keyframes (1.0.1 Animatable.getValueAt, live-verified).
+ */
+function readProp(prop: AnyProxy): Json | undefined {
   try {
-    const prop = resolvePath(target, path);
-    // An animated property's staticValue is a stale leftover — the value the
-    // user sees is the one on the timeline. Relative playback measures the
-    // target against what it shows at the playhead, so read that when the
-    // property has keyframes (1.0.1 Animatable.getValueAt, live-verified).
     if (hasKeyframes(prop) && typeof prop.getValueAt === "function") {
       let frame: unknown;
       try {
@@ -1524,6 +1640,15 @@ export function readBaseline(target: AnyProxy, path: Path): Json | undefined {
       }
     }
     return toJson(prop.staticValue);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Reads this target's current value for a path (relative baselines). */
+export function readBaseline(target: AnyProxy, path: Path): Json | undefined {
+  try {
+    return readProp(resolvePath(target, path));
   } catch {
     return undefined;
   }
