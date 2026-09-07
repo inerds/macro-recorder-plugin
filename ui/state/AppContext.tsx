@@ -9,12 +9,9 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  applyParamValues,
-  editableValueOf,
-  type EditableValue,
-} from "../../engine/editing";
+import { applyParamValues, editableValueOf, type EditableValue } from "../../engine/editing";
 import { RPC_ERRORS } from "../../engine/protocol";
+import { trace } from "../dev/trace";
 import { simplifySteps } from "../../engine/simplify";
 import type { Gateways } from "../gateways";
 import {
@@ -22,6 +19,7 @@ import {
   repeatCount,
   type PlaybackRun,
   type PlayOptions,
+  type RecordingSource,
 } from "../gateways/types";
 import type { Macro, StepResult } from "../types";
 import { copyViaHiddenTextarea } from "../utils/clipboard";
@@ -57,6 +55,32 @@ function saveFailureText(error: unknown): string {
     : "Couldn't save the macro. Try again.";
 }
 
+/**
+ * How often the resting panel asks what Record would watch. One second is
+ * slow enough to cost nothing and fast enough that the readout has caught up
+ * before the hand reaches the key.
+ */
+const PEEK_MS = 1000;
+
+/**
+ * Splits a finished session into the two things RECORD_STOP carries: the node
+ * that is SAVED onto the macro (selection fallback on replay) and the scope,
+ * which is review-screen copy and must never reach the stored macro.
+ */
+function recordedSource(source: RecordingSource | null): {
+  source?: { nodeId: string; nodeName?: string };
+  scope?: RecordingSource["scope"];
+} {
+  if (!source) return {};
+  return {
+    source: {
+      nodeId: source.nodeId,
+      ...(source.nodeName ? { nodeName: source.nodeName } : {}),
+    },
+    ...(source.scope ? { scope: source.scope } : {}),
+  };
+}
+
 function paramDefaults(macro: Macro): Record<string, EditableValue> {
   const values: Record<string, EditableValue> = {};
   for (const param of macro.params ?? []) {
@@ -69,7 +93,12 @@ function paramDefaults(macro: Macro): Record<string, EditableValue> {
 }
 
 export interface AppActions {
-  startRecording(): void;
+  /**
+   * Starts a recording. `exact` — the Option/Alt modifier held on the Record
+   * key — records this session's layer-transform steps as their end values
+   * rather than as deltas. Per press, never remembered.
+   */
+  startRecording(options?: { exact?: boolean }): void;
   /** Pull the offered layer's existing timeline keyframes into the recording. */
   captureLayerKeyframes(scope: "all" | "selected"): void;
   stopRecording(): void;
@@ -79,7 +108,8 @@ export interface AppActions {
 
   changeReviewName(name: string): void;
   deleteReviewStep(stepId: string): void;
-  simplifyReview(): void;
+  /** The review sheet's "Keep every step" switch, remembered for the session. */
+  setReviewSimplified(simplified: boolean): void;
   toggleReviewStep(stepId: string): void;
   editReviewStep(stepId: string, value: EditableValue): void;
   toggleReviewParam(stepId: string): void;
@@ -135,13 +165,7 @@ export function useApp(): AppContextValue {
   return context;
 }
 
-export function AppProvider({
-  gateways,
-  children,
-}: {
-  gateways: Gateways;
-  children: ReactNode;
-}) {
+export function AppProvider({ gateways, children }: { gateways: Gateways; children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -200,12 +224,79 @@ export function AppProvider({
     });
   }, [recorder]);
 
-  // Live selection size — keeps the "select a layer" nudge honest.
+  // Edits dropped as out of scope, counted per tick (deduped at the gateway)
+  // — the chip's counter is the only place a dropped edit is ever reported.
   useEffect(() => {
-    return recorder.onSelectionCount?.((count) => {
-      dispatch({ type: "RECORD_SELECTION_COUNT", count });
+    return recorder.onIgnoredCount?.((count) => {
+      dispatch({ type: "RECORD_IGNORED_COUNT", count });
     });
   }, [recorder]);
+
+  // The scope grew (a layer this recording created joined it): the chip
+  // names it now, and the ref carries it into review at stop.
+  useEffect(() => {
+    return recorder.onScope?.((scope) => {
+      if (recordingSourceRef.current)
+        recordingSourceRef.current = { ...recordingSourceRef.current, scope };
+      dispatch({ type: "RECORD_SCOPE", scope });
+    });
+  }, [recorder]);
+
+  // What Record will watch, asked once a second while the panel rests. The
+  // sandbox has no timers and cannot volunteer it (docs/architecture.md), so
+  // the poll lives here with the rest of the side effects. The reducer hands
+  // back the same state for an unchanged answer, so a quiet minute of polling
+  // renders nothing. The dependency is the MODE, not the whole state: every
+  // dispatch makes a new state object, and depending on it would tear the
+  // interval down and start a fresh one on every keystroke in the panel.
+  useEffect(() => {
+    if (state.mode !== "idle") return;
+    const peek = recorder.peekScope?.bind(recorder);
+    if (!peek) return;
+    let cancelled = false;
+    let inFlight = false;
+    let failures = 0;
+    let timer: number | undefined;
+    // The bridge keeps this method out of traces, so a sandbox that cannot
+    // answer it (a stale engine without the method — the ENGINE_REV trap)
+    // would otherwise fail once a second, invisibly, for the whole session.
+    // The first failure is traced, and the interval backs off to 16 s while
+    // the failures continue; one success resets it.
+    const delay = () => PEEK_MS * 2 ** Math.min(failures, 4);
+    const ask = () => {
+      // A hidden panel has no readout to keep fresh, and one call still in
+      // flight means the sandbox is already answering this question.
+      if (cancelled) return;
+      if (inFlight || document.hidden) {
+        timer = window.setTimeout(ask, delay());
+        return;
+      }
+      inFlight = true;
+      void peek()
+        .then((preview) => {
+          failures = 0;
+          if (!cancelled) dispatch({ type: "SCOPE_PEEKED", preview });
+        })
+        .catch((error: unknown) => {
+          // A peek that fails is a caption that stays as it was.
+          if (failures === 0) {
+            trace.event("scope-peek-failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          failures += 1;
+        })
+        .finally(() => {
+          inFlight = false;
+          if (!cancelled) timer = window.setTimeout(ask, delay());
+        });
+    };
+    ask();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [state.mode, recorder]);
 
   // Recording ended on its own (e.g. the recorded layer was deleted).
   useEffect(() => {
@@ -213,11 +304,11 @@ export function AppProvider({
       const current = stateRef.current;
       if (current.mode !== "recording") return;
       if (current.steps.length > 0) {
-        const source = recordingSourceRef.current;
         dispatch({
           type: "RECORD_STOP",
           suggestedName: suggestMacroName(current.macros),
-          ...(source ? { source } : {}),
+          autoSimplify: autoSimplifyRef.current,
+          ...recordedSource(recordingSourceRef.current),
         });
       } else {
         dispatch({ type: "DISCARD_CONFIRM" });
@@ -232,10 +323,7 @@ export function AppProvider({
   // Transient success flash after playback.
   useEffect(() => {
     if (state.mode === "idle" && state.justPlayedId) {
-      const timer = setTimeout(
-        () => dispatch({ type: "PLAY_FLASH_CLEAR" }),
-        1500,
-      );
+      const timer = setTimeout(() => dispatch({ type: "PLAY_FLASH_CLEAR" }), 1500);
       return () => clearTimeout(timer);
     }
   }, [state]);
@@ -256,7 +344,17 @@ export function AppProvider({
     [notify],
   );
 
-  const recordingSourceRef = useRef<{ nodeId: string; nodeName?: string } | null>(null);
+  // The WHOLE source, not just the node: stop and the ended-on-its-own path
+  // both have to report the scope the recording was fixed to.
+  const recordingSourceRef = useRef<RecordingSource | null>(null);
+
+  /**
+   * How the NEXT review sheet opens. A ref, not state — nothing renders from
+   * it — and not storage: the plugin iframe has no reliable `localStorage`,
+   * and `clientStorage` is a sandbox round trip that a preference does not
+   * earn. The choice therefore lasts for the panel session and no longer.
+   */
+  const autoSimplifyRef = useRef(true);
 
   const findMacro = useCallback((macroId: string): Macro | undefined => {
     return stateRef.current.macros.find((m) => m.id === macroId);
@@ -327,19 +425,20 @@ export function AppProvider({
 
   const actions = useMemo<AppActions>(
     () => ({
-      startRecording() {
+      startRecording(options) {
         recorder
           .start()
           .then((source) => {
             recordingSourceRef.current = source ?? null;
-            // Seeds the standing "select a layer" nudge; ticks keep it live
-            // and it clears itself the moment something is selected.
+            // The scope is fixed here, at start, and the chip says so for the
+            // whole session — the selection is free to move after this. The
+            // exact-values modifier is fixed the same way, and for the same
+            // reason: what the key said it would do is what the session does.
             dispatch({
               type: "RECORD_START",
               startedAt: Date.now(),
-              ...(typeof source?.selectionCount === "number"
-                ? { selectionCount: source.selectionCount }
-                : {}),
+              ...(source?.scope ? { scope: source.scope } : {}),
+              ...(options?.exact ? { exact: true } : {}),
             });
           })
           .catch((error: unknown) => {
@@ -382,11 +481,11 @@ export function AppProvider({
       stopRecording() {
         void recorder.stop().then((finalSteps) => {
           finalSteps.forEach((step) => dispatch({ type: "STEP_RECEIVED", step }));
-          const source = recordingSourceRef.current;
           dispatch({
             type: "RECORD_STOP",
             suggestedName: suggestMacroName(stateRef.current.macros),
-            ...(source ? { source } : {}),
+            autoSimplify: autoSimplifyRef.current,
+            ...recordedSource(recordingSourceRef.current),
           });
         });
       },
@@ -411,12 +510,17 @@ export function AppProvider({
       deleteReviewStep(stepId) {
         dispatch({ type: "REVIEW_STEP_DELETE", stepId });
       },
-      simplifyReview() {
+      setReviewSimplified(simplified) {
         const current = stateRef.current;
         if (current.mode !== "reviewing") return;
-        const steps = simplifySteps(current.steps);
-        dispatch({ type: "REVIEW_SET_STEPS", steps });
-        announceSimplify(current.steps.length, steps.length);
+        if (current.simplified === simplified) return;
+        autoSimplifyRef.current = simplified;
+        dispatch({ type: "REVIEW_SIMPLIFIED_TOGGLE", simplified });
+        if (simplified) {
+          announceSimplify(current.rawSteps.length, simplifySteps(current.rawSteps).length);
+        } else {
+          notify("Every recorded step is back", "info");
+        }
       },
       toggleReviewStep(stepId) {
         dispatch({ type: "REVIEW_STEP_TOGGLE", stepId });
@@ -492,9 +596,7 @@ export function AppProvider({
       },
       toggleMacroStep(macroId, stepId) {
         dispatch({ type: "MACRO_STEP_TOGGLE", macroId, stepId });
-        updateMacro(macroId, (macro) =>
-          withSteps(macro, toggleStepDisabled(macro.steps, stepId)),
-        );
+        updateMacro(macroId, (macro) => withSteps(macro, toggleStepDisabled(macro.steps, stepId)));
       },
       editMacroStep(macroId, stepId, value) {
         dispatch({ type: "MACRO_STEP_EDIT", macroId, stepId, value });
@@ -601,10 +703,7 @@ export function AppProvider({
         }
         // The substituted macro is a throwaway clone — the saved one keeps
         // its recorded values as the parameter defaults.
-        runMacro(
-          { ...macro, steps: applyParamValues(macro, current.values) },
-          current.options,
-        );
+        runMacro({ ...macro, steps: applyParamValues(macro, current.values) }, current.options);
       },
       cancelConfigure() {
         dispatch({ type: "CONFIGURE_CANCEL" });

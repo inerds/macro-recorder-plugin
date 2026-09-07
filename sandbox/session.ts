@@ -1,5 +1,6 @@
 import type { Json } from "../engine/json";
 import type { MacroStep } from "../engine/macro";
+import type { RecordScope } from "../engine/scope";
 import type { SceneSnapshot } from "../engine/snapshot";
 
 type AnyProxy = any;
@@ -11,6 +12,12 @@ export interface RecordingSession {
   firstSnapshot: SceneSnapshot;
   /** Dev diagnostics opted into at record.start. */
   debug: boolean;
+  /** What this session watches. Fixed from the selection at record.start,
+   *  then grown by the layers the recording itself creates. */
+  scope: RecordScope;
+  /** Payloads dropped so far as outside the scope — cumulative, so the panel
+   *  can show a running count instead of a per-tick blip. */
+  ignored: number;
   /** Debug: the keyframe-surface probe has already run this session. */
   keyframeProbed?: boolean;
   /** Any tick or keyframe capture emitted a step this session — gates
@@ -39,6 +46,15 @@ export interface PlaybackSession {
   steps: MacroStep[];
   /** Recorded node's first-touch value per pathKey. */
   origins: Record<string, Json>;
+  /**
+   * Per-target overrides of `origins`, per pathKey — what `rebaseAfterWrite`
+   * re-anchors a path to once an absolute write LANDS on that target. It is
+   * per target because the write itself is: a target whose property is
+   * keyframed takes nothing and keeps the shared origin, and moving that
+   * origin for everyone would aim the other targets' later relative steps at
+   * a value only one of them reached.
+   */
+  originsByTarget: Record<string, Json>[];
   /** Per-target current values at begin, per pathKey. */
   baselines: Record<string, Json>[];
   /** Keyframe frame shift: currentFrame − the macro's earliest keyframe

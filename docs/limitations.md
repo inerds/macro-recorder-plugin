@@ -419,9 +419,13 @@ flow stays as the universal path.
 
 ## ~~Single-layer recording scope~~ — LIFTED (2026-08-22, engine v3)
 
-Recording is now whole-scene. The recorder captures edits on any layer, layer
-duplication and copy-paste (replayed as real `clone()` calls), new layers,
-deletions, and layer reordering. See "Engine v3" in `history/improvements.md`.
+The recorder can capture edits on any layer, layer duplication and copy-paste
+(replayed as real `clone()` calls), new layers, deletions, and layer
+reordering. See "Engine v3" in `history/improvements.md`. Since rev
+`2026-09-07.2` the selection at Record chooses the scope — the selected
+layers, or the whole scene when nothing is selected. That is a product
+decision, not a host limit: the diff still runs on the whole scene, and
+`engine/scope.ts` drops what the user did not ask for.
 
 ---
 

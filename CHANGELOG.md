@@ -4,6 +4,63 @@ This is the user-facing record: user-visible changes per shared version, one
 dated block per release. The engineering log — what was wrong and what changed,
 one row per fix — is `docs/history/improvements.md`.
 
+## Unreleased
+
+- Hold Option (macOS) or Alt (Windows) while you press Record to record exact
+  values. The Record key turns blue, and every change to a layer's own
+  position, rotation, scale, skew, and skew axis is recorded as a **Set to**
+  step rather than as a delta — for macros that put things in fixed places.
+  Both Record keys take the modifier, from the pointer or from the keyboard.
+- The panel opens at 320 × 560 instead of 300 × 520: two more rows in the
+  list, and the reels a touch larger.
+- What you select before you press Record now decides what the recorder
+  watches. Select a layer and only that layer records; a selected shape
+  counts as its layer. Select nothing and the whole scene records, as
+  before. The deck shows which one Record will do, and the recording screen
+  names it. Edits to other layers are dropped and counted ("2 changes
+  outside Layer A ignored"), never recorded by surprise. Duplicates and new
+  layers still record. Scene settings record in whole-scene recordings only.
+- The review sheet now opens on the simplified list, because a single drag is
+  recorded as a chain of micro-steps. Select **Keep every step** above the
+  step list to see the recording as it was captured; the choice holds until
+  you close the panel. A saved macro keeps its manual **Simplify** button.
+- Playback walks the step list in about a second and a half instead of four
+  and a half. Short macros pace the same as before; long ones no longer take
+  many seconds to finish.
+- The pencil on a step for a layer's own position, rotation, skew, skew axis,
+  or scale now opens **a verb and a number box**: **Set to**, **Add**,
+  **Subtract**, **Multiply**, **Divide**, or **Formula…** for a whole
+  expression. Choose the verb, or type the operator into the box. The number
+  converts when you change the verb, so a drag from 100 to 130 reads
+  **Add** `30`, **Set to** `130`, or **Multiply** `1.3` — the same edit in
+  three ways. A vector property gets one row per component. **Formula…** hands
+  the box an expression such as `v * 2 + 10`, where `v` is the target's
+  current value. The default is unchanged — a drag opens as **Add** `60`, a
+  scale as **Multiply** `2` — so a macro you never edit behaves as it
+  always did.
+- Numbers in the panel show **two decimals**. A number that two decimals would
+  flatten into "changes nothing" keeps the digits it needs, and what you type
+  is stored as you type it.
+- A recorded "rotation to 0", "skew to 0", or "scale to 100%" step now
+  applies **exactly**, in macros you saved before this version too. Such a
+  step used to replay as a delta, so a target at 30° ended at −15° instead
+  of 0°.
+- A pinned transform step's play-time form now shows the same verb, so you can
+  change what the step does for one play without editing the macro.
+- A keyframe step on a layer's transform now takes a formula as well, so a
+  keyframed move can be set to an exact value. A scale keyframe run keeps its
+  proportions: recorded 100% → 200% keyframes played onto a half-size layer
+  now run 50% → 100%, not 50% → 150%.
+- A step you gave a formula keeps its formula on the row and in the list, even
+  when the numbers it was recorded with do not change. `v * 2` on a recorded
+  "rotation to 0" now reads "rotation ×2" and survives **Simplify**.
+- Playing onto several layers at once no longer lets one layer's result move
+  the others. A layer that could not take a step — a property already on the
+  timeline, for instance — now keeps its own starting point for the steps that
+  follow, instead of measuring against a value only its neighbours reached.
+- A macro the panel cannot draw now reports what happened and how to recover,
+  instead of leaving the panel blank.
+
 ## 0.7.0 — 2026-09-07
 
 - Nesting layers now really nests them. Creator gives no plugin a way to move

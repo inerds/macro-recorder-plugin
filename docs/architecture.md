@@ -140,7 +140,7 @@ omits unreadable properties; `engine/json.ts#toJson` deep-copies into JSON-safe
 data with a depth cap so nothing uncloneable escapes into an RPC payload. An
 absent property is a normal outcome, never an error.
 
-## Engine v3 — whole-scene recording (architecture as of 2026-08-22)
+## Engine v3 — whole-scene diff, selection-scoped recording (2026-08-22, scoped 2026-09-07)
 
 `runtime-api.md` is required reading: the published typings still diverge from
 the runtime in the places it lists, and every workaround in the engine anchors
@@ -151,11 +151,12 @@ dumps node/scene surfaces into traces).
 UI tick (500ms)                     sandbox
 RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → SceneSnapshot
                                     diffScene(prev, next) → StepPayload[]
+                                    partitionByScope(payloads, scope) → kept + ignored
                    ◀─── steps ───── buildStep() → {kind, label, payload}
 ```
 
-- Recording watches the WHOLE active scene (no selection needed): every
-  layer's subtree (shapes recurse; scene-instance layers expose their source
+- Recording snapshots and diffs the WHOLE active scene every tick, whatever
+  the scope (see the scope bullet below): every layer's subtree (shapes recurse; scene-instance layers expose their source
   scene's layers as the child channel), fills/strokes/masks/trims, plain
   flags (incl. text props), names. `diffScene` matches layers by id and emits
   scene ops: `add-layer` (with structural duplicate detection → `cloneOf`,
@@ -183,14 +184,55 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   in `sandbox/playback.ts#applySceneSetting`, never per target. Both fields
   are optional: a snapshot recorded before this rev carries no `settings`, and
   `diffSceneSettings` emits nothing when either side lacks the key.
-- **Selection nudge (rev .48, inline since .49)**: `record.start` seeds and
-  every `record.tick` carries `selectionCount`; 0 → a standing dashed chip
-  above the live feed that clears ITSELF when a layer is selected (slot
-  chain: discard confirm > capture offer > nudge — offer needs a selection,
-  nudge needs none, so the last two never collide). A NUDGE, never a gate
-  (user decision: no disabled REC, no confirm interstitial, no toast) —
-  whole-scene/structure recordings are a designed feature. Toasts
-  themselves are restyled in index.css as compact ink chips (the library's
+- **Recording scope (rev 2026-09-07.2)**: `record.start` decides ONCE what
+  the recording watches, from `creator.selection.nodes`. Layers selected →
+  `{kind: "layers", ids}`; a selected shape resolves to its owning top-level
+  layer (`engine/scope.ts#resolveScope` walks each layer's `shapes`, the
+  scene-layer child channel included; masks and paints have no ids and are
+  never selected). Nothing selected → `{kind: "scene"}`, the whole scene as
+  before. A non-empty selection that matches no layer of the active scene
+  falls back to the scene with `fallback: "unresolved"`, and the panel says
+  so. User decision (2026-09-07): recording noise on unselected layers was
+  the reported bug, and selection-before-Record is the rule the user wanted,
+  with whole-scene recording kept for structure macros.
+  The scope PARTITIONS the diff; it never filters the snapshots. `diffScene`
+  still runs on the whole scene, because clone detection needs every `prev`
+  layer for `cloneOf`, the reorder rule needs the full survivor order, and
+  nest/break detection correlates the full removed and added sets in one
+  tick. `partitionByScope` then keeps a payload when its `layer` ref is in
+  scope, keeps every `add-layer` and grows the scope with its id (a layer
+  that did not exist at record.start cannot be a stray edit; a clone of an
+  unscoped layer keeps its `cloneOf`), keeps `nest-layers` and `break-scene`
+  when they touch a scoped layer and grows the scope with what they create,
+  keeps `reorder-layers` only when a scoped layer's position among the
+  survivors changed, and drops `set-scene` (scene settings belong to
+  whole-scene recordings). Growth is collected in a first pass, so payload
+  order within a tick does not matter. Dropped payloads are COUNTED:
+  `record.tick` returns a cumulative `ignored`, the recording chip shows
+  "2 changes outside Layer A ignored", and `RecordDebug.ignored` marks the
+  tick in traces. Nothing is dropped in silence. When the scope grows, that
+  tick's result carries the grown `scope`, so the chip and the review hint
+  name what is watched now. A single-layer scope also saves that layer, not
+  the scene, as the macro's `source`; replay does not depend on it (a
+  layer-bound macro with nothing selected takes scene mode and resolves by
+  recorded id and name). The capture offer is withheld for a selected layer
+  outside the scope, and `record.captureKeyframes` refuses one.
+- **Scope readout before Record**: the sandbox has no timers, so the panel
+  polls `selection.peek` at 1 Hz while idle (`AppContext`, paused when the
+  document is hidden). The handler reads a light `serializeSceneIndex` (ids,
+  types, names, shapes — no animatables) and resolves the scope the same way
+  `record.start` will. `bridge.ts` keeps `selection.peek` out of trace
+  bundles, like `hello`, or every bundle would collect a pair per second;
+  the poll itself traces its FIRST failure and backs off to 16 s while the
+  failures continue, so a stale sandbox without the method is visible once
+  and not hammered.
+  The deck's `.deck-scope` line shows `RECORDS · LAYER A` / `WHOLE SCENE`
+  while idle and `RECORDING · …` while recording (design-system.md). The
+  older selection nudge (rev .48) is gone; the scope chip took its place
+  under the discard confirm, and the capture offer stacks ABOVE the chip
+  rather than replacing it — the chip's counter is the only report of a
+  dropped edit, and a keyframed layer can stay selected all session.
+- Toasts are restyled in index.css as compact ink chips (the library's
   hardcoded dark slab is full-app-scale; attribute-contains selectors on
   the fixed z-100 viewport, same strategy as the dialog-slide fix).
 - **Keyframe capture (rev .42)**: while recording, `record.tick`'s result
@@ -301,10 +343,76 @@ Where each piece lives and the invariants worth keeping:
   and a static edit never merges with a keyframe edit on the same path (the
   value's meaning changed). `foldKeyframes` is the net-delta algebra —
   extend it with a test per new case, it's easy to get a sign wrong.
+- The review sheet opens on the SIMPLIFIED list: `RECORD_STOP` carries an
+  `autoSimplify` flag (absent means true) and the reviewing state keeps
+  `rawSteps` beside `steps` so `REVIEW_SIMPLIFIED_TOGGLE` can swap between
+  them. The user's choice lives in an `autoSimplifyRef` in `AppContext` —
+  a session memory, not storage: the plugin iframe has no reliable
+  `localStorage`, and `clientStorage` is a sandbox round trip that a
+  preference does not earn.
 - `engine/editing.ts` is the single definition of "editable": the review
   row, the macro detail, and the parameter form must all go through
   `editableValueOf`/`withEditedValue` so a value kind that's editable in one
   place is editable everywhere (and relabeled the same way).
+- **A step's arithmetic is one linear form, not a set of operators.** Every
+  expression a user can type into a step's box is linear in the current
+  value, so it reduces to one pair — `target = scale × current + offset`,
+  `LinearTerm` in `engine/steps.ts`. `apply?: StepFormula` holds one term for
+  a scalar property and one per numeric component for a vector. The first cut
+  of this feature stored a three-value `StepOperator` enum and put three keys
+  in the row; exact, add, and multiply are three points in the term space, so
+  the enum bought a control the user had to read and gave nothing the pair
+  does not. The row shows one verb menu and one number box per component —
+  Set to, Add, Subtract, Multiply, Divide, and Formula… for the raw
+  expression — and `ui/components/formulaControl.ts` DERIVES the verb from
+  the stored term, so the pair stays the only thing on disk.
+- **`explicitFormulaOf` (`engine/operator.ts`) is the only reader of
+  `payload.apply`.** It honours a term or a per-component record, converts
+  the first cut's `"exact"` / `"add"` / `"multiply"` strings to the formula
+  they meant on a `set-static` step, drops them on a `keyframes` step, and
+  treats anything else as absent. One reader is what keeps a macro saved by
+  an older build from reaching a `toFixed` on `undefined`; `PanelErrorBoundary`
+  (`ui/main.tsx`) is the second line, so a render error shows what happened
+  instead of a blank panel.
+- **`engine/formula.ts` is the parser, and it is the only place text becomes
+  a term.** A tokenizer plus recursive descent over the usual precedence,
+  evaluating to a polynomial in `v` of degree 1. `+` and `-` add polynomials,
+  `*` needs a constant on one side, `/` needs a non-zero constant divisor,
+  and `(`, `)` group. Anything of a higher degree is refused, so `v * v` and
+  `10 / v` never reach a payload. `formatFormula` is the inverse the box
+  opens with, and `FORMULA_ERRORS` is the whole vocabulary of refusals — one
+  short line each, which the editor prints under the fields.
+- **`engine/operator.ts` still answers for a step with no formula.**
+  `payloadClass(payload)` is the single choke point the applier and the
+  origin tracker ask: the path's class — position, rotation, skew, skewAxis
+  shift, scale multiplies — unless the recorded end value is an identity,
+  which reads as a RESET and applies exactly. The heuristic is derived from
+  the payload, not stored, so it corrects macros recorded before formulas
+  existed; nothing migrates. `termsOf` (`engine/formula.ts`) turns that
+  answer into the term the box shows.
+- **An explicit formula reads the LIVE current value; a step without one
+  keeps the frozen-baseline math.** `apply` is applied per component at write
+  time against a fresh read of the target (`readBaseline`), so chained
+  formula steps compose on what the previous step actually wrote. A step with
+  no `apply` still runs `computeTarget` against the baselines frozen at
+  `playback.begin` and the first-touch origins, and `rebaseAfterWrite`
+  (`sandbox/playback.ts`) re-anchors a path after an exact set-static lands
+  so a later relative step aims at the value that was written. That re-anchor
+  is per target — `playback.originsByTarget` laid over the shared
+  `playback.origins` — because the write is: a target whose property is
+  keyframed takes nothing while its neighbours write, and a shared origin
+  would aim its later steps at a value it never reached. Explicit formulas
+  need no rebase, because they never read a frozen number.
+- **Scene mode ignores formulas and writes `after`.** A rebuild reproduces
+  the recording, and there is no per-target current value to be relative to —
+  `context.mode === "scene"` says so outright, rather than being inferred
+  from an empty baseline map. So `after` has to stay truthful:
+  `withEditedValue` recomputes it as `evalTerm(term, before)` per component on
+  every formula edit, and the label is rebuilt from the same pair.
+- `EditableValue` gains one case, `{ kind: "formula"; fields }` — one text
+  per component, `{ value }` for a scalar and `{ x, y }` for a vector — and
+  `withEditedValue(step, next)` keeps its two parameters. The UI holds text,
+  the payload holds terms, and `engine/formula.ts` is the only crossing.
 - Disabled steps never reach the sandbox: `enabledSteps` in
   `ui/gateways/types.ts` filters client-side, so playback indices are into
   the ENABLED list. Repeat ×N is also purely client-side (one
@@ -373,6 +481,15 @@ that pattern; it is what makes late-arriving gateway callbacks (a tick that land
 after stop) harmless. The reducer is pure and fully unit-tested; side effects
 live in `ui/state/AppContext.tsx`.
 
+**The exact-values modifier is stamped in the reducer, not in the sandbox.**
+Option or Alt on either Record key sets `exact` on the recording state, and
+`STEP_RECEIVED` then passes each step through `engine/exact.ts#withExactApply`,
+which writes `apply = { scale: 0, offset: after }` onto an eligible
+`set-static` and rebuilds its label. The modifier changes how the panel STORES
+what the host reported, never what the host is asked for, so the recorder
+gateway, `sandbox/recorder.ts`, and `ENGINE_REV` are all untouched — and the
+stamp stays a pure function the reducer tests cover.
+
 ## Runtime environments this code must survive
 
 Three, and they differ in what globals exist:
@@ -425,7 +542,7 @@ to test the no-`localStorage` / no-`randomUUID` paths.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-08-26.52)
+## Status and open threads (as of engine rev 2026-09-07.7)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two

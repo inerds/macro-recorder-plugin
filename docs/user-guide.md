@@ -33,6 +33,7 @@ carries no title, and the transport row under the reels is the readout:
 | **State word** | READY · RECORDING · REWIND · PLAYING · PAUSED · DONE. |
 | **Counter** | The steps captured while you record or review, and the step being applied during playback. |
 | **Clock** | Appears while you record, and shows minutes and seconds (m:ss). |
+| **Scope caption** | Under the transport row: *RECORDS · LAYER A* before you record, and *RECORDING · LAYER A* while you record. |
 | **The reels** | Spin while you record, rewind when you trigger a macro, run forward while it plays, and coast to a stop when it ends. When the deck is at rest you can spin them yourself: drag a reel and let go, and they coast like a platter while the counter runs with them. |
 
 The counter is the four-digit readout at the right of the transport row, and
@@ -45,8 +46,8 @@ the nameplate, so you can see which way it is going. The reels
 are pure confirmation: the lamp and the state word always say the same thing,
 and if your system asks for reduced motion the reels stay still.
 
-In a very short panel, under about 352px tall, the deck scales down but keeps
-whole, turning reels. Nothing moves anywhere else.
+In a very short panel, under about 371px tall, the deck scales down but keeps
+whole, turning reels. The scope caption stays. Nothing moves anywhere else.
 
 The panel wears one skin and keeps it. Only the surround around the panel
 follows Creator's own light or dark setting.
@@ -64,10 +65,12 @@ engine as soon as the engine answers.
 
 ## 2. Record a macro
 
-1. Click **Record** on the deck. You need no selection — the recorder watches
-   the whole active scene.
+1. Select the layer or layers you want to record, or select nothing to
+   record the whole scene. A selected shape counts as its layer. The deck's
+   readout shows what Record will watch: *RECORDS · LAYER A* or *RECORDS ·
+   WHOLE SCENE*. Then click **Record** on the deck.
 2. Edit the animation as you normally would. The recorder records all of the
-   following:
+   following on the recorded layers:
    - transform changes (position, scale, rotation, skew, opacity) and any
      property on child shapes (size, roundness, points, path geometry…)
    - keyframes: added, removed, moved, value- or easing-changed (motion-path
@@ -78,15 +81,39 @@ engine as soon as the engine answers.
      locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,
      reordering, breaking a scene layer apart, nesting layers
-   - scene settings: size, background (a transparent one included), frame
-     rate, duration, and the scene name
+   - scene settings, in a whole-scene recording only: size, background (a
+     transparent one included), frame rate, duration, and the scene name
 3. Watch the steps appear live in the panel as you work. The recorder samples
-   twice a second, so a long drag shows up as a handful of steps — see
-   *Simplify*.
+   twice a second, so a long drag shows up as a handful of steps. The review
+   sheet merges them for you — see §4.
 4. Click **Stop**: the red key at the bottom of the recording screen, or the
    same deck key you started from. Both do the same thing. If the recorder
    recorded nothing, you return to the list. Otherwise the **review sheet**
    opens.
+
+**Hold Option (macOS) or Alt (Windows) while you press Record to record
+exact values.** The Record key turns blue while you hold the modifier, and it
+stays blue for the recording it starts. The recorder then records each change
+to a layer's own position, rotation, scale, skew, and skew axis as a **Set to**
+step, which puts the target at that value. Without the modifier the same
+changes record as **Add** or **Multiply** steps, which move the target from
+where it is. Use exact values when you want a macro that puts things in fixed
+places. Keyframes, fills, and everything else record the same way in both
+modes. The modifier applies to one press: it is not remembered. On the
+keyboard, hold the same modifier and press Enter or Space on the Record key.
+Both Record keys take it — the deck's key and the Record key on the empty
+list.
+
+**What the recorder watches is fixed when you press Record.** A chip above
+the live feed names it: *Recording Layer A* or *Recording the whole scene*.
+When you record a layer, an edit to any other layer is not recorded, and the
+chip counts what it dropped: *2 changes outside Layer A ignored*. An exact
+recording says so in the same chip: *Recording Layer A · exact values.*
+A layer that did not exist when you pressed Record is always recorded: duplicate the
+recorded layer, or any layer, and the copy joins the recording, and so does a
+new layer or a scene layer you nest the recorded layer into. Scene settings
+record only in a whole-scene recording. If your selection is not in the
+active scene, the recorder falls back to the whole scene and the chip says so.
 
 **Discard**, beside Stop at the bottom, throws the session away, and it asks
 first when steps exist — *Discard this recording? Its 4 steps will be lost.* —
@@ -106,18 +133,19 @@ review sheet, or leave it as a reminder.
 
 The review sheet shows the macro's name and every recorded step, in the same
 recessed list the live feed uses. Each step reads as its property and its new
-value, for example `position.x → 160`. Hover or focus a step to see the value
-it replaced. A sentence above the list names what the macro applies to,
-including the recorded layer for a single-layer macro.
+value, for example `position.x +60`. A transform step reads as the formula
+it applies (see §5). Hover or focus a step to see the value it replaced. A
+sentence above the list names what the macro applies to, including the
+recorded layer for a single-layer macro.
 
 | Control | What it does |
 |---|---|
 | **Macro name** | Defaults to *Macro N*, and Enter saves. |
 | **× on a step** (hover) | Removes the step permanently. |
 | **Eye toggle** (*Skip step N during playback*) | Keeps the step in the macro but makes playback skip it; click again to re-enable. |
-| **Pencil** | Edits the step's value inline (see §5). |
+| **Pencil** | Edits the step's value or formula inline (see §5). |
 | **Pin** (*Ask for step N's value on every play*) | Marks the step as a parameter (see §8). |
-| **Simplify** | Collapses drag micro-steps and keyframe edit chains (see §4), and shows what it will do: `12 → 5`. |
+| **Keep every step** | Shows the recording as it was captured, instead of the merged list the sheet opens with (see §4). The readout says what was merged: `12 → 5`. |
 | **⊘ Skipped** | Not a control: Creator's plugin API cannot do this operation, so playback skips it. |
 | **Save macro** | Stores the macro in Creator's plugin storage, which follows your account, not the file. |
 | **Discard** | Drops the recording. |
@@ -125,11 +153,12 @@ including the recorded layer for a single-layer macro.
 You also get all of these controls later: expand a saved macro in the list to
 see its steps and edit them in place. Your changes save immediately.
 
-**Tip — select a layer before you record.** A macro recorded on one selected
-layer replays on *any* selected layer later. A recording that builds new
-layers replays as a scene rebuild bound to those layers. Recording with nothing
-selected still works, and that is how you make structure macros. The panel
-reminds you of the trade-off when you start that way.
+**Tip — select one layer before you record.** A macro recorded on one
+selected layer replays on *any* selected layer later, and with nothing
+selected it replays on the layer it was recorded on. A recording with nothing
+selected watches the whole scene, and that is how you make structure macros.
+It replays as a scene rebuild bound to its layers. The deck's readout tells
+you which kind you are about to make.
 
 ---
 
@@ -170,41 +199,116 @@ After **Add all keyframes**, that key goes off for the layer and reads
 ## 4. Simplify
 
 A single drag produces a run of small steps (`position.x 0 → 12`, `12 → 40`,
-`40 → 100`). **Simplify** merges every such run into one `0 → 100` step. It
+`40 → 100`). The plugin merges every such run into one `0 → 100` step. It
 also folds keyframe edit chains (add a keyframe, then nudge it three times)
 into one net change. A scene setting you changed several times — the frame
 rate, say — folds the same way, into one step from the first value to the
 last. Steps whose net effect is nothing (rotate 45°, rotate back) disappear.
+
+**The review sheet opens on the merged list.** The recorder samples twice a
+second, so three deliberate edits can arrive as five steps, and the merged
+list is the one that reads like what you did.
+
+To see the recording as it was captured, select **Keep every step** above the
+step list. The readout beside it says what was merged: `12 → 5`. Your choice
+holds for every recording until you close the panel.
+
+The switch rebuilds the list from the recording, so it also removes the step
+deletions, the value edits, and the parameter pins you made in this review.
+Make those edits after you choose the list you want.
 
 Simplify will *not* do the following:
 
 - merge across a structural step (adding a shape, duplicating a layer…) or a
   disabled step — those are boundaries
 - merge a static edit with a keyframe edit on the same property
-- run on its own — it is a button, so you decide
 
-When there is nothing to merge, the button stays put and says so (*Nothing to
+When there is nothing to merge, the switch stays put and says so (*Nothing to
 merge*) rather than disappearing.
+
+A saved macro keeps the manual **Simplify** button: expand its row in the
+list and press it to merge the steps that are stored.
 
 ---
 
 ## 5. Edit a step's value
 
-Hover or focus a step, then click the **pencil**. The pencil shows only for
-steps with an editable value. The label becomes an editor:
+Hover or focus a step, then click the **pencil**. The pencil shows for steps
+with an editable value, and for keyframe steps on a layer's transform. The
+label becomes an editor:
 
 | Recorded value | Editor |
 |---|---|
-| number (rotation, opacity, width…) | number field |
-| x/y vector (position, scale, size…) | one field per component |
+| position, rotation, skew, skew axis, scale | a verb and a number box per component (see below) |
+| number (opacity, width…) | number field |
+| x/y vector (size…) | one field per component |
 | color | color picker + hex field |
 | text (blend mode, layer name) | text field |
 | on/off flag | checkbox |
 | a newly created layer | its name |
 
 Press **Enter** or click away to commit. Press **Esc** to cancel. The step's
-label updates to the new value. Keyframe steps and path-geometry edits are not
-editable this way — re-record those.
+label updates to the new value. Path-geometry edits are not editable this
+way — re-record those.
+
+### The step's verb: set a value, or change it
+
+A step on a layer's own position, rotation, skew, skew axis, or scale opens as
+a verb and one number box. A vector property gets one row per component, **X**
+and **Y**. Click the verb to change what replay does:
+
+| Verb | What replay does |
+|---|---|
+| **Set to** | Sets the value to the number. |
+| **Add** | Adds the number to the target's own value. |
+| **Subtract** | Subtracts the number from the target's own value. |
+| **Multiply** | Multiplies the target's own value by the number. |
+| **Divide** | Divides the target's own value by the number. |
+| **Formula…** | Hands the box a whole expression. |
+
+You can also type the operator into the number box: a leading `+`, `-`, `*`,
+`/`, or `=` selects the verb it names and leaves the box. Under **Set to** a
+leading `-` is a negative number.
+
+The verb you choose always wins. Between **Add** and **Subtract**, or
+between **Multiply** and **Divide**, the number stays as you typed it:
+**Add** `30` becomes **Subtract** `30`. Between those pairs and **Set to**,
+the number converts through the value the step recorded, so it keeps
+meaning the same edit. A drag from 100 to 130 opens as **Add** `30`. Choose
+**Set to** and the box shows `130`. Choose **Multiply** and it shows `1.3`.
+A step recorded from 0 cannot use **Multiply** or **Divide**, and **Divide**
+needs a number that is not 0 — those items go quiet and say why.
+
+Numbers show two decimals. A number that two decimals would flatten into
+"changes nothing" — a shift of `0.00004`, a scale of `1.00001` — keeps the
+digits it needs. What you type is stored as you type it, however many decimals
+that is.
+
+**Formula** is for everything the five verbs cannot say. Choose **Formula…**,
+or type `v` anywhere in the number box and the verb changes on its own: `v` is
+the value the target holds when the macro reaches it, and the box takes `+`,
+`-`, `*`, `/`, parentheses, and one `v`. Type `v * 2 + 10` to multiply and then
+add. `current` works as a synonym for `v`.
+
+Four rules cover the rest:
+
+- The default is relative. A recorded drag opens as **Add** `60`, a recorded
+  rotation as **Add** `45`, and a recorded scale as **Multiply** `2` —
+  position, rotation, skew, and skew axis shift each target from its own
+  start, and scale multiplies. To record these steps as **Set to** instead,
+  hold Option or Alt when you press Record — see §2.
+- A recorded rotation of 0, skew of 0, skew axis of 0, or scale of 100% opens
+  as **Set to** `0` or **Set to** `100`, because it is a reset. A delta to
+  zero is never what you meant. This applies to macros you recorded before
+  this version too.
+- Only arithmetic that is linear in `v` is accepted. The box refuses `v * v`
+  and `10 / v`, and says why in the line under it. An expression longer than
+  200 characters is refused too.
+- The box takes no references to other properties, layers, or scenes.
+
+With nothing selected, a macro recorded on one layer rebuilds the recorded
+result on that layer, and the formulas do not apply. Formulas matter when you
+play the macro onto selected layers.
 
 ---
 
@@ -222,8 +326,9 @@ selection, you get the usual *Select a layer first*.
 nothing selected, they apply to the layer they were recorded on, if it still
 exists. The values adapt per target:
 
-- the layer's own position, rotation, and skew shift each target *from its own
-  start*, and scale multiplies
+- each step on the layer's own position, rotation, skew, skew axis, or scale
+  applies the formula in its box (see §5). The default shifts each target
+  *from its own start*, and scale multiplies
 - everything else — colors, child-shape geometry, and keyframe timing —
   applies exactly as recorded
 - keyframed motion on the transform offsets the same way, anchored to the
@@ -287,8 +392,8 @@ time. You watch the macro happen rather than see it land all at once:
   playing*
 
 The pace scales with the macro. A short macro steps about three times a
-second. A long one — a whole captured timeline, say — speeds up, so the walk
-still takes a few seconds rather than a minute.
+second. A long one — a whole captured timeline, say — speeds up: 15 steps
+walk in about a second and a half, and 200 steps in about four seconds.
 
 Three things can interrupt it:
 
@@ -310,9 +415,9 @@ adapted. The full list goes to the log for developers.
 
 Click the **sliders next to ▶** to open the play options. In a very narrow
 panel the sliders leave the closed row, and the ⋮ menu offers **Play
-options…** instead. The dialog has
-**Cancel**. What you choose sticks to the row: the plain ▶ uses it too, and
-the row shows it (`repeat ×8 · stagger 4 frames · at playhead`).
+options…** instead. The dialog has **Play** and **Cancel**. What you choose
+sticks to the row: the plain ▶ uses it too, and the row shows it
+(`repeat ×8 · stagger 4 frames · at playhead`).
 
 ### At playhead
 
@@ -371,8 +476,9 @@ macro, or the distance of a slide. Instead of editing the macro, do this:
 1. In review, or in the expanded macro, hover an editable step and press the
    **pin**. The step is now a parameter.
 2. Play the macro. A small **form** opens with one row per pinned step,
-   pre-filled with the recorded value. If the first pinned value is a color,
-   its picker pops open on its own — pick, then Play.
+   pre-filled with the recorded value. A pinned transform step shows its
+   formula, and you edit it for this play only. If the first pinned value is
+   a color, its picker pops open on its own — pick, then Play.
 3. Change what you want, then click **Play**. The macro replays with those
    values, and the saved macro is unchanged. **Cancel** returns to the list.
 
@@ -382,8 +488,10 @@ instead, edit the step in place with the pencil. To be *asked each play*, pin
 it.
 
 Parameters survive Copy JSON, Import, and duplicate. Deleting a pinned step
-drops its pin. *Simplify* keeps a pin when the pinned step is the first of a
-merged run (the survivor), and drops pins on the steps it merged away.
+drops its pin. A saved macro's *Simplify* keeps a pin when the pinned step is
+the first of a merged run (the survivor), and drops pins on the steps it
+merged away. The review sheet's **Keep every step** rebuilds the list from
+the recording, so it drops every pin.
 
 ---
 
@@ -434,7 +542,7 @@ which is why sharing is copy and paste.
 - **Record small, and combine on play.** A macro that does one thing (a
   pop-in, a recolor) is more reusable than a long session. *Repeat*,
   *Stagger*, and parameters do the combining.
-- **Use Simplify before you save** if you dragged controls. The macro becomes
+- **Leave the review sheet merged** if you dragged controls. The macro stays
   readable, and the replay is faster.
 - **Select before you play.** One-layer macros apply to every selected layer.
   With nothing selected, they fall back to the original layer.
@@ -477,6 +585,7 @@ likely to meet these:
   reordered, and replay checks them before it moves anything. Mask creation on
   replay was fixed in the 0.4.0 build, and a live session has not re-verified
   it since. Mask *edits* replay after the mask exists.
-- Fast drags are sampled at 2 steps per second — use *Simplify*.
+- Fast drags are sampled at 2 steps per second. The review sheet merges the
+  result before you see it.
 - Creator's plugin sandbox blocks file downloads. That is why sharing is
   **Copy JSON** and paste into **Import**, rather than a file export.

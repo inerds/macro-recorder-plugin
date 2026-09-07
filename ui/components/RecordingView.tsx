@@ -1,17 +1,21 @@
 import { Button } from "@lottiefiles/creator-plugins-ui";
 
-import type { CaptureOffer } from "../../engine/protocol";
+import type { CaptureOffer, ScopeReport } from "../../engine/protocol";
 import type { MacroStep } from "../types";
 import { CaptureOfferRow } from "./CaptureOfferRow";
 import { ConfirmInline } from "./ConfirmInline";
+import { ignoredText, scopeName } from "./scopeText";
 import { StepList } from "./StepList";
 
 export interface RecordingViewProps {
   steps: MacroStep[];
   confirmingDiscard: boolean;
-  /** Live selection size (null until the first report) — 0 keeps the
-   *  standing "select a layer" nudge visible until something is selected. */
-  selectionCount?: number | null;
+  /** What this recording watches, fixed at record start (null until known). */
+  scope?: ScopeReport | null;
+  /** Running count of edits dropped as outside that scope. */
+  ignored?: number;
+  /** The exact-values modifier was held on Record: the chip says so. */
+  exact?: boolean;
   captureOffer: CaptureOffer | null;
   capturedAllLayerIds: string[];
   onCapture: (scope: "all" | "selected") => void;
@@ -29,7 +33,9 @@ export interface RecordingViewProps {
 export function RecordingView({
   steps,
   confirmingDiscard,
-  selectionCount,
+  scope = null,
+  ignored = 0,
+  exact = false,
   captureOffer,
   capturedAllLayerIds,
   onCapture,
@@ -38,6 +44,12 @@ export function RecordingView({
   onDiscardCancel,
   onDiscardConfirm,
 }: RecordingViewProps) {
+  const isLayerScope = scope?.kind === "layers" && scope.layers.length > 0;
+  // The chip's first sentence names what is watched; the modifier only adds
+  // HOW the steps are recorded, so it rides that sentence instead of taking a
+  // line of its own on a 300px panel.
+  const what = isLayerScope ? `Recording ${scopeName(scope)}` : "Recording the whole scene";
+  const headline = exact ? `${what} · exact values.` : `${what}.`;
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="recording-view">
       <h2 className="sr-only">Recording</h2>
@@ -56,37 +68,50 @@ export function RecordingView({
               onCancel={onDiscardCancel}
             />
           </div>
-        ) : captureOffer ? (
-          <div className="mb-2">
-            <CaptureOfferRow
-              offer={captureOffer}
-              alreadyCapturedAll={capturedAllLayerIds.includes(captureOffer.layerId)}
-              onCapture={onCapture}
-            />
-          </div>
-        ) : selectionCount === 0 ? (
-          <div className="mb-2">
-            {/* Standing nudge, not an alert: it tracks the live selection
-                and leaves by itself the moment a layer is selected. */}
-            <div
-              className="inline-enter rounded-[10px] border border-dashed border-border bg-muted/60 p-2 text-12 text-muted-foreground"
-              role="note"
-              data-testid="selection-nudge"
-            >
-              Nothing selected — recording the whole scene. Select{" "}
-              <strong className="font-medium text-foreground">one layer</strong> to make a
-              macro you can replay on any layer.
-            </div>
-          </div>
-        ) : null}
+        ) : (
+          <>
+            {captureOffer ? (
+              <div className="mb-2">
+                <CaptureOfferRow
+                  offer={captureOffer}
+                  alreadyCapturedAll={capturedAllLayerIds.includes(captureOffer.layerId)}
+                  onCapture={onCapture}
+                />
+              </div>
+            ) : null}
+            {scope ? (
+              <div className="mb-2">
+                {/* Standing statement of what is being recorded, not an alert.
+                It stacks UNDER the capture offer rather than yielding to it:
+                the counter on this chip is the only place a dropped edit is
+                ever reported, and a keyframed layer can stay selected for a
+                whole session. Not a live region either — the counter moves
+                on every dropped edit, and a screen reader reading each one
+                would talk over the work. */}
+                <div
+                  className="inline-enter rounded-[10px] border border-dashed border-border bg-muted/60 p-2 text-12 text-muted-foreground"
+                  role="note"
+                  data-testid="scope-chip"
+                >
+                  <strong className="font-medium text-foreground">{headline}</strong>{" "}
+                  {isLayerScope
+                    ? ignored > 0
+                      ? `${ignoredText(ignored, scope)}.`
+                      : "Edits to other layers are ignored. New layers are recorded."
+                    : scope.kind === "scene" && scope.fallback === "unresolved"
+                      ? "The selection isn't in this scene."
+                      : "Select a layer before you press Record to record that layer only."}
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
         <div className="flex items-center justify-between gap-2 px-1 pb-1">
           <span className="instrument instrument-red truncate">Live steps</span>
           {/* Not a live region: at one tick every 500ms it read the count
               aloud over everything else. The total is announced once, on stop. */}
           <span className="mono shrink-0 text-10 text-muted-foreground tabular-nums">
-            {`${String(steps.length).padStart(2, "0")} ${
-              steps.length === 1 ? "step" : "steps"
-            }`}
+            {`${String(steps.length).padStart(2, "0")} ${steps.length === 1 ? "step" : "steps"}`}
           </span>
         </div>
         {/* A well, not a card: the step rows are `bg-card` themselves, so a
@@ -99,8 +124,10 @@ export function RecordingView({
                   named: it appears above the feed on its own terms, and a
                   user who never selects a layer with keyframes never learns
                   it exists. */}
-              Recording. Edit your animation — steps appear here as you work. Select a layer that
-              has keyframes to add them to the recording.
+              Recording. Edit your animation — steps appear here as you work.{" "}
+              {isLayerScope
+                ? "Select a recorded layer that has keyframes to add them to the recording."
+                : "Select a layer that has keyframes to add them to the recording."}
             </p>
           ) : (
             <StepList steps={steps} autoScroll />

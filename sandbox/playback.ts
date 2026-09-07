@@ -4,11 +4,13 @@ import type { MacroStep } from "../engine/macro";
 import type { PlaybackStepDebug, TargetProbe } from "../engine/protocol";
 import { RPC_ERRORS, type NoteKind } from "../engine/protocol";
 import type { NodeSnapshot, Path } from "../engine/snapshot";
-import { pathKey, propClassOf } from "../engine/snapshot";
+import { pathKey } from "../engine/snapshot";
+import { payloadClass } from "../engine/operator";
 import { nodeTypeName } from "../engine/labels";
 import type { LayerRef, StepPayload } from "../engine/steps";
 import { hasKeyframes } from "../engine/steps";
-import { resolvePaint,
+import {
+  resolvePaint,
   applyNodeSpec,
   applyStep,
   delayLayer,
@@ -20,7 +22,7 @@ import { resolvePaint,
 // (instance-content edits resolve strictly by index — user decision: layer
 // order, not shape-type matching, maps recorded content onto nested content)
 import { serializeNode, valueToJson } from "./serialize";
-import { session } from "./session";
+import { type PlaybackSession, session } from "./session";
 
 type AnyProxy = any;
 
@@ -179,7 +181,11 @@ function relativePaths(steps: MacroStep[]): { path: Path; origin: Json }[] {
     const payload = payloadOf(step);
     if (!payload) continue;
     if (payload.op !== "set-static" && payload.op !== "keyframes") continue;
-    if (propClassOf(payload.path) === "absolute") continue;
+    // Track the path when ANY of its steps replays relatively. The class is a
+    // per-step decision made at apply time (`payloadClass`), so one path can
+    // carry an exact step and an add step; the add step still needs an origin
+    // recorded here, and the exact step ignores it.
+    if (payloadClass(payload) === "absolute") continue;
     const key = pathKey(payload.path);
     if (seen.has(key)) continue;
 
@@ -258,8 +264,7 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
     // (resolvePaint's role-based descent). Follow it so the trace shows
     // the paint that was actually written, not "unreadable".
     if (path.lastIndexOf("fills") >= 0) {
-      const probePath =
-        typeof path[path.length - 1] === "number" ? [...path, "color"] : path;
+      const probePath = typeof path[path.length - 1] === "number" ? [...path, "color"] : path;
       const resolved = tryRead(() => resolvePaint(target, probePath));
       if (resolved) {
         base.value = paintSummary(resolved.paint);
@@ -679,7 +684,10 @@ function nestByRebuild(
   // 3. Route 1: the shell's own scene.
   let inner = tryRead(() => shell.scene);
   let ownScene: AnyProxy | undefined;
-  describeNestCall("shell.scene.createShapeLayer", tryRead(() => inner?.createShapeLayer));
+  describeNestCall(
+    "shell.scene.createShapeLayer",
+    tryRead(() => inner?.createShapeLayer),
+  );
   if (typeof tryRead(() => inner?.createShapeLayer) !== "function") {
     // 4. Route 2: a scene of our own, attached through the create options.
     removeQuietly(shell);
@@ -927,7 +935,9 @@ function applySceneOp(
           return;
         }
       }
-      notes.info(`couldn't duplicate ${layerLabel(payload.cloneOf)} — rebuilding from the recording`);
+      notes.info(
+        `couldn't duplicate ${layerLabel(payload.cloneOf)} — rebuilding from the recording`,
+      );
     }
     // Untyped runtime factory (introspection-discovered).
     const created = createLayerFromSpec(scene, payload.spec as NodeSnapshot, notes);
@@ -1220,7 +1230,9 @@ export function playbackBegin(params: {
   // Repeat ×N is N begin/steps/end passes. The delay happens once, on the
   // first, so repeats do not push the layers further out every time.
   const firstPass = !(
-    typeof params.iteration === "number" && Number.isFinite(params.iteration) && params.iteration > 0
+    typeof params.iteration === "number" &&
+    Number.isFinite(params.iteration) &&
+    params.iteration > 0
   );
   const timing = { frameOffsetBase, staggerFrames, firstPass };
   const frameOffsetResult = frameOffsetBase !== 0 ? { frameOffset: frameOffsetBase } : {};
@@ -1233,6 +1245,7 @@ export function playbackBegin(params: {
       layerByRecordedId: new Map(),
       steps: params.steps,
       origins: {},
+      originsByTarget: [],
       baselines: [],
       ...timing,
       delay: null,
@@ -1303,6 +1316,7 @@ export function playbackBegin(params: {
     targetMaps: targets.map(() => new Map<string, AnyProxy>()),
     steps: params.steps,
     origins,
+    originsByTarget: [],
     baselines,
     ...timing,
     delay,
@@ -1396,9 +1410,10 @@ export function playbackStep(params: { index: number }): {
       } else {
         if (playback.debug) before = [probe(layer, label, path)];
         try {
-          // A scene rebuild reproduces the recorded result exactly: no origins,
-          // so values pass through verbatim.
+          // A scene rebuild reproduces the recorded result exactly: no
+          // origins and no formulas, so values pass through verbatim.
           const outcome = applyStep(layer, step.payload, {
+            mode: "scene",
             origins: {},
             baselines: {},
             frameOffset: playback.frameOffsetBase,
@@ -1440,7 +1455,7 @@ export function playbackStep(params: { index: number }): {
           const cloneSource =
             payload.cloneOf.id === playback.sourceRoleId
               ? target
-              : playback.targetMaps?.[i]?.get(payload.cloneOf.id) ?? target;
+              : (playback.targetMaps?.[i]?.get(payload.cloneOf.id) ?? target);
           if (typeof cloneSource.clone !== "function") {
             notes.push({
               target: nameOf(i),
@@ -1453,7 +1468,11 @@ export function playbackStep(params: { index: number }): {
           if (created) {
             playback.targetMaps?.[i]?.set(payload.spec.nodeId, created);
             // Reproduce the duplicate offset relative to THIS target.
-            if (payload.offset && typeof payload.offset === "object" && !Array.isArray(payload.offset)) {
+            if (
+              payload.offset &&
+              typeof payload.offset === "object" &&
+              !Array.isArray(payload.offset)
+            ) {
               const prop = ((): AnyProxy => {
                 try {
                   return created.position;
@@ -1483,14 +1502,24 @@ export function playbackStep(params: { index: number }): {
           return;
         }
         const outcome = applyStep(nodeFor(target, i), step.payload, {
-          origins: playback.origins,
+          // The shared recorded origins, with this target's own re-anchors
+          // laid over them (`rebaseAfterWrite`).
+          origins: { ...playback.origins, ...(playback.originsByTarget[i] ?? {}) },
           baselines: playback.baselines[i] ?? {},
           // Cascade: each selected layer's motion starts later than the last.
           frameOffset: playback.frameOffsetBase + i * playback.staggerFrames,
         });
+        let skipped = false;
         outcome.notes.forEach((message, at) => {
-          notes.push({ target: nameOf(i), message, kind: outcome.noteKinds[at] ?? "skip" });
+          const kind = outcome.noteKinds[at] ?? "skip";
+          if (kind === "skip") skipped = true;
+          notes.push({ target: nameOf(i), message, kind });
         });
+        // A skipped write left this target where it was — a keyframed
+        // property, an unresolved path. Re-anchoring on the recorded value
+        // would then aim every later add step at a place the target never
+        // reached. Only a write that landed moves the anchor.
+        if (!skipped) rebaseAfterWrite(playback, i, payloadOf(step), nodeFor(target, i));
       } catch (error) {
         failures.push({
           target: nameOf(i),
@@ -1517,6 +1546,42 @@ export function playbackStep(params: { index: number }): {
   if (path) debug.path = path;
   if (breadcrumbs.length > 0) debug.breadcrumbs = [...breadcrumbs];
   return { index: params.index, failures, notes, debug };
+}
+
+/**
+ * An absolute step on a tracked path re-anchors the later relative steps on
+ * that path. Baselines are frozen at playback.begin and origins are the
+ * recorded first-touch value, so "set x = 100, then move by 50" would
+ * otherwise put the add step at baseline + (150 − origin), far from the 100
+ * the first step just wrote.
+ *
+ * After the write, this target IS at the value the step landed on, and the
+ * recording was at the step's recorded `after`. So the target's baseline
+ * becomes what it now holds and its origin becomes the recorded `after` — the
+ * value the next step's own recorded start measures from.
+ *
+ * Both halves are per target, because the write is: the caller withholds the
+ * rebase after a skip, and a target whose property is keyframed skips while
+ * its neighbours write. A shared origin would move for the skipped target
+ * too, and its later relative steps would then aim at a value it never
+ * reached.
+ */
+function rebaseAfterWrite(
+  playback: PlaybackSession,
+  i: number,
+  payload: StepPayload | undefined,
+  node: AnyProxy,
+): void {
+  if (!payload || payload.op !== "set-static") return;
+  if (payloadClass(payload) !== "absolute") return;
+  const key = pathKey(payload.path);
+  if (!(key in playback.origins)) return;
+  const origins = playback.originsByTarget[i] ?? (playback.originsByTarget[i] = {});
+  origins[key] = payload.after;
+  // A formula's result is this target's own; read back what actually landed.
+  const written = payload.apply ? readBaseline(node, payload.path) : undefined;
+  const baselines = playback.baselines[i] ?? (playback.baselines[i] = {});
+  baselines[key] = written ?? payload.after;
 }
 
 export function playbackEnd(): void {

@@ -7,6 +7,7 @@
  */
 import type { Json } from "../engine/json";
 import { toJson } from "../engine/json";
+import type { NodeTree } from "../engine/scope";
 import type {
   AnimatableSnapshot,
   KfSnap,
@@ -397,6 +398,58 @@ function serializeSceneSettings(scene: AnyProxy): SceneSettings {
   if (duration !== undefined && Number.isFinite(duration)) settings.duration = duration;
 
   return settings;
+}
+
+/**
+ * Identity-only view of one node's subtree: id, type, name, children. Same
+ * defensive discipline as `serializeNode` — every read may throw — and the
+ * same child channel, so a node inside a scene layer resolves to that layer.
+ */
+function indexNode(node: AnyProxy, depth = 0): NodeTree {
+  const tree: NodeTree = { nodeId: tryRead(() => String(node.id)) ?? "unknown", shapes: [] };
+  const nodeType = tryRead(() => String(node.type));
+  if (nodeType !== undefined) tree.nodeType = nodeType;
+  const name = tryRead(() => node.name);
+  if (typeof name === "string") tree.nodeName = name;
+
+  if (depth < MAX_DEPTH) {
+    const shapes = tryRead(() => node.shapes);
+    if (Array.isArray(shapes)) {
+      tree.shapes = shapes.map((shape: AnyProxy) => indexNode(shape, depth + 1));
+    } else {
+      // A scene layer keeps its content in the SOURCE scene — the same child
+      // channel serializeNode models, so a selection inside an instance
+      // resolves to the instance.
+      const sceneLayers = tryRead(() => node.scene?.layers);
+      if (Array.isArray(sceneLayers)) {
+        tree.shapes = sceneLayers.map((layer: AnyProxy) => indexNode(layer, depth + 1));
+      }
+    }
+  }
+  return tree;
+}
+
+/**
+ * The scene as identities alone — what `selection.peek` needs to name the
+ * layer a selection belongs to. The panel polls that once a second while
+ * idle, and a full `serializeScene` every second would cost a recording
+ * tick's work with none of its purpose: no animatables, no paints, no masks.
+ */
+export function serializeSceneIndex(scene: AnyProxy): {
+  sceneId?: string;
+  sceneName?: string;
+  layers: NodeTree[];
+} {
+  const index: { sceneId?: string; sceneName?: string; layers: NodeTree[] } = { layers: [] };
+  const id = tryRead(() => String(scene.id));
+  if (id !== undefined) index.sceneId = id;
+  const name = tryRead(() => scene.name);
+  if (typeof name === "string") index.sceneName = name;
+  const layers = tryRead(() => scene.layers);
+  if (Array.isArray(layers)) {
+    index.layers = layers.map((layer: AnyProxy) => indexNode(layer));
+  }
+  return index;
 }
 
 /** Whole-scene snapshot: every top-level layer's subtree. */

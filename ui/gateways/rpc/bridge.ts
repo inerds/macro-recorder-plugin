@@ -17,6 +17,14 @@ interface Pending {
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
+ * Methods that never reach a trace. The handshake retries by design, and the
+ * idle scope poll runs once a second whether or not anything happens — a
+ * traced bundle would otherwise be mostly a request/response pair per second
+ * of the user reading the panel.
+ */
+const QUIET_METHODS = new Set<RpcMethod>(["hello", "selection.peek"]);
+
+/**
  * The step-recorded / playback-event trace events already carry the debug
  * payloads (snapshot pairs, target probes); tracing them again on the raw
  * response would double every bundle's size.
@@ -58,21 +66,26 @@ export class RpcClient {
     this.pending.delete(message.id);
     clearTimeout(pending.timer);
     const ms = Date.now() - pending.startedAt;
+    const quiet = QUIET_METHODS.has(pending.method);
     if (message.ok) {
-      trace.event("rpc-response", {
-        id: message.id,
-        method: pending.method,
-        ms,
-        result: slimResult(message.result),
-      });
+      if (!quiet) {
+        trace.event("rpc-response", {
+          id: message.id,
+          method: pending.method,
+          ms,
+          result: slimResult(message.result),
+        });
+      }
       pending.resolve(message.result);
     } else {
-      trace.event("rpc-error", {
-        id: message.id,
-        method: pending.method,
-        ms,
-        error: message.error,
-      });
+      if (!quiet) {
+        trace.event("rpc-error", {
+          id: message.id,
+          method: pending.method,
+          ms,
+          error: message.error,
+        });
+      }
       pending.reject(new Error(message.error));
     }
   };
@@ -84,12 +97,11 @@ export class RpcClient {
   ): Promise<RpcContracts[M]["result"]> {
     const id = this.nextId++;
     const request: RpcRequest = { t: "req", id, method, params };
-    // The handshake retries by design; tracing every failed attempt is noise.
-    if (method !== "hello") trace.event("rpc-request", { id, method, params });
+    if (!QUIET_METHODS.has(method)) trace.event("rpc-request", { id, method, params });
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pending.delete(id);
-        if (method !== "hello") {
+        if (!QUIET_METHODS.has(method)) {
           trace.event("rpc-error", { id, method, error: "timeout" });
         }
         reject(new Error(`timeout: ${method}`));

@@ -6,6 +6,7 @@ import type { PlayingState } from "../state/appReducer";
 import { CopyJsonDialog, type CopyJsonPayload } from "./CopyJsonDialog";
 import { ImportButton } from "./ImportButton";
 import { MacroRow } from "./MacroRow";
+import { isExactActivation, isExactModifier, useExactModifierHover } from "./recordModifier";
 
 export interface MacroListProps {
   /** Present while a macro is playing (idle rows stay visible but locked). */
@@ -77,12 +78,17 @@ export function MacroList({ playing }: MacroListProps) {
           {/* A miniature of the hero's reel window — bezel, two reels, the
               tape run between them. Bare circles read as a face; the
               enclosing window is what makes them reels. */}
-          <svg
-            viewBox="0 0 56 26"
-            className="h-6 w-14 text-[color:var(--label-fg)]"
-            aria-hidden
-          >
-            <rect x="1" y="1" width="54" height="24" rx="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <svg viewBox="0 0 56 26" className="h-6 w-14 text-[color:var(--label-fg)]" aria-hidden>
+            <rect
+              x="1"
+              y="1"
+              width="54"
+              height="24"
+              rx="6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
             <circle cx="18" cy="13" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <circle cx="18" cy="13" r="1.75" fill="currentColor" />
             <circle cx="38" cy="13" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -105,16 +111,10 @@ export function MacroList({ playing }: MacroListProps) {
           >
             Record your edits, then stop to save them as a macro you can replay.
           </p>
-          <Button
-            size="sm"
-            className={cn("press key key-red mt-2.5", !loaded && "invisible")}
-            onClick={() => actions.startRecording()}
-          >
-            <span className="key-dot" aria-hidden>
-              <span />
-            </span>
-            Record
-          </Button>
+          <EmptyStateRecordKey
+            hidden={!loaded}
+            onRecord={(options) => actions.startRecording(options)}
+          />
         </div>
       </div>
     );
@@ -122,7 +122,8 @@ export function MacroList({ playing }: MacroListProps) {
 
   const idle = state.mode === "idle" ? state : null;
   // Expansion survives play/configure so the running step can be watched.
-  const expandedId = state.mode === "recording" || state.mode === "reviewing" ? null : state.expandedId;
+  const expandedId =
+    state.mode === "recording" || state.mode === "reviewing" ? null : state.expandedId;
 
   return (
     <div className="p-2">
@@ -168,5 +169,45 @@ export function MacroList({ playing }: MacroListProps) {
         onCopied={(name) => actions.notify(`Copied “${name}” as JSON`, "success")}
       />
     </div>
+  );
+}
+
+/**
+ * The empty rack's Record key — the panel's second Record entry point, and it
+ * takes the same Option/Alt modifier the deck's REC key takes: a user who has
+ * never recorded is the one most likely to want a placement macro, and a
+ * modifier that works on one key and not the other is a trap.
+ *
+ * Its own component so the hover state re-renders one key, not the whole list.
+ */
+function EmptyStateRecordKey({
+  hidden,
+  onRecord,
+}: {
+  hidden: boolean;
+  onRecord: (options: { exact: boolean }) => void;
+}) {
+  const exactModifier = useExactModifierHover();
+  return (
+    <Button
+      size="sm"
+      className={cn(
+        "press key mt-2.5",
+        exactModifier.held ? "key-blue" : "key-red",
+        hidden && "invisible",
+      )}
+      {...exactModifier.handlers}
+      onClick={(event) => onRecord({ exact: isExactModifier(event) })}
+      onKeyDown={(event) => {
+        if (!isExactActivation(event)) return;
+        event.preventDefault();
+        onRecord({ exact: true });
+      }}
+    >
+      <span className="key-dot" aria-hidden>
+        <span />
+      </span>
+      Record
+    </Button>
   );
 }

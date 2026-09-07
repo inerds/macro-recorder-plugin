@@ -1,3 +1,4 @@
+import { applyFormula, isIdentityFormula, explicitFormulaOf } from "./formula";
 import { jsonEqual, type Json } from "./json";
 import { labelOf } from "./labels";
 import type { MacroStep } from "./macro";
@@ -15,7 +16,10 @@ import { kindOf, type StepPayload } from "./steps";
 
 const FRAME_EPSILON = 1e-6;
 
-type Mergeable = Extract<StepPayload, { op: "set-static" | "set-plain" | "keyframes" | "set-scene" }>;
+type Mergeable = Extract<
+  StepPayload,
+  { op: "set-static" | "set-plain" | "keyframes" | "set-scene" }
+>;
 
 function payloadOf(step: MacroStep): StepPayload | null {
   const payload = step.payload;
@@ -125,7 +129,17 @@ function foldKeyframes(prev: KfPayload, next: KfPayload): KfPayload {
 
 function isNoOp(payload: Mergeable): boolean {
   if (payload.op === "keyframes") {
-    return payload.added.length === 0 && payload.removed.length === 0 && payload.changed.length === 0;
+    return (
+      payload.added.length === 0 && payload.removed.length === 0 && payload.changed.length === 0
+    );
+  }
+  // A step carrying its own formula is judged by the formula, not by the
+  // recorded pair: `v * 2` recomputes `after` back onto `before` for a
+  // rotation of 0 and still doubles every target it plays on. Only plain
+  // `v` — scale 1, offset 0 — writes the target's value back unchanged.
+  if (payload.op === "set-static") {
+    const formula = explicitFormulaOf(payload);
+    if (formula) return isIdentityFormula(formula);
   }
   return jsonEqual(payload.before, payload.after);
 }
@@ -173,7 +187,25 @@ export function simplifySteps(steps: MacroStep[]): MacroStep[] {
     if (payload.op === "keyframes") {
       merged = foldKeyframes(prevPayload as KfPayload, payload);
     } else {
-      merged = { ...prevPayload, after: payload.after as Json } as Mergeable;
+      // Spreading the first payload would make the run inherit the FIRST
+      // step's operator, which nobody chose for the merged values. The last
+      // explicit `apply` anywhere in the run wins; when no step in the run
+      // carries one, the merged step carries none and the identity heuristic
+      // re-decides on the merged before/after pair.
+      const apply = explicitFormulaOf(payload);
+      const joined = {
+        ...prevPayload,
+        after: payload.after as Json,
+        ...(apply ? { apply } : {}),
+      } as Mergeable;
+      // The formula owns the value. When the run's last explicit `apply`
+      // came from an earlier step, the `after` just taken from the last one
+      // was produced by a different arithmetic, and the pair would then
+      // disagree — the label reads `after`, and a scene rebuild writes it.
+      merged =
+        joined.op === "set-static" && joined.apply
+          ? { ...joined, after: applyFormula(joined.apply, joined.before) }
+          : joined;
     }
 
     if (isNoOp(merged)) {

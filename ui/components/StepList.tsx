@@ -53,9 +53,7 @@ export function StepList({
   // Follow the playhead through the list without yanking the whole panel.
   useEffect(() => {
     if (activeIndex === undefined) return;
-    listRef.current
-      ?.querySelector('[aria-current="step"]')
-      ?.scrollIntoView({ block: "nearest" });
+    listRef.current?.querySelector('[aria-current="step"]')?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
   // Deleting a row unmounts the button focus was on, which would drop focus to
@@ -65,9 +63,7 @@ export function StepList({
     const index = deletedAt.current;
     deletedAt.current = null;
     if (index === null) return;
-    const buttons = listRef.current?.querySelectorAll<HTMLElement>(
-      '[data-step-action="delete"]',
-    );
+    const buttons = listRef.current?.querySelectorAll<HTMLElement>('[data-step-action="delete"]');
     const next = buttons?.[index] ?? buttons?.[index - 1];
     if (next) {
       next.focus();

@@ -238,9 +238,7 @@ describe("static writes onto an animated target", () => {
 
     // The host would discard this write silently (docs/runtime-api.md quirk 4).
     expect(target.rotation.staticValue).toBe(0);
-    expect(outcome.notes).toEqual([
-      "rotation has keyframes here — static value not applied",
-    ]);
+    expect(outcome.notes).toEqual(["rotation has keyframes here — static value not applied"]);
   });
 
   it("applies normally when the target property is static", () => {
@@ -293,9 +291,7 @@ describe("path resolution failures", () => {
     expect(target.fills).toHaveLength(1);
     expect(target.fills[0].type).toContain("GRADIENT");
     expect(target.fills[0].stops.staticValue).toEqual(stops);
-    expect(outcome.notes).toEqual([
-      "this layer's fill was solid — converted it to a gradient",
-    ]);
+    expect(outcome.notes).toEqual(["this layer's fill was solid — converted it to a gradient"]);
   });
 
   it("applies a solid recolor to a gradient-fill target by tinting every stop", () => {
@@ -670,7 +666,10 @@ describe("v2: deep paths and structural ops", () => {
       spec: {
         kind: "gradient",
         gradientType: "GRADIENT_LINEAR",
-        stops: { animated: false, static: [{ color: { r: 9, g: 9, b: 9 }, offset: 0, opacity: 1 }] },
+        stops: {
+          animated: false,
+          static: [{ color: { r: 9, g: 9, b: 9 }, offset: 0, opacity: 1 }],
+        },
       },
     });
 
@@ -701,7 +700,11 @@ describe("v2: deep paths and structural ops", () => {
         nodeName: "my ellipse",
         props: {
           size: { animated: false, static: { width: 40, height: 40 } },
-          position: { animated: true, static: { x: 0, y: 0 }, keyframes: [kf(0, { x: 0, y: 0 }), kf(30, { x: 9, y: 9 })] },
+          position: {
+            animated: true,
+            static: { x: 0, y: 0 },
+            keyframes: [kf(0, { x: 0, y: 0 }), kf(30, { x: 9, y: 9 })],
+          },
         },
         plain: {},
         fills: [{ kind: "solid", color: { animated: false, static: { r: 7, g: 7, b: 7 } } }],
@@ -907,9 +910,9 @@ describe("animated recolors across paint kinds", () => {
     expect(stops.keyframes[0].value).toEqual([
       { color: { r: 64, g: 180, b: 208 }, offset: 0, opacity: 1 },
     ]);
-    expect(
-      outcome.notes.includes("this layer's fill was solid — converted it to a gradient"),
-    ).toBe(true);
+    expect(outcome.notes.includes("this layer's fill was solid — converted it to a gradient")).toBe(
+      true,
+    );
   });
 });
 
@@ -937,7 +940,10 @@ describe("reorder replay via the untyped move methods", () => {
     const b = target.createRectangle({});
     const c = target.createEllipse({});
     const extraShape = target.createPolygon({});
-    a.name = "a"; b.name = "b"; c.name = "c"; extraShape.name = "extra";
+    a.name = "a";
+    b.name = "b";
+    c.name = "c";
+    extraShape.name = "extra";
 
     // recorded on a 3-shape layer: [c, a, b]
     apply(target, { op: "reorder-shapes", path: [], order: [2, 0, 1] });
@@ -971,10 +977,34 @@ describe("reorder replay via the untyped move methods", () => {
   it("round-trips: a recorded reorder diff replays onto a same-shaped layer", () => {
     // record side: diff two snapshots where the shapes swapped
     const recPrev = {
-      nodeId: "n", nodeType: "CONTAINER", props: {}, plain: {}, fills: [], strokes: [], masks: [],
+      nodeId: "n",
+      nodeType: "CONTAINER",
+      props: {},
+      plain: {},
+      fills: [],
+      strokes: [],
+      masks: [],
       shapes: [
-        { nodeId: "s1", nodeType: "STAR", props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [] },
-        { nodeId: "s2", nodeType: "RECTANGLE", props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [] },
+        {
+          nodeId: "s1",
+          nodeType: "STAR",
+          props: {},
+          plain: {},
+          fills: [],
+          strokes: [],
+          masks: [],
+          shapes: [],
+        },
+        {
+          nodeId: "s2",
+          nodeType: "RECTANGLE",
+          props: {},
+          plain: {},
+          fills: [],
+          strokes: [],
+          masks: [],
+          shapes: [],
+        },
       ],
     };
     const recNext = { ...recPrev, shapes: [recPrev.shapes[1]!, recPrev.shapes[0]!] };
@@ -1000,16 +1030,17 @@ describe("trim paths (untyped runtime surface)", () => {
       offset: { animated: false, static: 0 },
     });
     const base = {
-      nodeId: "n", nodeType: "CONTAINER", props: {}, plain: {},
-      fills: [], strokes: [], masks: [], shapes: [],
+      nodeId: "n",
+      nodeType: "CONTAINER",
+      props: {},
+      plain: {},
+      fills: [],
+      strokes: [],
+      masks: [],
+      shapes: [],
     };
-    const ops = diffSnapshots(
-      { ...base, trims: [] },
-      { ...base, trims: [trim(0, 100)] },
-    );
-    expect(ops).toEqual([
-      { op: "add-trim", path: ["trimPaths", 0], spec: trim(0, 100) },
-    ]);
+    const ops = diffSnapshots({ ...base, trims: [] }, { ...base, trims: [trim(0, 100)] });
+    expect(ops).toEqual([{ op: "add-trim", path: ["trimPaths", 0], spec: trim(0, 100) }]);
     const editOps = diffSnapshots(
       { ...base, trims: [trim(0, 100)] },
       { ...base, trims: [trim(25, 60)] },
@@ -1151,7 +1182,10 @@ describe("paint removal on the real host's surface (object-level remove)", () =>
       spec: {
         kind: "gradient",
         gradientType: "GRADIENT_LINEAR",
-        stops: { animated: false, static: [{ color: { r: 9, g: 9, b: 9 }, offset: 0, opacity: 1 }] },
+        stops: {
+          animated: false,
+          static: [{ color: { r: 9, g: 9, b: 9 }, offset: 0, opacity: 1 }],
+        },
       },
     });
 
@@ -1175,7 +1209,13 @@ describe("group re-creation", () => {
   it("creates a recorded group by creating its children and grouping them", () => {
     const target = makeNode("Rectangle 1", {}, makeIds());
     const shape = (id: string, type: string, props: Record<string, Json> = {}) => ({
-      nodeId: id, nodeType: type, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+      nodeId: id,
+      nodeType: type,
+      plain: {},
+      fills: [],
+      strokes: [],
+      masks: [],
+      shapes: [],
       props: Object.fromEntries(
         Object.entries(props).map(([k, v]) => [k, { animated: false, static: v }]),
       ),
@@ -1218,12 +1258,24 @@ describe("text layers (untyped runtime surface)", () => {
     const solidText: Any = {
       type: "TEXT_LAYER",
       name: "Text 2",
-      fill: { type: "SOLID", color: { staticValue: { r: 0, g: 0, b: 0 }, keyframes: [], isAnimated: false, addKeyframes() {} } },
+      fill: {
+        type: "SOLID",
+        color: {
+          staticValue: { r: 0, g: 0, b: 0 },
+          keyframes: [],
+          isAnimated: false,
+          addKeyframes() {},
+        },
+      },
     };
     let written: Any = null;
     Object.defineProperty(solidText.fill.color, "staticValue", {
-      get() { return { r: 0, g: 0, b: 0 }; },
-      set(v: Any) { written = v; },
+      get() {
+        return { r: 0, g: 0, b: 0 };
+      },
+      set(v: Any) {
+        written = v;
+      },
     });
 
     const outcome = apply(solidText, {
@@ -1328,7 +1380,13 @@ describe("frame offset (apply at playhead / stagger)", () => {
     const target = makeNode("Rect", {}, makeIds());
     apply(
       target,
-      { op: "keyframes", path: ["rotation"], added: [kf(0, 0), kf(30, 90)], removed: [], changed: [] },
+      {
+        op: "keyframes",
+        path: ["rotation"],
+        added: [kf(0, 0), kf(30, 90)],
+        removed: [],
+        changed: [],
+      },
       { ...exact, frameOffset: 60 },
     );
     expect(frames(target.rotation)).toEqual([60, 90]);
@@ -1357,7 +1415,13 @@ describe("frame offset (apply at playhead / stagger)", () => {
   it("a zero or absent offset changes nothing", () => {
     const a = makeNode("A", {}, makeIds());
     const b = makeNode("B", {}, makeIds());
-    const payload: StepPayload = { op: "keyframes", path: ["rotation"], added: [kf(10, 1)], removed: [], changed: [] };
+    const payload: StepPayload = {
+      op: "keyframes",
+      path: ["rotation"],
+      added: [kf(10, 1)],
+      removed: [],
+      changed: [],
+    };
     apply(a, payload, { ...exact, frameOffset: 0 });
     apply(b, payload);
     expect(frames(a.rotation)).toEqual(frames(b.rotation));
@@ -1380,7 +1444,12 @@ describe("motion-path handles (spatial tangents)", () => {
       changed: [
         {
           before: kf(30, { x: 5, y: 5 }),
-          after: { frame: 30, value: { x: 5, y: 5 }, inTangent: { x: -40, y: 0 }, outTangent: { x: 0, y: 10 } },
+          after: {
+            frame: 30,
+            value: { x: 5, y: 5 },
+            inTangent: { x: -40, y: 0 },
+            outTangent: { x: 0, y: 10 },
+          },
         },
       ],
     });
@@ -1405,7 +1474,12 @@ describe("motion-path handles (spatial tangents)", () => {
       path: ["position"],
       added: [],
       removed: [],
-      changed: [{ before: kf(10, { x: 0, y: 0 }), after: { frame: 10, value: { x: 1, y: 1 }, inTangent: { x: 3, y: 3 } } }],
+      changed: [
+        {
+          before: kf(10, { x: 0, y: 0 }),
+          after: { frame: 10, value: { x: 1, y: 1 }, inTangent: { x: 3, y: 3 } },
+        },
+      ],
     });
     expect(outcome.notes).toEqual(["motion-path handle (inTangent) @ 10 not supported by Creator"]);
     expect(target.position.getKeyframeAt(10)!.value).toEqual({ x: 1, y: 1 });
@@ -1527,7 +1601,15 @@ describe("gradient steps convert a solid fill (fill-type change)", () => {
     const single: Any = {
       type: "TEXT_LAYER",
       name: "Text",
-      fill: { type: "SOLID", color: { staticValue: { r: 0, g: 0, b: 0 }, keyframes: [], isAnimated: false, addKeyframes() {} } },
+      fill: {
+        type: "SOLID",
+        color: {
+          staticValue: { r: 0, g: 0, b: 0 },
+          keyframes: [],
+          isAnimated: false,
+          addKeyframes() {},
+        },
+      },
     };
     const outcome = apply(single, {
       op: "set-static",
@@ -1551,7 +1633,11 @@ describe("gradient steps convert a solid fill (fill-type change)", () => {
     });
     expect(outcome.notes.some((n) => /every stop/i.test(n))).toBe(true);
     const stops = (target as Any).fills[0].stops.staticValue;
-    expect(stops.every((s: { color: Json }) => JSON.stringify(s.color) === JSON.stringify({ r: 9, g: 9, b: 9 }))).toBe(true);
+    expect(
+      stops.every(
+        (s: { color: Json }) => JSON.stringify(s.color) === JSON.stringify({ r: 9, g: 9, b: 9 }),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -1616,7 +1702,10 @@ describe("replace-paint on a host container that can't create fills", () => {
 
   it("same-kind gradient: writes stops in place", () => {
     const STOPS = [{ offset: 0, color: { r: 9, g: 9, b: 9 } }];
-    const target: Any = { name: "Ellipse 1", fills: [gradientPaint([{ offset: 0, color: { r: 0, g: 0, b: 0 } }])] };
+    const target: Any = {
+      name: "Ellipse 1",
+      fills: [gradientPaint([{ offset: 0, color: { r: 0, g: 0, b: 0 } }])],
+    };
     const outcome = apply(target, {
       op: "replace-paint",
       path: ["fills", 0],
@@ -1655,12 +1744,19 @@ describe("paint topology mismatch on retarget (trace 2026-08-26T03-56-02)", () =
   // Recorded on a GROUP-based layer (fill nested at shapes[0].fills[0]),
   // replayed onto a flat layer (fill at the root) — and the reverse. A
   // recolor is a recolor: the paint resolves by role, not recorded path.
-  const SPEC: Any = { kind: "solid", color: { animated: false, static: { r: 32, g: 106, b: 255 } } };
+  const SPEC: Any = {
+    kind: "solid",
+    color: { animated: false, static: { r: 32, g: 106, b: 255 } },
+  };
 
   it("group-nested replace-paint lands on a flat target's root fill (host with addFill)", () => {
     const ids = makeIds();
     const target = makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids);
-    const outcome = apply(target, { op: "replace-paint", path: ["shapes", 0, "fills", 0], spec: SPEC });
+    const outcome = apply(target, {
+      op: "replace-paint",
+      path: ["shapes", 0, "fills", 0],
+      spec: SPEC,
+    });
     expect(outcome.notes).toContain("applied to this layer's first fill");
     expect(target.fills).toHaveLength(1);
     expect(target.fills[0].color.staticValue).toEqual({ r: 32, g: 106, b: 255 });
@@ -1669,10 +1765,24 @@ describe("paint topology mismatch on retarget (trace 2026-08-26T03-56-02)", () =
   it("group-nested replace-paint writes in place on a flat target without addFill", () => {
     const target: Any = {
       name: "Ellipse 1",
-      fills: [{ type: "SOLID", color: { staticValue: { r: 9, g: 9, b: 9 }, isAnimated: false, keyframes: [], addKeyframes() {} } }],
+      fills: [
+        {
+          type: "SOLID",
+          color: {
+            staticValue: { r: 9, g: 9, b: 9 },
+            isAnimated: false,
+            keyframes: [],
+            addKeyframes() {},
+          },
+        },
+      ],
       shapes: [{ name: "ellipse geometry" }], // like the live host: shapes[0] holds no paints
     };
-    const outcome = apply(target, { op: "replace-paint", path: ["shapes", 0, "fills", 0], spec: SPEC });
+    const outcome = apply(target, {
+      op: "replace-paint",
+      path: ["shapes", 0, "fills", 0],
+      spec: SPEC,
+    });
     expect(target.fills).toHaveLength(1);
     expect(target.fills[0].color.staticValue).toEqual({ r: 32, g: 106, b: 255 });
     expect(outcome.notes.length).toBeGreaterThan(0);
@@ -1698,7 +1808,17 @@ describe("paint topology mismatch on retarget (trace 2026-08-26T03-56-02)", () =
       shapes: [
         {
           name: "group",
-          fills: [{ type: "SOLID", color: { staticValue: { r: 9, g: 9, b: 9 }, isAnimated: false, keyframes: [], addKeyframes() {} } }],
+          fills: [
+            {
+              type: "SOLID",
+              color: {
+                staticValue: { r: 9, g: 9, b: 9 },
+                isAnimated: false,
+                keyframes: [],
+                addKeyframes() {},
+              },
+            },
+          ],
         },
       ],
     };
@@ -1925,7 +2045,9 @@ describe("delayLayer", () => {
 
     delayLayer(target, { delta: 10 }, notes);
 
-    expect(notes.messages).toEqual(["couldn't set the in point: ✗ Invalid input — stagger skipped"]);
+    expect(notes.messages).toEqual([
+      "couldn't set the in point: ✗ Invalid input — stagger skipped",
+    ]);
   });
 });
 
@@ -1935,7 +2057,13 @@ describe("delayLayer", () => {
 
 describe("group re-creation carries the whole recorded group", () => {
   const shapeSpec = (id: string, type: string) => ({
-    nodeId: id, nodeType: type, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+    nodeId: id,
+    nodeType: type,
+    plain: {},
+    fills: [],
+    strokes: [],
+    masks: [],
+    shapes: [],
     props: {},
   });
 
@@ -1959,7 +2087,13 @@ describe("group re-creation carries the whole recorded group", () => {
           },
         ],
         masks: [],
-        trims: [{ start: { animated: false, static: 10 }, end: { animated: false, static: 80 }, offset: { animated: false, static: 0 } }],
+        trims: [
+          {
+            start: { animated: false, static: 10 },
+            end: { animated: false, static: 80 },
+            offset: { animated: false, static: 0 },
+          },
+        ],
         shapes: [shapeSpec("c1", "RECTANGLE")],
       },
     });
@@ -1988,8 +2122,15 @@ describe("group re-creation carries the whole recorded group", () => {
       op: "add-shape",
       parentPath: [],
       spec: {
-        nodeId: "g1", nodeType: "GROUP", nodeName: "empty group", props: {}, plain: {},
-        fills: [], strokes: [], masks: [], shapes: [shapeSpec("c1", "RECTANGLE")],
+        nodeId: "g1",
+        nodeType: "GROUP",
+        nodeName: "empty group",
+        props: {},
+        plain: {},
+        fills: [],
+        strokes: [],
+        masks: [],
+        shapes: [shapeSpec("c1", "RECTANGLE")],
       },
     });
 
@@ -2133,5 +2274,278 @@ describe("a live layer round-trips through serializeNode and applyNodeSpec", () 
     expect(stripIds(serializeNode(copy) as unknown as Json)).toEqual(
       stripIds(spec as unknown as Json),
     );
+  });
+});
+
+describe("per-step formulas", () => {
+  it("evaluates a formula against the target's LIVE value, not a frozen baseline", () => {
+    const target = makeNode("Layer B", { props: { position: { x: 400, y: 300 } } }, makeIds());
+    const context: ApplyContext = {
+      origins: { position: { x: 100, y: 50 } },
+      baselines: { position: { x: 400, y: 300 } },
+    };
+    // Something moved the target after playback.begin froze the baseline.
+    target.position.staticValue = { x: 310, y: 20 };
+
+    apply(
+      target,
+      {
+        op: "set-static",
+        path: ["position"],
+        before: { x: 100, y: 50 },
+        after: { x: 160, y: 50 },
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+      },
+      context,
+    );
+
+    expect(target.position.staticValue).toEqual({ x: 320, y: 5 });
+  });
+
+  it("runs each component's own term", () => {
+    const target = makeNode("Layer B", { props: { scale: { x: 50, y: 200 } } }, makeIds());
+
+    apply(target, {
+      op: "set-static",
+      path: ["scale"],
+      before: { x: 100, y: 100 },
+      after: { x: 200, y: 150 },
+      apply: { x: { scale: 2, offset: 10 }, y: { scale: 1, offset: -50 } },
+    });
+
+    expect(target.scale.staticValue).toEqual({ x: 110, y: 150 });
+  });
+
+  it("takes one term for a scalar property", () => {
+    const target = makeNode("Layer B", { props: { rotation: 30 } }, makeIds());
+
+    apply(target, {
+      op: "set-static",
+      path: ["rotation"],
+      before: 45,
+      after: 0,
+      apply: { scale: 1, offset: -45 },
+    });
+
+    expect(target.rotation.staticValue).toBe(-15);
+  });
+
+  it("anchors a keyframes step's whole motion on the formula's result", () => {
+    // The formula says where the FIRST recorded value lands; every later
+    // keyframe keeps its recorded distance from it, so the motion survives.
+    const target = makeNode("Layer B", { props: { position: { x: 400, y: 300 } } }, makeIds());
+
+    apply(target, {
+      op: "keyframes",
+      path: ["position"],
+      added: [kf(0, { x: 100, y: 50 }), kf(30, { x: 160, y: 50 })],
+      removed: [],
+      changed: [],
+      apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+    });
+
+    expect(values(target.position)).toEqual([
+      { x: 410, y: 5 },
+      { x: 470, y: 5 },
+    ]);
+  });
+
+  it("keeps a scale keyframe run's RATIO when the formula anchors it", () => {
+    // The anchor shift follows the path's own class. Scale is a ratio: a
+    // recorded 100 → 200 anchored at 50 doubles to 50 → 100. Shifting it by
+    // a distance instead would land the second keyframe on 150 — the
+    // recorded +100, which means nothing on a target at half size.
+    const target = makeNode("Layer B", { props: { scale: { x: 50, y: 50 } } }, makeIds());
+
+    apply(target, {
+      op: "keyframes",
+      path: ["scale"],
+      added: [kf(0, { x: 100, y: 100 }), kf(30, { x: 200, y: 200 })],
+      removed: [],
+      changed: [],
+      // Plain `v`: the default a scale keyframe step opens with.
+      apply: { scale: 1, offset: 0 },
+    });
+
+    expect(values(target.scale)).toEqual([
+      { x: 50, y: 50 },
+      { x: 100, y: 100 },
+    ]);
+  });
+
+  it("parks a scale keyframe run at the formula's value and scales the rest", () => {
+    const target = makeNode("Layer B", { props: { scale: { x: 50, y: 50 } } }, makeIds());
+
+    apply(target, {
+      op: "keyframes",
+      path: ["scale"],
+      added: [kf(0, { x: 100, y: 100 }), kf(30, { x: 200, y: 200 })],
+      removed: [],
+      changed: [],
+      apply: { scale: 0, offset: 100 },
+    });
+
+    expect(values(target.scale)).toEqual([
+      { x: 100, y: 100 },
+      { x: 200, y: 200 },
+    ]);
+  });
+
+  it("writes the recording when the live value has no arithmetic in it", () => {
+    const target = makeNode("Layer B", { props: { position: { x: 400, y: 300 } } }, makeIds());
+    // The host hands back something a formula cannot run on.
+    target.position.staticValue = "n/a" as never;
+
+    apply(target, {
+      op: "set-static",
+      path: ["position"],
+      before: { x: 100, y: 50 },
+      after: { x: 160, y: 50 },
+      apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+    });
+
+    expect(target.position.staticValue).toEqual({ x: 160, y: 50 });
+  });
+
+  it("writes the recording when a live component is not a number", () => {
+    // The host hands back a half-read vector. A formula that ran on it would
+    // write `null` into the component it could not compute, so the recorded
+    // end value stands for the whole property — what the comment promises,
+    // and what `engine/formula.ts` answers for `applyFormula` itself.
+    const target = makeNode("Layer B", { props: { position: { x: 400, y: 300 } } }, makeIds());
+    target.position.staticValue = { x: 10, y: null } as never;
+
+    apply(target, {
+      op: "set-static",
+      path: ["position"],
+      before: { x: 100, y: 50 },
+      after: { x: 160, y: 50 },
+      apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+    });
+
+    expect(target.position.staticValue).toEqual({ x: 160, y: 50 });
+  });
+
+  it("ignores the formula in scene mode and writes the recording verbatim", () => {
+    // A scene rebuild reproduces what was recorded — there is no target to
+    // read, and reading the layer it is rebuilding would compound the edit.
+    const target = makeNode("Layer B", { props: { position: { x: 310, y: 20 } } }, makeIds());
+
+    apply(
+      target,
+      {
+        op: "set-static",
+        path: ["position"],
+        before: { x: 100, y: 50 },
+        after: { x: 160, y: 50 },
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+      },
+      { mode: "scene", origins: {}, baselines: {} },
+    );
+
+    expect(target.position.staticValue).toEqual({ x: 160, y: 50 });
+  });
+
+  it("keeps a keyframes step's recorded values in scene mode", () => {
+    const target = makeNode("Layer B", { props: { position: { x: 310, y: 20 } } }, makeIds());
+
+    apply(
+      target,
+      {
+        op: "keyframes",
+        path: ["position"],
+        added: [kf(0, { x: 100, y: 50 }), kf(30, { x: 160, y: 50 })],
+        removed: [],
+        changed: [],
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+      },
+      { mode: "scene", origins: {}, baselines: {} },
+    );
+
+    expect(values(target.position)).toEqual([
+      { x: 100, y: 50 },
+      { x: 160, y: 50 },
+    ]);
+  });
+});
+
+describe("steps with no formula keep the class their recording implies", () => {
+  it("shifts a position by the recorded delta", () => {
+    const target = makeNode("Layer B", { props: { position: { x: 400, y: 300 } } }, makeIds());
+    const context: ApplyContext = {
+      origins: { position: { x: 100, y: 50 } },
+      baselines: { position: { x: 400, y: 300 } },
+    };
+
+    apply(
+      target,
+      {
+        op: "set-static",
+        path: ["position"],
+        before: { x: 100, y: 50 },
+        after: { x: 160, y: 50 },
+      },
+      context,
+    );
+
+    expect(target.position.staticValue).toEqual({ x: 460, y: 300 });
+  });
+
+  it("scales a scale by the recorded ratio", () => {
+    const target = makeNode("Layer B", { props: { scale: { x: 50, y: 50 } } }, makeIds());
+    const context: ApplyContext = {
+      origins: { scale: { x: 100, y: 100 } },
+      baselines: { scale: { x: 50, y: 50 } },
+    };
+
+    apply(
+      target,
+      {
+        op: "set-static",
+        path: ["scale"],
+        before: { x: 100, y: 100 },
+        after: { x: 200, y: 150 },
+      },
+      context,
+    );
+
+    expect(target.scale.staticValue).toEqual({ x: 100, y: 75 });
+  });
+
+  it("lands a recorded reset on the identity, not on a delta from it", () => {
+    // "rotation 45 → 0" is a reset, not a −45 delta: a target at 30 used to
+    // end at −15. The identity heuristic makes the step absolute with no
+    // `apply` of its own.
+    const target = makeNode("Layer B", { props: { rotation: 30 } }, makeIds());
+    const context: ApplyContext = { origins: { rotation: 45 }, baselines: { rotation: 30 } };
+
+    apply(target, { op: "set-static", path: ["rotation"], before: 45, after: 0 }, context);
+
+    expect(target.rotation.staticValue).toBe(0);
+  });
+
+  it("shifts a keyframes step's motion from the target's baseline", () => {
+    const target = makeNode("Layer B", { props: { position: { x: 400, y: 300 } } }, makeIds());
+    const context: ApplyContext = {
+      origins: { position: { x: 100, y: 50 } },
+      baselines: { position: { x: 400, y: 300 } },
+    };
+
+    apply(
+      target,
+      {
+        op: "keyframes",
+        path: ["position"],
+        added: [kf(0, { x: 100, y: 50 }), kf(30, { x: 160, y: 50 })],
+        removed: [],
+        changed: [],
+      },
+      context,
+    );
+
+    expect(values(target.position)).toEqual([
+      { x: 400, y: 300 },
+      { x: 460, y: 300 },
+    ]);
   });
 });

@@ -99,9 +99,10 @@ load-bearing:
   8px — a fourth tier — and the rack 4; a well inside a 4px well with 4px
   padding, or inside a 10px card with a 6px inset, wants 4.
 - Small red text uses `--ink-red-text` (#B5301F, 5.2:1), never `--primary`
-  (#C8382B) — that one is for fills. Red is never a readout: the Simplify
-  count (`5 → 3`) is muted ink at weight 500, because a red number beside a
-  key reads as a warning (2026-09-03 audit). The red section titles
+  (#C8382B) — that one is for fills. Red is never a readout: the merge count
+  (`5 → 3`), on the drawer's Simplify key and on the review sheet's "Keep
+  every step", is muted ink at weight 500, because a red number beside a key
+  reads as a warning (2026-09-03 audit). The red section titles
   (`REVIEW & SAVE`, `LIVE STEPS`) are a deliberate mode cue and stay.
 - **The red cap's face starts at `--primary` and only darkens.** `.key-red`
   (`index.css`) and the deck's `.key-plate-red` (`deck.css`) carry the same
@@ -121,6 +122,49 @@ load-bearing:
   headroom over the 4.5 bar, so the change that reads is the lower two thirds
   (`#A62C1C` → `#B5301F`). The 1px inset sheen and the lamp colours are not
   part of this and do not move.
+- **Red is the action colour; blue is red's exact-values mode, on the two
+  Record keys and nowhere else.** Holding Option (macOS) or Alt (Windows) on
+  a Record key records a layer's transform steps as their end values, and the
+  key says so by turning cobalt — while the modifier is held over it, and for
+  the whole recording it starts. The blue is `--ink-blue` (#2B6BCB), with
+  `--ink-blue-hover` (#255BAD) for the twin of `--primary-hover`. It is not a
+  second action colour and it never appears on any other control: a blue key
+  anywhere else would read as a second kind of "this does something".
+- **The blue is the red at the same weight, not a blue that looked right.**
+  Every stop is a cobalt at hue 216 and 65% saturation whose lightness is
+  solved so its relative luminance EQUALS the red stop it replaces, which
+  makes every contrast ratio identical to two decimals — the same face that
+  survives on the dark chassis survives here, and the same `#FFF3EE` legend
+  clears the same bar. `.key-plate-blue` (`deck.css`) and `.key-blue`
+  (`index.css`) carry the same three values and retune together, the way the
+  red pair does. Measured against `#FFF3EE`, and against the `--deck` chassis
+  (#1C1A18) the plate cap sits on:
+
+  | State | Gradient | Top | Middle | Bottom |
+  |---|---|---|---|---|
+  | Rest | `#2B6BCB → #2660B5 60% → #2357A6` | 4.76:1 | 5.67:1 | 6.44:1 |
+  | Hover | `#2C6DCE → #2660B5` | 4.62:1 | 5.67:1 | — |
+  | Pressed | `#2459A8 → #1E4B8D` | 6.30:1 | 7.93:1 | — |
+
+  Against the chassis the rest face reads 3.35 / 2.82 / 2.48:1, and on the
+  cream `--background` the paper cap reads 4.36 / 5.19 / 5.89:1 — the red's
+  own numbers in both places. The cap's side wall is `#1F4D92 → #163667`.
+- **The dead exact key is a dark BLUE key.** Record is reachable only from
+  rest, so an exact recording disables the very key that says it is exact.
+  `.key-plate-blue:disabled` keeps the hue and takes the dead cap's own
+  darkness (`#344661 → #273549`, hue 216 at 30% over the grey dead cap's
+  luminances, wall `#29374B → #18202C`), so "a dead key is a dark key" and
+  "this recording is exact" are both still true and the inherited `#9A9289`
+  legend reads 3.12:1 and 4.06:1 on it — the grey cap's own numbers.
+- **The modifier is read from the pointer first, and from the keys only while
+  the pointer is over the key.** A plugin runs in an iframe, and an iframe
+  gets `keydown` only while it has focus — a user who last clicked in
+  Creator's canvas presses Option and the panel hears nothing. Every mouse
+  event carries `altKey` whatever holds focus, so `useExactModifierHover`
+  (`ui/components/recordModifier.ts`) reads `onMouseEnter` / `onMouseMove`
+  first and binds `keydown` / `keyup` on `window` only while hovering, which
+  catches a modifier pressed with the pointer already at rest on the key.
+  A `blur` clears it: a window that loses focus never sends the keyup.
 - **A destructive confirm is `.key.key-armed`, never `.key-red`.**
   `ConfirmInline`'s confirm wore the exact cap that Save wears, so "Delete"
   and "Save" were one object in one place and the word was the only thing
@@ -139,8 +183,17 @@ load-bearing:
   use `--lamp-green` (#5C9457); red on this panel always means action or
   failure, never "done". Muted body copy is `--muted-foreground`
   (#6B635B); instrument labels are `--label-fg` (#5E564F).
-- `.key`, `.key-quiet`, `.card`, `.instrument`, `.mono`, `.lamp` are the
-  skin's vocabulary. `.key` is written as `.key.key` on purpose: the
+- **`.check-quiet` is the quiet tier for the one control that is not a key.**
+  The review sheet's "Keep every step" is a checkbox, and the box carries the
+  state, so the PAIR — box plus legend — is the object: the wrapper holds the
+  24px target height and the ink hover wash, and `.check-quiet-label` carries
+  the same 10px/600 uppercase legend `.key-quiet` uses. A wash on the legend
+  alone reads as a highlight floating beside the box, the same failure the
+  rack's row hover records. The label is a SIBLING of the box, not a wrapper:
+  the library's checkbox is a `span[role="checkbox"]` beside a hidden input,
+  and a wrapping label routes one click through both.
+- `.key`, `.key-quiet`, `.check-quiet`, `.card`, `.instrument`, `.mono`,
+  `.lamp` are the skin's vocabulary. `.key` is written as `.key.key` on purpose: the
   library's `Button` merges its `size="sm"` utilities
   (`h-6 px-3 rounded font-normal`) onto the same element via
   `tailwind-merge`, and a single class would lose on source order alone.
@@ -197,7 +250,9 @@ recording clock, the status lamp, and the state word.
   the counter (see `.deck-clock` below); the state word is the reduced-motion
   state channel so it is the last thing allowed to truncate. Two nested
   surfaces cost two sets of padding — that collapse is what took the hero
-  from 195px to 148px on a 300x520 panel.
+  from 195px to 148px on a 300x520 panel; the scope caption (below) took it
+  back up, and the 320x560 panel (2026-09-07) makes it 174px with the stage
+  at 119px.
 - **The stage is a studio deck's faceplate, drawn to a reference photo
   (2026-09-03).** `ReelDeck.tsx` builds it from constants: two R=44 reels
   centred at y=47, each a spun-silver flange (radial gradient + alternating
@@ -339,8 +394,12 @@ recording clock, the status lamp, and the state word.
   happens one level up, where `.panel-root`'s `overflow: clip` carves the
   plate's 10px radius out of it against the dark `.host-frame` gutter. `.deck-stage`'s
   height is then tuned against the BLED window width so the drawing is
-  width-limited rather than height-limited: window = panel - 2x chassis
-  padding, and `height = 110 * (window / 272)` (117px at a 300px panel). Get
+  width-limited rather than height-limited: window = iframe - 2x host-frame
+  gutter (8px, and the frame is painted in Creator too) - 2x chassis
+  padding (5px), and `height = 110 * (window / 272)` (294px and 119px at the
+  320px panel the sandbox opens, `sandbox/plugin.ts`; the old 117px at 300px
+  omitted the gutters and was 6px tall). Measure it headlessly rather than
+  derive it. Get
   this wrong and the reels quietly letterbox inside the glass instead of
   filling it — widening the chassis on its own buys nothing.
 - Deck CSS lives in **`ui/styles/deck.css`**, imported from `index.css`
@@ -352,10 +411,11 @@ recording clock, the status lamp, and the state word.
   travels as `data-deck` on `.deck-stage`; the stage `div` carries the dark
   plate and the SVG only the mechanism.
 - **The collapse threshold is a real breakpoint, not a round number.**
-  `@container panel (max-height: 352px)` (needs `container: panel / size` on
-  `.panel-root`) is set where the *list* stops working — hero 148px, list
-  needs ~150px for its header, a row, and a peek. Re-derive it whenever the
-  hero's height changes. It was 520px once,
+  `@container panel (max-height: 371px)` (needs `container: panel / size` on
+  `.panel-root`) is set where the *list* stops working — hero 174px
+  (`5 + 119 + 4 + 24 + 4 + 13 + 5`), list needs ~150px for its header, a
+  row, and a peek. Re-derive it whenever the hero's height changes; the
+  320px panel moved it from 369 to 371 with the stage's 2px. It was 520px once,
   which is exactly the panel height README tells you to develop at, so the
   hero rendered collapsed at every realistic size and the reels were sliced
   through the middle. When it does collapse the stage scales the drawing DOWN
@@ -377,6 +437,21 @@ recording clock, the status lamp, and the state word.
   match Stop by name must scope to the deck's `data-testid="stop-button"`
   or the bar's `stop-recording-button`.
 
+- **The scope caption is a real element, and it never moves.** `.deck-scope`
+  sits under `.deck-row` at a fixed 13px: a legend span and a value span,
+  both in the `.deck-word` idiom (9px uppercase silkscreen, the legend at
+  `opacity: .62` — no new ink), the value `min-width: 0` so it ellipsises
+  and the legend never does. It reads `RECORDS · LAYER A` (or `LAYER A + 2
+  MORE`, `WHOLE SCENE`) while idle, from the 1 Hz `selection.peek` poll, and
+  `RECORDING · …` while recording; it is blank in every other mode and while
+  the host has not answered yet, so the list below never shifts. The
+  fallback case carries a `title` with the full sentence, and an sr-only span
+  says "Record will watch Layer A". The caption stays when the hero
+  collapses: it is what Record is about to do, not furniture. On the
+  recording screen the same scope drives the chip that replaced the
+  selection nudge (the discard confirm replaces both; the capture offer
+  stacks above the chip, never in its place), and the chip is where the "N changes outside Layer A ignored"
+  counter lives — a `role="note"`, not a live region, like the step count.
 - Pseudo-element budget on the hero is fully spent: `.deck-chassis::before`
   (brushed grain — the raking highlight is gone) / `::after` (chamfer bevel);
   `.deck-window::after` (the one glass layer — never add a second sheen on
@@ -407,12 +482,90 @@ language. Two rules keep it coherent:
   the same width via `useNarrowPanel()` (a ResizeObserver on `.panel-root`,
   `NARROW_PANEL_PX` = 262, kept equal to the CSS) because the menu is
   portalled out of the container query's reach. Open cards keep everything.
+- **A transform step's value is a verb and a number box, one row per
+  component.** A compact menu button naming what replay does — Set to, Add,
+  Subtract, Multiply, Divide, and Formula… for anything the five cannot
+  say — then a 64px `Input`. Two controls before it were rejected on sight:
+  a bare expression box reading `v + 30` (user report, 2026-09-07) showed the
+  user a language rather than a control, and the five glyph keys that replaced
+  it (`= + − × ÷`) read as an equation — `X = + 30` (user report,
+  2026-09-07). Words say what the row DOES; glyphs beside a legend say what
+  it EQUALS. The verb is DERIVED from the stored text, never stored beside it
+  (`ui/components/formulaControl.ts`), so storage is unchanged and a formula
+  the engine wrote names the verb it means. `X`/`Y` sit in a 10px
+  `.instrument` column so a vector's two rows line their buttons up; a scalar
+  has no legend and the button is the first element. Measured inside the
+  well: 10 + 6 + 80 + 6 + 64 = 166px, so Subtract, the widest verb, and its
+  number both fit at Creator's 300px.
+- **The verb button is a field-shaped control, and the menu is the
+  library's.** `.key-verb` stands on its own, not on `.key-quiet`: 24px tall,
+  a fixed 80px wide — close to the 64px box beside it, so the pair reads as
+  one — and fixed so a vector's two rows line their number boxes up,
+  `1px solid var(--input)` on `--card` like the box beside it, sentence
+  case at 12px/500 in ink, `white-space: nowrap` with an ellipsis on the
+  word. The verbs are Set to, Add, Subtract, Multiply, Divide, Formula…: the
+  "by" is dropped because the number beside the verb says it, and it was
+  the two words that made the trigger wider than the box it governs. Not
+  the keys' tracked uppercase legend: MULTIPLY BY set as a legend
+  outweighed the value it governs, and the tracking wrapped the chevron
+  onto a second line at 300px (2026-09-07 screenshot). Its radius is 6px —
+  the radius `[role="menuitem"]` carries, so the button and the list it
+  opens are one object. Hover is a 7% ink wash on the card, 150ms; press is
+  `.press`'s 0.96; focus is the keys' outline. The chevron is 10px in
+  `--label-fg`, `flex: none`: an affordance, not a legend. The popup takes
+  focus when it opens and the browser drew its blue outline around the
+  whole list; `[role="menu"]:focus-visible { outline: none }` leaves the
+  highlighted item as the cue. A menu that flips upward has to paint over
+  the deck: the level goes on the library's POSITIONER (`body > div >
+  [role="presentation"]:has(> [role="menu"])`, `z-index: 50`), because its
+  placement `transform` makes it a stacking context and a z-index on the
+  popup inside it counts for nothing — verified headlessly, not inferred. The menu is `DropdownRoot`/`DropdownTrigger`/
+  `DropdownContent`/`DropdownItem`, the same four the row's overflow menu
+  uses. The current verb carries a leading `Check`; the others carry an
+  invisible one, so the words stay on one left edge. A verb the arithmetic
+  cannot reach — Multiply or Divide from a recorded 0, and Divide when the box
+  beside it reads 0 — is `aria-disabled` with the reason in its `title`, never
+  the library's `disabled`: that one sets `pointer-events: none` and takes the
+  reason with it.
+- **The menu is portalled, so the row that commits on blur has to know it is
+  open.** `StepValueEditor` raises `onMenuOpenChange`, and `StepRow` holds it
+  in a ref its `onBlur` reads: opening a verb menu moves focus out of the
+  editor's subtree, and committing then would unmount the editor and the menu
+  with it — the same class of bug as the native color picker's blur, one line
+  above it.
+- **Numbers are two decimals, everywhere the user sees or types one.**
+  `formatFormula` (`engine/formula.ts`), the control's own operands
+  (`formulaControl.ts`), the row labels (`round2`), and the number fields'
+  `decimals={2}` all print two. `roundKeepingMeaning` is the exception that
+  proves it: a value two decimals would flatten onto a landmark it is not — a
+  0.00004 scale onto 0, a 1.00001 scale onto 1, a 0.00004 offset onto 0 —
+  spends up to ten digits instead. Rounding may lose precision; it may not
+  lose the arithmetic. What the USER types is stored as typed: `textOf` never
+  rounds an operand.
+- **The formula's error line is muted ink, never red, and it is what blocks
+  the save.** One line under the rows, `text-11 text-muted-foreground`, shown
+  only when a field refuses; the field points at it with `aria-describedby`.
+  The standing hint that used to sit beside it — *v is the current value.
+  Type a number to set it exactly.* — is gone: it explained a language the
+  verbs replaced, and a sentence that never changes is furniture on a 300px
+  panel. What it said the verb now says on the button, with `FORMULA_LEGEND`
+  ("Set exactly, or change the current value") as the row group's sr-only
+  description. Red on this panel means an action or a failure, and an
+  expression the user is still typing is neither: red is never a readout. One
+  function, `formulaError`, feeds both the line and the refusal, so the row's
+  Enter and the configure sheet's Play can never disagree with what the user
+  is reading.
 - **Step rows show PROPERTY → RESULT; the before value is sr-only.**
   `labelPartsOf` (engine/labels.ts) splits a label into path/before/after
   only when re-joining reproduces the stored label byte-for-byte (imported
   v1 macros may carry labels their payload no longer emits); otherwise the
-  row falls back to splitting at the last arrow. The result is capped at
-  50% of the line so a long value never pushes the property to "Trans…".
+  row falls back to splitting at the last arrow. A relative step has no
+  arrow to cut at — `position.x +60`, `scale ×2` — so `LabelParts` carries a
+  `seam`, and on `"operator"` the row prints the arithmetic with no arrow and
+  moves the recorded `80.5 → 100` into the sr-only slot. What replay applies
+  is the arithmetic; the recording it came from is what a screen reader still
+  needs to hear. The result is capped at 50% of the line so a long value
+  never pushes the property to "Trans…".
   A three-piece row with the before visible was tried and rejected: at
   250px a before squeezed to "(…" is noise where the property should be.
 - **Counts are bare mono readouts everywhere** — the list header's

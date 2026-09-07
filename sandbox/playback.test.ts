@@ -94,8 +94,15 @@ describe("retargeted duplication (targets mode)", () => {
         op: "add-layer",
         cloneOf: { id: "REC_SRC", name: "star 6" },
         spec: {
-          nodeId: "REC_COPY", nodeType: "CONTAINER", nodeName: "star 7",
-          props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+          nodeId: "REC_COPY",
+          nodeType: "CONTAINER",
+          nodeName: "star 7",
+          props: {},
+          plain: {},
+          fills: [],
+          strokes: [],
+          masks: [],
+          shapes: [],
         },
       }),
       step({
@@ -138,8 +145,15 @@ describe("retargeted duplication (targets mode)", () => {
         op: "add-layer",
         cloneOf: { id: "REC_SRC", name: "star 6" },
         spec: {
-          nodeId: "REC_COPY", nodeType: "CONTAINER", nodeName: "star 7",
-          props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+          nodeId: "REC_COPY",
+          nodeType: "CONTAINER",
+          nodeName: "star 7",
+          props: {},
+          plain: {},
+          fills: [],
+          strokes: [],
+          masks: [],
+          shapes: [],
         },
       }),
     ];
@@ -160,8 +174,20 @@ describe("retargeted duplication (targets mode)", () => {
     stubCreator(scene, [other]);
 
     const steps = [
-      step({ op: "set-static", path: ["rotation"], before: 0, after: 45, layer: { id: String(a.id), name: "A" } }),
-      step({ op: "set-static", path: ["rotation"], before: 0, after: 90, layer: { id: String(b.id), name: "B" } }),
+      step({
+        op: "set-static",
+        path: ["rotation"],
+        before: 0,
+        after: 45,
+        layer: { id: String(a.id), name: "A" },
+      }),
+      step({
+        op: "set-static",
+        path: ["rotation"],
+        before: 0,
+        after: 90,
+        layer: { id: String(b.id), name: "B" },
+      }),
     ];
 
     playbackBegin({ steps: steps as Any });
@@ -189,8 +215,15 @@ describe("retargeted duplication reproduces the duplicate offset", () => {
           cloneOf: { id: "SRC", name: "Polygon 1" },
           offset: { x: 10, y: 10 },
           spec: {
-            nodeId: "COPY", nodeType: "CONTAINER", nodeName: "Polygon 2",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: "COPY",
+            nodeType: "CONTAINER",
+            nodeName: "Polygon 2",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
       ] as Any,
@@ -215,14 +248,35 @@ describe("chained retargeted duplication", () => {
     stubCreator(scene, [star]);
 
     const spec = (id: string, name: string) => ({
-      nodeId: id, nodeType: "CONTAINER", nodeName: name,
-      props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+      nodeId: id,
+      nodeType: "CONTAINER",
+      nodeName: name,
+      props: {},
+      plain: {},
+      fills: [],
+      strokes: [],
+      masks: [],
+      shapes: [],
     });
     playbackBegin({
       steps: [
-        step({ op: "add-layer", cloneOf: { id: "P1", name: "Polygon 1" }, spec: spec("P2", "Polygon 2") }),
-        step({ op: "set-static", path: ["rotation"], before: 0, after: 26, layer: { id: "P2", name: "Polygon 2" } }),
-        step({ op: "add-layer", cloneOf: { id: "P2", name: "Polygon 2" }, spec: spec("P3", "Polygon 3") }),
+        step({
+          op: "add-layer",
+          cloneOf: { id: "P1", name: "Polygon 1" },
+          spec: spec("P2", "Polygon 2"),
+        }),
+        step({
+          op: "set-static",
+          path: ["rotation"],
+          before: 0,
+          after: 26,
+          layer: { id: "P2", name: "Polygon 2" },
+        }),
+        step({
+          op: "add-layer",
+          cloneOf: { id: "P2", name: "Polygon 2" },
+          spec: spec("P3", "Polygon 3"),
+        }),
       ] as Any,
     });
     playbackStep({ index: 0 });
@@ -276,8 +330,15 @@ describe("break-scene replay", () => {
           layer: { id: "GONE", name: "Fish" },
           fallback: [
             {
-              nodeId: "F1", nodeType: "CONTAINER", nodeName: "Bubble",
-              props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+              nodeId: "F1",
+              nodeType: "CONTAINER",
+              nodeName: "Bubble",
+              props: {},
+              plain: {},
+              fills: [],
+              strokes: [],
+              masks: [],
+              shapes: [],
             },
           ],
         }),
@@ -359,9 +420,9 @@ describe("reorder-layers replay checks layer identity before reindexing (trace 2
     const result = playbackStep({ index: 0 });
 
     expect(scene.layers).toEqual([c, a, b]);
-    expect(
-      (result.notes ?? []).some((n: Any) => /identity|caution|verify/i.test(n.message)),
-    ).toBe(true);
+    expect((result.notes ?? []).some((n: Any) => /identity|caution|verify/i.test(n.message))).toBe(
+      true,
+    );
   });
 });
 
@@ -408,8 +469,15 @@ describe("nest-layers replay", () => {
             { id: String(b.id), name: "Rectangle 1" },
           ],
           spec: {
-            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 5",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: "NEST",
+            nodeType: "SCENE_LAYER",
+            nodeName: "Nested Scene 5",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
         // recorded on the SECOND nested layer — must map by ORDER
@@ -452,8 +520,15 @@ describe("nest-layers replay", () => {
         step({
           op: "add-layer",
           spec: {
-            nodeId: "S1", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 5",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: "S1",
+            nodeType: "SCENE_LAYER",
+            nodeName: "Nested Scene 5",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
       ] as Any,
@@ -461,7 +536,9 @@ describe("nest-layers replay", () => {
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
     expect(shapeLayerCalls).toBe(0);
-    expect(scene.layers.some((l: Any) => l.type === "SCENE_LAYER" && l.name === "Nested Scene 5")).toBe(true);
+    expect(
+      scene.layers.some((l: Any) => l.type === "SCENE_LAYER" && l.name === "Nested Scene 5"),
+    ).toBe(true);
   });
 });
 
@@ -479,13 +556,23 @@ describe("idempotent layer adoption (same-scene replays)", () => {
           layer: { id: "GONE", name: "Nested Scene 5" },
           fallback: [
             {
-              nodeId: String(rect.id), nodeType: "CONTAINER", nodeName: "Rectangle 1",
-              props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+              nodeId: String(rect.id),
+              nodeType: "CONTAINER",
+              nodeName: "Rectangle 1",
+              props: {},
+              plain: {},
+              fills: [],
+              strokes: [],
+              masks: [],
+              shapes: [],
             },
           ],
         }),
         step({
-          op: "set-static", path: ["rotation"], before: 0, after: 45,
+          op: "set-static",
+          path: ["rotation"],
+          before: 0,
+          after: 45,
           layer: { id: String(rect.id), name: "Rectangle 1" },
         }),
       ] as Any,
@@ -511,8 +598,15 @@ describe("idempotent layer adoption (same-scene replays)", () => {
         step({
           op: "add-layer",
           spec: {
-            nodeId: String(existing.id), nodeType: "CONTAINER", nodeName: "Rectangle 1",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: String(existing.id),
+            nodeType: "CONTAINER",
+            nodeName: "Rectangle 1",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
       ] as Any,
@@ -536,8 +630,15 @@ describe("nest-layers same-scene idempotency", () => {
           op: "nest-layers",
           layers: [{ id: "OLD_A", name: "Rectangle 1" }],
           spec: {
-            nodeId: String(nested.id), nodeType: "SCENE_LAYER", nodeName: "Nested Scene 6",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: String(nested.id),
+            nodeType: "SCENE_LAYER",
+            nodeName: "Nested Scene 6",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
       ] as Any,
@@ -563,8 +664,15 @@ describe("nest-layers re-executes when sources are present", () => {
           op: "nest-layers",
           layers: [{ id: String(a.id), name: "Ellipse 1" }],
           spec: {
-            nodeId: String(prior.id), nodeType: "SCENE_LAYER", nodeName: "Nested Scene 1",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: String(prior.id),
+            nodeType: "SCENE_LAYER",
+            nodeName: "Nested Scene 1",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
       ] as Any,
@@ -590,10 +698,20 @@ describe("nest-layers follows the selection (tool semantics)", () => {
       steps: [
         step({
           op: "nest-layers",
-          layers: [{ id: "REC1", name: "Ellipse 1" }, { id: "REC2", name: "Rectangle 1" }],
+          layers: [
+            { id: "REC1", name: "Ellipse 1" },
+            { id: "REC2", name: "Rectangle 1" },
+          ],
           spec: {
-            nodeId: "NEST", nodeType: "SCENE_LAYER", nodeName: "Nested Scene 1",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: "NEST",
+            nodeType: "SCENE_LAYER",
+            nodeName: "Nested Scene 1",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
         step({
@@ -848,9 +966,9 @@ describe("nest-layers rebuilds the sources inside the new scene", () => {
     expect((r0.notes ?? []).some((n: Any) => n.message.includes("already exists"))).toBe(false);
     const instances = scene.layers.filter((l: Any) => l.type === "SCENE_LAYER");
     expect(instances).toHaveLength(2);
-    expect(instances.some((l: Any) => l.scene.layers.some((c: Any) => c.name === "Rectangle 1"))).toBe(
-      true,
-    );
+    expect(
+      instances.some((l: Any) => l.scene.layers.some((c: Any) => c.name === "Rectangle 1")),
+    ).toBe(true);
   });
 
   it("keeps the host-moved path untouched when createSceneLayer consumes the selection", () => {
@@ -1016,15 +1134,26 @@ describe("nest-layers with no sources at all", () => {
           ...NEST_SPEC,
           shapes: [
             {
-              nodeId: "C1", nodeType: "SHAPE_LAYER", nodeName: "Ellipse 1",
+              nodeId: "C1",
+              nodeType: "SHAPE_LAYER",
+              nodeName: "Ellipse 1",
               props: { position: { animated: false, static: { x: 30, y: 40 } } },
-              plain: {}, fills: [{ kind: "solid", color: { animated: false, static: { r: 1, g: 2, b: 3 } } }],
-              strokes: [], masks: [], shapes: [],
+              plain: {},
+              fills: [{ kind: "solid", color: { animated: false, static: { r: 1, g: 2, b: 3 } } }],
+              strokes: [],
+              masks: [],
+              shapes: [],
             },
             {
-              nodeId: "C2", nodeType: "TEXT_LAYER", nodeName: "Title",
-              props: {}, plain: { text: "Ship it" },
-              fills: [], strokes: [], masks: [], shapes: [],
+              nodeId: "C2",
+              nodeType: "TEXT_LAYER",
+              nodeName: "Title",
+              props: {},
+              plain: { text: "Ship it" },
+              fills: [],
+              strokes: [],
+              masks: [],
+              shapes: [],
             },
           ],
         }),
@@ -1063,8 +1192,15 @@ describe("nest-layers with no sources at all", () => {
           ...NEST_SPEC,
           shapes: [
             {
-              nodeId: "C1", nodeType: "SHAPE_LAYER", nodeName: "Ellipse 1",
-              props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+              nodeId: "C1",
+              nodeType: "SHAPE_LAYER",
+              nodeName: "Ellipse 1",
+              props: {},
+              plain: {},
+              fills: [],
+              strokes: [],
+              masks: [],
+              shapes: [],
             },
           ],
         }),
@@ -1117,7 +1253,10 @@ describe("apply at playhead + stagger", () => {
     return step({
       op: "keyframes",
       path: ["rotation"],
-      added: [{ frame: 10, value: 0 }, { frame: 40, value: 90 }],
+      added: [
+        { frame: 10, value: 0 },
+        { frame: 40, value: 90 },
+      ],
       removed: [],
       changed: [],
       layer,
@@ -1190,7 +1329,10 @@ describe("delay for keyframe-free macros", () => {
     return step({
       op: "keyframes",
       path: ["rotation"],
-      added: [{ frame: 10, value: 0 }, { frame: 40, value: 90 }],
+      added: [
+        { frame: 10, value: 0 },
+        { frame: 40, value: 90 },
+      ],
       removed: [],
       changed: [],
       layer,
@@ -1368,9 +1510,15 @@ describe("add-layer replay picks the factory matching the recorded node type", (
         step({
           op: "add-layer",
           spec: {
-            nodeId: "T1", nodeType: "TEXT_LAYER", nodeName: "Text 1",
-            props: {}, plain: { text: "hello", fontFamily: "Inter" },
-            fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: "T1",
+            nodeType: "TEXT_LAYER",
+            nodeName: "Text 1",
+            props: {},
+            plain: { text: "hello", fontFamily: "Inter" },
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
       ] as Any,
@@ -1409,8 +1557,15 @@ describe("add-layer replay picks the factory matching the recorded node type", (
         step({
           op: "add-layer",
           spec: {
-            nodeId: "R1", nodeType: "RECTANGLE", nodeName: "Rectangle 1",
-            props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+            nodeId: "R1",
+            nodeType: "RECTANGLE",
+            nodeName: "Rectangle 1",
+            props: {},
+            plain: {},
+            fills: [],
+            strokes: [],
+            masks: [],
+            shapes: [],
           },
         }),
       ] as Any,
@@ -1467,9 +1622,7 @@ describe("debug probes on paint paths (replace-paint verifiability)", () => {
   it("reports a paint summary before and after a replace-paint", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
-    const layer = scene.addLayer(
-      makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids),
-    );
+    const layer = scene.addLayer(makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids));
     stubCreator(scene, [layer]);
     const steps = [
       step({
@@ -1496,9 +1649,7 @@ describe("debug probes on paint paths (replace-paint verifiability)", () => {
   it("follows the paint on a topology-remapped path (recorded deep, target flat)", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
-    const layer = scene.addLayer(
-      makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids),
-    );
+    const layer = scene.addLayer(makeNode("Ellipse 1", { fills: [{ r: 9, g: 9, b: 9 }] }, ids));
     stubCreator(scene, [layer]);
     const steps = [
       step({
@@ -1612,7 +1763,12 @@ describe("scene settings (set-scene)", () => {
         after: { width: 1080, height: 1080 },
       }),
       step({ op: "set-scene", key: "framerate", before: 30, after: 60 }),
-      step({ op: "set-scene", key: "backgroundColor", before: { r: 255, g: 255, b: 255 }, after: null }),
+      step({
+        op: "set-scene",
+        key: "backgroundColor",
+        before: { r: 255, g: 255, b: 255 },
+        after: null,
+      }),
     ];
 
     const begin = playbackBegin({ steps: steps as Any });
@@ -1634,7 +1790,9 @@ describe("scene settings (set-scene)", () => {
     const b = scene.addLayer(makeNode("B", {}, ids));
     stubCreator(scene, [a, b]);
 
-    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    playbackBegin({
+      steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any,
+    });
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
     expect(result.notes ?? []).toEqual([]);
@@ -1653,7 +1811,9 @@ describe("scene settings (set-scene)", () => {
     });
     stubCreator(scene, []);
 
-    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    playbackBegin({
+      steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any,
+    });
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
     expect((result.notes ?? []).some((n: Any) => /didn't apply/.test(n.message))).toBe(true);
@@ -1664,7 +1824,9 @@ describe("scene settings (set-scene)", () => {
     const scene = makeSceneRoot(ids); // no settings at all
     stubCreator(scene, []);
 
-    playbackBegin({ steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any });
+    playbackBegin({
+      steps: [step({ op: "set-scene", key: "framerate", before: 30, after: 60 })] as Any,
+    });
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
     expect((result.notes ?? []).some((n: Any) => /skipped/.test(n.message))).toBe(true);
@@ -1684,8 +1846,15 @@ describe("add-layer for an IMAGE_LAYER", () => {
     stubCreator(scene, []);
 
     const spec = {
-      nodeId: "IMG", nodeType: "IMAGE_LAYER", nodeName: "Logo.png",
-      props: {}, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+      nodeId: "IMG",
+      nodeType: "IMAGE_LAYER",
+      nodeName: "Logo.png",
+      props: {},
+      plain: {},
+      fills: [],
+      strokes: [],
+      masks: [],
+      shapes: [],
     };
     playbackBegin({ steps: [step({ op: "add-layer", spec })] as Any });
     const result = playbackStep({ index: 0 });
@@ -1807,5 +1976,269 @@ describe("mask mode replays through the set-plain channel", () => {
     expect(result.failures).toEqual([]);
     expect(result.notes ?? []).toEqual([]);
     expect(layer.masks[0].mode).toBe("subtract");
+  });
+});
+
+describe("relativePaths honours the per-step class", () => {
+  it("skips a path whose only step carries a formula — it reads the target live", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const source = scene.addLayer(
+      makeNode("star 6", { props: { position: { x: 10, y: 10 } } }, ids),
+    );
+    const target = scene.addLayer(
+      makeNode("Polygon 1", { props: { position: { x: 500, y: 500 } } }, ids),
+    );
+    stubCreator(scene, [target]);
+
+    const steps = [
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 10, y: 10 },
+        after: { x: 110, y: 10 },
+        apply: { x: { scale: 0, offset: 110 }, y: { scale: 0, offset: 10 } },
+        layer: { id: String(source.id), name: "star 6" },
+      }),
+    ];
+
+    playbackBegin({ steps: steps as Any });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(target.position.staticValue).toEqual({ x: 110, y: 10 });
+  });
+
+  it("skips a path whose only step is a recorded reset — the target lands on the identity", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const source = scene.addLayer(makeNode("star 6", { props: { rotation: 45 } }, ids));
+    const target = scene.addLayer(makeNode("Polygon 1", { props: { rotation: 30 } }, ids));
+    stubCreator(scene, [target]);
+
+    const steps = [
+      step({
+        op: "set-static",
+        path: ["rotation"],
+        before: 45,
+        after: 0,
+        layer: { id: String(source.id), name: "star 6" },
+      }),
+    ];
+
+    playbackBegin({ steps: steps as Any });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(target.rotation.staticValue).toBe(0);
+  });
+
+  it("tracks a mixed path so the following default step still has an origin", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const source = scene.addLayer(
+      makeNode("star 6", { props: { position: { x: 10, y: 10 } } }, ids),
+    );
+    const target = scene.addLayer(
+      makeNode("Polygon 1", { props: { position: { x: 500, y: 500 } } }, ids),
+    );
+    stubCreator(scene, [target]);
+
+    const layer = { id: String(source.id), name: "star 6" };
+    const steps = [
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 10, y: 10 },
+        after: { x: 110, y: 10 },
+        apply: { x: { scale: 0, offset: 110 }, y: { scale: 0, offset: 10 } },
+        layer,
+      }),
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 110, y: 10 },
+        after: { x: 160, y: 10 },
+        layer,
+      }),
+    ];
+
+    playbackBegin({ steps: steps as Any });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(target.position.staticValue).toEqual({ x: 110, y: 10 });
+
+    // The formula write re-anchors the path: the target IS at 110 now, so the
+    // recorded +50 lands on 160 — not on baseline (500) + 50, which is where a
+    // baseline frozen at playback.begin would have put it.
+    expect(playbackStep({ index: 1 }).failures).toEqual([]);
+    expect(target.position.staticValue).toEqual({ x: 160, y: 10 });
+  });
+
+  it("ignores a formula in scene mode: a rebuild reproduces the recording", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const source = scene.addLayer(
+      makeNode("star 6", { props: { position: { x: 310, y: 20 } } }, ids),
+    );
+    // Nothing selected, and the step names its own layer: a scene rebuild.
+    stubCreator(scene, []);
+
+    const steps = [
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 10, y: 10 },
+        after: { x: 160, y: 50 },
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+        layer: { id: String(source.id), name: "star 6" },
+      }),
+    ];
+
+    playbackBegin({ steps: steps as Any });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(source.position.staticValue).toEqual({ x: 160, y: 50 });
+  });
+
+  it("composes chained formula steps on the value each one left", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const source = scene.addLayer(
+      makeNode("star 6", { props: { position: { x: 10, y: 10 } } }, ids),
+    );
+    const target = scene.addLayer(
+      makeNode("Polygon 1", { props: { position: { x: 500, y: 500 } } }, ids),
+    );
+    stubCreator(scene, [target]);
+
+    const layer = { id: String(source.id), name: "star 6" };
+    const steps = [
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 10, y: 10 },
+        after: { x: 20, y: 10 },
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 1, offset: 0 } },
+        layer,
+      }),
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 20, y: 10 },
+        after: { x: 40, y: 10 },
+        apply: { x: { scale: 2, offset: 0 }, y: { scale: 1, offset: 0 } },
+        layer,
+      }),
+    ];
+
+    playbackBegin({ steps: steps as Any });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(target.position.staticValue).toEqual({ x: 510, y: 500 });
+    // The second formula reads what the first one left, not the baseline.
+    expect(playbackStep({ index: 1 }).failures).toEqual([]);
+    expect(target.position.staticValue).toEqual({ x: 1020, y: 500 });
+  });
+
+  it("rebases each target on its OWN formula result, not on the recording", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const source = scene.addLayer(
+      makeNode("star 6", { props: { position: { x: 10, y: 10 } } }, ids),
+    );
+    const one = scene.addLayer(
+      makeNode("Polygon 1", { props: { position: { x: 500, y: 500 } } }, ids),
+    );
+    const two = scene.addLayer(
+      makeNode("Polygon 2", { props: { position: { x: 800, y: 500 } } }, ids),
+    );
+    stubCreator(scene, [one, two]);
+
+    const layer = { id: String(source.id), name: "star 6" };
+    const steps = [
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 10, y: 10 },
+        after: { x: 20, y: 10 },
+        apply: { x: { scale: 1, offset: 10 }, y: { scale: 1, offset: 0 } },
+        layer,
+      }),
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 20, y: 10 },
+        after: { x: 70, y: 10 },
+        layer,
+      }),
+    ];
+
+    playbackBegin({ steps: steps as Any });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(playbackStep({ index: 1 }).failures).toEqual([]);
+    // Each target moved +10 and then the recorded +50, from where IT was.
+    expect(one.position.staticValue).toEqual({ x: 560, y: 500 });
+    expect(two.position.staticValue).toEqual({ x: 860, y: 500 });
+  });
+});
+
+describe("a SKIPPED absolute step does not re-anchor the target", () => {
+  it("leaves a keyframed target's later add step on its own baseline", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const source = scene.addLayer(
+      makeNode("star 6", { props: { position: { x: 10, y: 10 } } }, ids),
+    );
+    const still = scene.addLayer(
+      makeNode("Polygon 1", { props: { position: { x: 500, y: 500 } } }, ids),
+    );
+    const animated = scene.addLayer(
+      makeNode("Polygon 2", { props: { position: { x: 500, y: 500 } } }, ids),
+    );
+    // This target's position is on the timeline, so the host discards a
+    // staticValue write — the applier reports it as a skip, not a failure.
+    animated.position.addKeyframes([{ frame: 10, value: { x: 500, y: 500 } }]);
+    stubCreator(scene, [still, animated]);
+
+    const layer = { id: String(source.id), name: "star 6" };
+    const steps = [
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 10, y: 10 },
+        after: { x: 110, y: 10 },
+        apply: { x: { scale: 0, offset: 110 }, y: { scale: 0, offset: 10 } },
+        layer,
+      }),
+      step({
+        op: "keyframes",
+        path: ["position"],
+        added: [
+          { frame: 30, value: { x: 160, y: 10 } },
+          { frame: 60, value: { x: 200, y: 10 } },
+        ],
+        removed: [],
+        changed: [],
+        layer,
+      }),
+    ];
+
+    playbackBegin({ steps: steps as Any });
+
+    const placed = playbackStep({ index: 0 });
+    expect(placed.failures).toEqual([]);
+    expect(still.position.staticValue).toEqual({ x: 110, y: 10 });
+    // The keyframed target took nothing: it is still where it started.
+    expect((placed.notes ?? []).map((note: Any) => note.target)).toEqual(["Polygon 2"]);
+    expect(animated.position.getValueAt(10)).toEqual({ x: 500, y: 500 });
+
+    expect(playbackStep({ index: 1 }).failures).toEqual([]);
+    // The write landed here, so this target was re-anchored on it and the
+    // recorded motion replays from the recorded values.
+    expect(still.position.keyframes.map((k: Any) => k.value)).toEqual([
+      { x: 160, y: 10 },
+      { x: 200, y: 10 },
+    ]);
+    // It did NOT land here, so this target keeps the SHARED recorded origin
+    // (the motion's own first value, x 160) and its own baseline: the motion
+    // replays from where the target already was, 500 then 540. The re-anchor
+    // the other target earned belongs to that target alone — sharing it would
+    // have pushed this one to 550 and 590, a place nothing here ever reached.
+    expect(animated.position.getValueAt(30)).toEqual({ x: 500, y: 500 });
+    expect(animated.position.getValueAt(60)).toEqual({ x: 540, y: 500 });
   });
 });

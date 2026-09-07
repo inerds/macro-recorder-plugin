@@ -20,11 +20,12 @@ import {
 import { useRef, useState } from "react";
 
 import { editableValueOf, type EditableValue } from "../../engine/editing";
+import { jsonEqual, type Json } from "../../engine/json";
 import { joinLabelParts, labelPartsOf } from "../../engine/labels";
 import type { StepPayload } from "../../engine/steps";
 import type { PlayStepStatus } from "../state/stepStatus";
 import type { MacroStep, StepKind } from "../types";
-import { StepValueEditor } from "./StepValueEditor";
+import { formulaError, StepValueEditor } from "./StepValueEditor";
 
 const KIND_ICONS: Record<StepKind, typeof Move> = {
   transform: Move,
@@ -68,6 +69,34 @@ const LANE_SHOWN = "pointer-events-auto opacity-100";
 const EYE_ICON_CLASS =
   "col-start-1 row-start-1 size-3.5 transition-[opacity,scale,filter] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
 
+/** The precision every number field in the editor shows. */
+const FIELD_DECIMALS = 2;
+
+/**
+ * A draft as the commit compares it: every number rounded to the precision
+ * the field actually shows.
+ *
+ * NumberInput reparses its own displayed text when it loses focus and reports
+ * the rounded number back as a change — with nothing typed into it. Comparing
+ * the raw numbers would read that as an edit, so the comparison rounds both
+ * sides the way the field does: what the user could not see, they did not
+ * change.
+ */
+function draftShape(value: EditableValue): Json {
+  const round = (n: number) => Number(n.toFixed(FIELD_DECIMALS));
+  if (value.kind === "number") return { kind: value.kind, value: round(value.value) };
+  if (value.kind === "vector") {
+    return {
+      kind: value.kind,
+      value: Object.fromEntries(
+        Object.entries(value.value).map(([key, n]) => [key, round(n)] as const),
+      ),
+    };
+  }
+  if (value.kind === "formula") return { kind: value.kind, value: { ...value.fields } };
+  return { kind: value.kind, value: value.value };
+}
+
 export interface StepRowProps {
   step: MacroStep;
   index: number;
@@ -104,7 +133,9 @@ export function StepRow({
   hidePrefix = "",
 }: StepRowProps) {
   const shownLabel =
-    hidePrefix && step.label.startsWith(hidePrefix) ? step.label.slice(hidePrefix.length) : step.label;
+    hidePrefix && step.label.startsWith(hidePrefix)
+      ? step.label.slice(hidePrefix.length)
+      : step.label;
   // Truncation must not eat the step's RESULT: "Stroke · color #000000 →
   // #002B…" hides the one token that matters — and neither may it eat the
   // PROPERTY ("position.x 1… → 160" names nothing). Three pieces, so the
@@ -127,6 +158,7 @@ export function StepRow({
     : arrowAt === -1
       ? shownLabel
       : shownLabel.slice(0, arrowAt);
+  const seam = splitFits ? (parts.seam ?? "arrow") : "arrow";
   const labelBefore = splitFits ? parts.before : undefined;
   const labelAfter = splitFits
     ? parts.after
@@ -134,10 +166,15 @@ export function StepRow({
       ? undefined
       : shownLabel.slice(arrowAt + 3);
   const Icon = KIND_ICONS[step.kind];
+  // Null while the row is not being edited; the editor owns nothing.
   const [draft, setDraft] = useState<EditableValue | null>(null);
+  // The draft as the pencil opened it, so a commit can tell an edit from a
+  // round trip through the editor.
+  const openedWith = useRef<EditableValue | null>(null);
   const pencilRef = useRef<HTMLButtonElement>(null);
 
   const editable = editableValueOf(step);
+  const canEdit = editable !== null;
   const disabled = step.disabled === true;
   const editing = draft !== null;
   // The live recording feed passes no handlers: no lane, no wasted width.
@@ -148,8 +185,22 @@ export function StepRow({
     (param === true && Boolean(onToggleParam) && editable !== null) ||
     (disabled && Boolean(onToggle));
 
+  // A formula the parser refuses is never saved. The line under the fields
+  // says what is wrong; until it goes, so does the commit.
+  const draftError = formulaError(draft);
+  // The formula row's verb menu is portalled out of this row, so opening it
+  // blurs the editor without the user leaving it. Committing then would
+  // unmount the editor and the menu with it.
+  const menuOpen = useRef(false);
+
   const commit = () => {
-    if (draft && onEdit) onEdit(step.id, draft);
+    // Opening the pencil and closing it again is not an edit. Without this,
+    // a step that only LOOKS unchanged is rewritten: the editor saves the
+    // value it holds, and the value it holds is the rounded one.
+    const opened = openedWith.current;
+    const touched =
+      draft !== null && (opened === null || !jsonEqual(draftShape(draft), draftShape(opened)));
+    if (draft && onEdit && touched && draftError === null) onEdit(step.id, draft);
     setDraft(null);
   };
 
@@ -212,6 +263,9 @@ export function StepRow({
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
+              // A refused formula keeps the editor open: Enter on an error
+              // that closed the row would look like a save.
+              if (draftError !== null) return;
               commit();
               restoreFocus();
             }
@@ -231,6 +285,7 @@ export function StepRow({
           // while the document itself has lost focus is never "moved on".
           onBlur={(event) => {
             if (!document.hasFocus()) return;
+            if (menuOpen.current) return;
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
               commit();
             }
@@ -240,6 +295,9 @@ export function StepRow({
             value={draft}
             onChange={setDraft}
             label={`New value for step ${index + 1}`}
+            onMenuOpenChange={(open) => {
+              menuOpen.current = open;
+            }}
             autoFocus
           />
         </span>
@@ -261,9 +319,15 @@ export function StepRow({
               half the line. The spaces travel INSIDE the
               spans: the row's text has to read as one sentence. */}
           <span className="min-w-0 truncate whitespace-pre">{labelPath}</span>
-          {labelBefore !== undefined && <span className="sr-only">{` ${labelBefore}`}</span>}
+          {labelBefore !== undefined && (
+            <span className="sr-only">
+              {seam === "operator" ? ` (recorded ${labelBefore})` : ` ${labelBefore}`}
+            </span>
+          )}
           {labelAfter !== undefined && (
-            <span className="min-w-[6ch] max-w-[50%] truncate whitespace-pre">{` → ${labelAfter}`}</span>
+            <span className="min-w-[6ch] max-w-[50%] truncate whitespace-pre">
+              {seam === "operator" ? ` ${labelAfter}` : ` → ${labelAfter}`}
+            </span>
           )}
           {disabled && <span className="sr-only"> (skipped)</span>}
           {param && <span className="sr-only"> (parameter)</span>}
@@ -313,14 +377,17 @@ export function StepRow({
             </button>
           )}
 
-          {onEdit && editable && (
+          {onEdit && canEdit && (
             <button
               type="button"
               ref={pencilRef}
               className={ACTION_CLASS}
               aria-label={`Edit step ${index + 1}`}
               title={`Edit step ${index + 1}`}
-              onClick={() => setDraft(editable)}
+              onClick={() => {
+                openedWith.current = editable;
+                setDraft(editable);
+              }}
             >
               <Pencil className="size-3.5" strokeWidth={2.5} />
             </button>
@@ -329,10 +396,7 @@ export function StepRow({
           {onToggle && (
             <button
               type="button"
-              className={cn(
-                ACTION_CLASS,
-                disabled && "w-6 pointer-events-auto opacity-100",
-              )}
+              className={cn(ACTION_CLASS, disabled && "w-6 pointer-events-auto opacity-100")}
               aria-pressed={disabled}
               aria-label={`Skip step ${index + 1} during playback`}
               title={`Skip step ${index + 1} during playback`}

@@ -1,12 +1,18 @@
-import type { CaptureOffer } from "../../engine/protocol";
+import type { CaptureOffer, ScopeReport } from "../../engine/protocol";
 import type { Macro, MacroStep, StepResult } from "../types";
 
 /** The layer a recording session captured. */
 export interface RecordingSource {
   nodeId: string;
   nodeName?: string;
-  /** Nodes selected when recording began (0 = whole-scene nudge). */
-  selectionCount?: number;
+  /** What the session watches, decided at record start. See ScopeReport. */
+  scope?: ScopeReport;
+}
+
+/** What Record would watch if it were pressed now, plus the scene it read. */
+export interface ScopePreview {
+  scope: ScopeReport;
+  sceneName?: string;
 }
 
 /** Emits recorded steps while the user edits the animation. */
@@ -34,9 +40,18 @@ export interface RecorderGateway {
   onCaptureOffer?(callback: (offer: CaptureOffer | null) => void): () => void;
   /** Synthesize keyframe steps from a layer's existing animation. */
   captureKeyframes?(layerId: string, scope: "all" | "selected"): Promise<MacroStep[]>;
-  /** Live selection size per tick, deduped — drives the standing
-   *  "select a layer" nudge on the recording screen. */
-  onSelectionCount?(callback: (count: number) => void): () => void;
+  /** Running total of edits dropped as outside the recording's scope, per
+   *  tick and deduped — drives the counter on the recording screen's chip. */
+  onIgnoredCount?(callback: (count: number) => void): () => void;
+  /** The scope as it stands after it grew mid-recording (a duplicate, a new
+   *  layer). Emitted only on the tick that grew it. */
+  onScope?(callback: (scope: ScopeReport) => void): () => void;
+  /**
+   * What Record would watch right now. Answers without a recording session,
+   * so the resting panel can say what the key will do before it is pressed.
+   * Resolves null when there is no active scene.
+   */
+  peekScope?(): Promise<ScopePreview | null>;
 }
 
 export interface PlaybackRun {

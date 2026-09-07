@@ -5,8 +5,10 @@
  * is a recess cut into it and the transport row sits on its surface. The old
  * shape (a cream card containing a dark plate, with a status strip above it)
  * cost two materials, two paddings and a whole extra row — 195px of a 520px
- * panel. The arithmetic now is 5 + 110 + 4 + 24 + 5 = 148px, and the reels got
- * BIGGER doing it (102px across, up from 83px).
+ * panel. The arithmetic now is 5 + 119 + 4 + 24 + 4 + 13 + 5 = 174px at the
+ * 320px panel (the 119 is the stage, tuned to the width below; 13 + 4 are
+ * the scope caption and its gap, added 2026-09-07), and the reels got
+ * BIGGER doing it.
  *
  * Split out of index.css so the hero is one readable unit; Vite still inlines
  * everything into the single-file build.
@@ -38,21 +40,15 @@
      window's bezel at panel size, and a bright top band there read as a
      second, cramped frame (Creator screenshot, 2026-09-03). The bevel is
      one hairline now, and the plate's depth comes from the bottom edge. */
-  background: linear-gradient(
-    180deg,
-    #1E1B19 0%,
-    var(--deck) 45%,
-    #171513 100%
-  );
+  background: linear-gradient(180deg, #1e1b19 0%, var(--deck) 45%, #171513 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     inset 1px 0 0 rgba(255, 255, 255, 0.03),
     inset -1px 0 0 rgba(0, 0, 0, 0.45),
     inset 0 -1px 0 rgba(0, 0, 0, 0.75),
     inset 0 0 0 1px var(--deck-edge),
-    /* Plate thickness: a 2-3px lower edge over the cream, then contact. */
-    0 2px 0 #0A0908,
-    0 3px 0 #15120F,
+    /* Plate thickness: a 2-3px lower edge over the cream, then contact. */ 0 2px 0 #0a0908,
+    0 3px 0 #15120f,
     0 5px 8px -2px rgba(0, 0, 0, 0.45);
 }
 
@@ -96,7 +92,7 @@
   height: 8px;
   flex: none;
   border-radius: 999px;
-  background: #4A433D;
+  background: #4a433d;
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.18),
     inset 0 0 0 1px rgba(0, 0, 0, 0.8),
@@ -107,7 +103,7 @@
 }
 
 .lamp[data-on="red"] {
-  background: #E04A38;
+  background: #e04a38;
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.4),
     inset 0 0 0 1px rgba(0, 0, 0, 0.45),
@@ -140,7 +136,7 @@
   position: relative;
   border-radius: 6px;
   box-shadow:
-    0 0 0 1px #0C0B0A,
+    0 0 0 1px #0c0b0a,
     0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -171,11 +167,7 @@
       rgba(255, 255, 255, 0.015) 40%,
       transparent 70%
     ),
-    radial-gradient(
-      120% 90% at 50% 45%,
-      transparent 62%,
-      rgba(0, 0, 0, 0.3) 100%
-    );
+    radial-gradient(120% 90% at 50% 45%, transparent 62%, rgba(0, 0, 0, 0.3) 100%);
 }
 
 /*
@@ -188,11 +180,15 @@
  */
 .deck-stage {
   position: relative;
-  /* Tuned against the bled window width (panel - 2x chassis padding) so the
-     272-unit drawing is width-limited, not height-limited: at 300px the
-     window is 290px, and 110 * (290/272) = 117. Undersize this and the reels
-     simply letterbox instead of filling the glass. */
-  height: 117px;
+  /* Tuned against the bled window width so the 272-unit drawing is
+     width-limited, not height-limited. The window is the iframe minus the
+     .host-frame gutters (8px a side, in Creator too — index.css) minus the
+     chassis padding (5px a side): at the 320px panel (sandbox/plugin.ts)
+     that is 320 - 16 - 10 = 294px, and 110 * (294/272) = 119. Undersize this
+     and the reels letterbox inside the glass; oversize it and they sit
+     between bands. Measured headlessly 2026-09-07 (stage 294 wide). The old
+     117 for the 300px panel omitted the gutters and was 6px tall. */
+  height: 119px;
   overflow: hidden;
   border-radius: 6px;
   /* Near-black, lifted a touch behind the reels and falling off toward the
@@ -204,14 +200,13 @@
      of the stage, so it is the same pool at 274px and at 600px — the thing
      that must never come back is a narrow band, which is what a linear
      sweep with percentage stops turns into on a small window. */
-  background:
-    radial-gradient(
-      72% 105% at 50% 46%,
-      #38332F 0%,
-      #262220 28%,
-      #171513 60%,
-      #0D0C0B 100%
-    );
+  background: radial-gradient(
+    72% 105% at 50% 46%,
+    #38332f 0%,
+    #262220 28%,
+    #171513 60%,
+    #0d0c0b 100%
+  );
   /* A shallow recess. The old 10px-deep top shadow met the chassis' lit
      edge 6px away and the two read as one thick, smeared rim. */
   box-shadow:
@@ -317,11 +312,7 @@
   z-index: 0;
   opacity: 0;
   transition: opacity 300ms cubic-bezier(0.2, 0, 0, 1);
-  background: radial-gradient(
-    130% 85% at 50% 105%,
-    rgba(224, 74, 56, 0.26),
-    transparent 68%
-  );
+  background: radial-gradient(130% 85% at 50% 105%, rgba(224, 74, 56, 0.26), transparent 68%);
 }
 
 .deck-stage[data-deck="recording"]::after {
@@ -449,10 +440,44 @@
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.1em;
-  color: #C4BCAF;
+  color: #c4bcaf;
   text-transform: uppercase;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * The scope caption: one line under the transport row saying what Record will
+ * watch, before it is pressed. A real element, not a pseudo — the hero's
+ * pseudo-element budget is spent (docs/design-system.md).
+ *
+ * Its height is FIXED whether or not it has anything to say. The line fills a
+ * second after the panel rests (the idle poll) and empties again on the review
+ * sheet; a caption that collapsed when empty would shunt the whole macro list
+ * up and down as the user selected things.
+ */
+.deck-scope {
+  display: flex;
+  height: 13px;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding-left: 2px;
+}
+
+/* Both spans are `.deck-word`: same silkscreen, so the caption reads as more
+   of the faceplate rather than a second typographic voice on it. */
+.deck-scope-legend {
+  flex: none;
+  /* One step back — the label is furniture and the layer name is the answer.
+     Opacity, not a second colour: the chassis has one silkscreen ink. */
+  opacity: 0.62;
+}
+
+/* The name is what gives way when the panel is narrow: `.deck-word` already
+   ellipsises, and this is the min-width a flex item needs to let it. */
+.deck-scope-value {
+  min-width: 0;
 }
 
 /* ----------------------------------------------------------- keycaps ----- */
@@ -479,13 +504,13 @@
   line-height: 1;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #241F1B;
-  background: linear-gradient(180deg, #F8F4EC 0%, #E6DFD2 55%, #D6CEC0 100%);
+  color: #241f1b;
+  background: linear-gradient(180deg, #f8f4ec 0%, #e6dfd2 55%, #d6cec0 100%);
   /* Face edge + the base line the cap sits on; the wall is the ::after. */
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     inset 0 0 0 1px rgba(18, 15, 12, 0.45),
-    0 3px 0 #0B0A09,
+    0 3px 0 #0b0a09,
     0 4px 3px rgba(0, 0, 0, 0.45);
   transition:
     transform 70ms ease-out,
@@ -502,7 +527,7 @@
   height: 3px;
   border-radius: 0 0 4px 4px;
   pointer-events: none;
-  background: linear-gradient(180deg, #BDB5A7, #8E8679);
+  background: linear-gradient(180deg, #bdb5a7, #8e8679);
   transition: height 70ms ease-out;
 }
 
@@ -518,23 +543,23 @@
  * Light, not `--ring` — ink is invisible against the dark faceplate.
  */
 .key-plate.key-plate:focus-visible {
-  outline: 2px solid #F8F4EC;
+  outline: 2px solid #f8f4ec;
   outline-offset: 2px;
 }
 
 .key-plate.key-plate:hover:not(:disabled) {
-  background: linear-gradient(180deg, #FFFCF5 0%, #E6DFD2 100%);
+  background: linear-gradient(180deg, #fffcf5 0%, #e6dfd2 100%);
 }
 
 /* Pressed: the cap travels down onto its base AND the face darkens, so the
    state reads without motion. */
 .key-plate.key-plate:active:not(:disabled) {
   transform: translateY(2px);
-  background: linear-gradient(180deg, #E2DBCD 0%, #CFC7B8 100%);
+  background: linear-gradient(180deg, #e2dbcd 0%, #cfc7b8 100%);
   box-shadow:
     inset 0 2px 3px rgba(0, 0, 0, 0.22),
     inset 0 0 0 1px rgba(18, 15, 12, 0.5),
-    0 1px 0 #0B0A09;
+    0 1px 0 #0b0a09;
 }
 
 .key-plate.key-plate:active:not(:disabled)::after {
@@ -546,16 +571,16 @@
 .key-plate.key-plate:disabled {
   cursor: default;
   opacity: 1;
-  color: #9A9289;
-  background: linear-gradient(180deg, #4B443E 0%, #383330 100%);
+  color: #9a9289;
+  background: linear-gradient(180deg, #4b443e 0%, #383330 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     inset 0 0 0 1px rgba(0, 0, 0, 0.65),
-    0 3px 0 #0B0A09;
+    0 3px 0 #0b0a09;
 }
 
 .key-plate.key-plate:disabled::after {
-  background: linear-gradient(180deg, #3A3531, #221F1C);
+  background: linear-gradient(180deg, #3a3531, #221f1c);
 }
 
 /* The cap is a red gradient with a legend ON it, so the LIGHTEST sample of
@@ -565,26 +590,74 @@
    5.52:1, bottom 6.44:1. Hover and press are tuned to the same floor
    (deck.css / index.css must move together — see design-system.md). */
 .key-plate-red.key-plate-red:not(:disabled) {
-  color: #FFF3EE;
-  background: linear-gradient(180deg, #C8382B 0%, #B5301F 60%, #A62C1C 100%);
+  color: #fff3ee;
+  background: linear-gradient(180deg, #c8382b 0%, #b5301f 60%, #a62c1c 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
     inset 0 0 0 1px rgba(18, 15, 12, 0.55),
-    0 3px 0 #0B0A09,
+    0 3px 0 #0b0a09,
     0 4px 3px rgba(0, 0, 0, 0.45);
 }
 
 .key-plate-red.key-plate-red:not(:disabled)::after {
-  background: linear-gradient(180deg, #8F2B20, #671D15);
+  background: linear-gradient(180deg, #8f2b20, #671d15);
+}
+
+/* The exact-values cap: the SAME recipe as the red one, on a cobalt whose
+   every stop has the red stop's luminance — 4.76 / 5.67 / 6.44:1 against the
+   #FFF3EE legend, 3.35 / 2.82 / 2.48:1 against the chassis. Blue is not a
+   second action colour: it is red's exact-values mode, on the two Record keys
+   and nowhere else (design-system.md). Move it with `.key-blue` in index.css
+   and with --ink-blue, the way the red three move together. */
+.key-plate-blue.key-plate-blue:not(:disabled) {
+  color: #fff3ee;
+  background: linear-gradient(180deg, #2b6bcb 0%, #2660b5 60%, #2357a6 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 0 0 1px rgba(18, 15, 12, 0.55),
+    0 3px 0 #0b0a09,
+    0 4px 3px rgba(0, 0, 0, 0.45);
+}
+
+.key-plate-blue.key-plate-blue:not(:disabled)::after {
+  background: linear-gradient(180deg, #1f4d92, #163667);
+}
+
+/* Hover lifts the whole face one step, as the red does: 4.62 / 5.67:1. */
+.key-plate-blue.key-plate-blue:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2c6dce 0%, #2660b5 100%);
+}
+
+/* Pressed reads darker than rest: 6.30 / 7.93:1. */
+.key-plate-blue.key-plate-blue:active:not(:disabled) {
+  background: linear-gradient(180deg, #2459a8 0%, #1e4b8d 100%);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(18, 15, 12, 0.5),
+    0 1px 0 #0b0a09;
+}
+
+/* An exact recording DISABLES the key it started from (Record is reachable
+   only from rest), and the state has to survive that: the cap keeps the blue
+   and takes the dead key's own darkness, so "a dead key is a dark key" and
+   "this recording is exact" are both still true. Hue 216 at 30% — unlit, not
+   a lit cap faded — over the grey dead cap's exact luminances, so the
+   #9A9289 legend reads 3.12:1 and 4.06:1 on it, the same as on the grey. */
+.key-plate-blue.key-plate-blue:disabled {
+  background: linear-gradient(180deg, #344661 0%, #273549 100%);
+}
+
+.key-plate-blue.key-plate-blue:disabled::after {
+  background: linear-gradient(180deg, #29374b, #18202c);
 }
 
 /* Pressed reads darker than rest (6.30 / 7.06 / 7.93:1). */
 .key-plate-red.key-plate-red:active:not(:disabled) {
-  background: linear-gradient(180deg, #A82D21 0%, #8F241A 100%);
+  background: linear-gradient(180deg, #a82d21 0%, #8f241a 100%);
   box-shadow:
     inset 0 2px 3px rgba(0, 0, 0, 0.28),
     inset 0 0 0 1px rgba(18, 15, 12, 0.6),
-    0 1px 0 #0B0A09;
+    0 1px 0 #0b0a09;
 }
 
 /* Hover lifts the WHOLE face a step rather than the top alone: the top has
@@ -592,7 +665,7 @@
    the lower two thirds (bottom #A62C1C → #B5301F). Samples 4.62 / 5.11 /
    5.67:1. */
 .key-plate-red.key-plate-red:hover:not(:disabled) {
-  background: linear-gradient(180deg, #CB3A2C 0%, #B5301F 100%);
+  background: linear-gradient(180deg, #cb3a2c 0%, #b5301f 100%);
 }
 
 /* The record dot, drawn rather than imported: it inherits the cap's ink. */
@@ -613,7 +686,7 @@
   gap: 5px;
   padding: 0 6px;
   border-radius: 3px;
-  background: linear-gradient(180deg, #0B0A09 0%, #161412 100%);
+  background: linear-gradient(180deg, #0b0a09 0%, #161412 100%);
   box-shadow:
     inset 0 1px 3px rgba(0, 0, 0, 0.9),
     inset 0 0 0 1px rgba(0, 0, 0, 0.85),
@@ -632,11 +705,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.28) 0 1px,
-    transparent 1px 2px
-  );
+  background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 2px);
 }
 
 .lcd-count {
@@ -649,12 +718,16 @@
 /*
  * Height guard, re-tuned for the one-chassis hero. It is a real breakpoint,
  * not a round number: the list below needs ~150px for its header, a row and a
- * peek, and with a 148px hero (was 195px) that point moves down by ~47px —
- * 400px becomes 352px. Below it the deck is decoration competing with the
- * list it introduces: keep the reels (they carry state) and drop the
- * furniture.
+ * peek, and with a 148px hero (was 195px) that point moved down by ~47px —
+ * 400px became 352px. The scope caption then put 17px back on the hero
+ * (13px line + 4px gap), so the threshold climbed with it: 352 + 17 = 369px.
+ * The 320px panel put 2px more on the stage (117 → 119), so: 369 + 2 = 371px.
+ * Re-derive it again whenever the hero's height changes. Below it the deck is
+ * decoration competing with the list it introduces: keep the reels (they
+ * carry state) and drop the furniture. The caption stays — it is what Record
+ * is about to do, not furniture.
  */
-@container panel (max-height: 352px) {
+@container panel (max-height: 371px) {
   /* Scaled down, never sliced: `meet` keeps whole reels (letterboxing onto
      the stage's own plate colour, so the crop is invisible). A reel cut
      through its middle reads as texture and the rotation has nothing to
@@ -696,7 +769,7 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.9),
       inset 0 0 0 1px rgba(18, 15, 12, 0.45),
-      0 2px 0 #0B0A09,
+      0 2px 0 #0b0a09,
       0 3px 3px rgba(0, 0, 0, 0.45);
   }
 

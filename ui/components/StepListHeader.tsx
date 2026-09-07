@@ -1,12 +1,17 @@
 import { cn } from "@lottiefiles/creator-plugins-ui";
+import type { ReactNode } from "react";
 
 import { sharedLayerName } from "../../engine/labels";
 import type { MacroStep } from "../types";
-import { SimplifyButton } from "./SimplifyButton";
 
 export interface StepListHeaderProps {
   steps: MacroStep[];
-  onSimplify: () => void;
+  /**
+   * The header's trailing control. A saved macro's drawer puts `SimplifyButton`
+   * here; the review sheet puts `KeepEveryStepToggle` there instead, because
+   * that sheet is already simplified when it opens.
+   */
+  action?: ReactNode;
   /** Muted lines under the count (what this list applies to, how it saves). */
   hints?: string[];
   /** Demoted hint: tooltip + screen reader only, no visible line. The macro
@@ -31,7 +36,7 @@ export interface StepListHeaderProps {
  */
 export function StepListHeader({
   steps,
-  onSimplify,
+  action,
   hints = [],
   quietHint,
   className = "",
@@ -50,7 +55,7 @@ export function StepListHeader({
           {layer && <span className="sr-only"> on {layer}</span>}
           {quietHint && <span className="sr-only">. {quietHint}</span>}
         </p>
-        <SimplifyButton steps={steps} onSimplify={onSimplify} />
+        {action}
       </div>
       {hints.map((hint) => (
         // A sentence wraps; only labels truncate. `pretty` keeps the last

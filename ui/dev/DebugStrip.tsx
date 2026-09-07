@@ -47,7 +47,7 @@ export function DebugStrip({
         >
           <option value="burst">Short burst (6 steps)</option>
           <option value="long">Long (20 steps)</option>
-          <option value="silent">Silent (0 steps)</option>
+          <option value="silent">Whole scene (0 steps, ignored counter)</option>
           <option value="keyframes">Keyframed layer (capture offer)</option>
         </select>
       </label>

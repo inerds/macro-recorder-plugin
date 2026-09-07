@@ -23,7 +23,13 @@ Event kinds:
 - `step-recorded` — `{ seq, steps, snapshots: { prev, next } }`. The pair is
   the **exact input** that `diffScene` turned into those steps, so it holds
   scene snapshots, not one node. The final delta at stop uses
-  `{ final: true, steps, snapshots }` (no `seq`).
+  `{ final: true, steps, snapshots }` (no `seq`). From rev `2026-09-07.2`
+  recording is SCOPED to the selection at `record.start`: `diffScene` still
+  runs on the whole scene, and `partitionByScope` drops the payloads outside
+  the scope. A change in the snapshot pair with no step is therefore a
+  deliberate drop, not a differ bug — read `record.start`'s `scope`,
+  `record.tick`'s cumulative `ignored`, and the tick's own `debug.ignored`
+  before you file one.
 - `playback-event` — `{ index, step, failures, notes, targets: { op, path, before, after } }`.
   `before`/`after` are per-target probes: `{ target, value, animated,
   keyframes: [{ frame, value, easing? }], fills, strokes, unreadable? }`.
@@ -40,10 +46,17 @@ Event kinds:
   outcome (the probe read `.staticValue` off a raw string) and keyframe
   entries carry no `easing` — so in older traces neither signature is
   evidence of a silent no-op. From `.41` on, plain scalars probe as
-  themselves and easing is included when readable. More fences arrived at revs
-  `.52`, `2026-09-04.1`, `2026-09-06.2`, `2026-09-06.3`, `2026-09-06.4`, and
-  `2026-09-07.1` — read them in `docs/contributing/triage.md` before you call
-  a silence a finding.
+  themselves and easing is included when readable. A step that carries
+  `apply` (rev `2026-09-07.7`) runs a formula on the target's LIVE value, so
+  its `before` probe is that live value and its result is expected to differ
+  from the recorded `after`. More fences arrived at revs `.52`,
+  `2026-09-04.1`, `2026-09-06.2`, `2026-09-06.3`, `2026-09-06.4`,
+  `2026-09-07.1`, `2026-09-07.2`, and `2026-09-07.7` — read them in
+  `docs/contributing/triage.md` before you call a silence a finding.
+- `scope-peek-failed` — `{ error }`, the idle scope poll's FIRST failure this
+  idle period. It says the panel could not show what Record would watch, most
+  often a sandbox too old for `selection.peek`. The poll itself never appears
+  in the bundle.
 
 ## Method
 

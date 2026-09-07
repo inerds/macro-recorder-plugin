@@ -1,7 +1,9 @@
 import { withEditedValue, type EditableValue } from "../../engine/editing";
-import type { CaptureOffer } from "../../engine/protocol";
+import { withExactApply } from "../../engine/exact";
+import type { CaptureOffer, ScopeReport } from "../../engine/protocol";
 import type { MacroParam } from "../../engine/macro";
-import type { PlayOptions } from "../gateways/types";
+import { simplifySteps } from "../../engine/simplify";
+import type { PlayOptions, ScopePreview } from "../gateways/types";
 import type { Macro, MacroStep } from "../types";
 import { newId } from "../utils/id";
 
@@ -62,11 +64,7 @@ export function toggleParamPin(
 }
 
 /** A macro with new steps, its pins re-synced, `params` omitted when empty. */
-export function withSteps(
-  macro: Macro,
-  steps: MacroStep[],
-  params?: readonly MacroParam[],
-): Macro {
+export function withSteps(macro: Macro, steps: MacroStep[], params?: readonly MacroParam[]): Macro {
   const next: Macro = { ...macro, steps };
   const synced = syncParams(params ?? macro.params, steps);
   if (synced.length > 0) next.params = synced;
@@ -145,6 +143,12 @@ export type AppState =
        * Record key would otherwise flash on every panel open.
        */
       loaded: boolean;
+      /**
+       * What Record would watch if it were pressed now, polled from the
+       * sandbox while the panel rests. Null until the first answer (and in
+       * mock mode without a peek), which the deck reads as "say nothing".
+       */
+      scopePreview: ScopePreview | null;
     }
   | {
       mode: "recording";
@@ -158,19 +162,40 @@ export type AppState =
       capturedAllLayerIds: string[];
       /** Capture feedback rides the same toast channel idle uses. */
       notice: Notice | null;
-      /** Live selection size (per tick; null until known) — 0 keeps the
-       *  standing "select a layer" nudge up until something is selected. */
-      selectionCount: number | null;
+      /** What this recording watches, fixed at record start (null until the
+       *  sandbox answers). See ScopeReport. */
+      scope: ScopeReport | null;
+      /** Running count of edits dropped as outside that scope (cumulative). */
+      ignored: number;
+      /**
+       * The exact-values modifier was held when Record was pressed, so every
+       * eligible transform step is stamped with its recorded end value. Fixed
+       * for the session: the modifier is read once, per press.
+       */
+      exact: boolean;
     }
   | {
       mode: "reviewing";
       macros: Macro[];
       steps: MacroStep[];
+      /**
+       * The recording exactly as it was captured. The review sheet opens
+       * simplified, so the raw list has to survive somewhere: it is what
+       * "Keep every step" puts back, and what a later re-simplify reads.
+       */
+      rawSteps: MacroStep[];
+      /** Whether `steps` came from `simplifySteps(rawSteps)` or from `rawSteps`. */
+      simplified: boolean;
       name: string;
       /** Steps pinned as parameters — asked for on every play. */
       params: MacroParam[];
       /** The recorded layer — saved onto the macro for selection fallback. */
       source?: { nodeId: string; nodeName?: string };
+      /** What the recording watched — the review sheet says so in a hint. */
+      scope?: ScopeReport;
+      /** The recording was made with the exact-values modifier held. Carried
+       *  through so the review hint can say so; the steps already carry it. */
+      exact?: boolean;
       /** Review has a toast channel too: Simplify reports its count here. */
       notice: Notice | null;
     }
@@ -195,8 +220,12 @@ export type AppState =
 
 export type AppEvent =
   | { type: "MACROS_LOADED"; macros: Macro[] }
-  | { type: "RECORD_START"; startedAt: number; selectionCount?: number }
-  | { type: "RECORD_SELECTION_COUNT"; count: number }
+  | { type: "RECORD_START"; startedAt: number; scope?: ScopeReport; exact?: boolean }
+  | { type: "RECORD_IGNORED_COUNT"; count: number }
+  | { type: "RECORD_SCOPE"; scope: ScopeReport }
+  /** The idle poll's answer. Ignored outside idle, and identity-stable when
+   *  the answer has not changed — a 1 Hz poll must never re-render. */
+  | { type: "SCOPE_PEEKED"; preview: ScopePreview | null }
   | { type: "CAPTURE_OFFER_UPDATED"; offer: CaptureOffer | null }
   | { type: "CAPTURE_DONE"; layerId: string; scope: "all" | "selected" }
   | { type: "STEP_RECEIVED"; step: MacroStep }
@@ -204,6 +233,12 @@ export type AppEvent =
       type: "RECORD_STOP";
       suggestedName: string;
       source?: { nodeId: string; nodeName?: string };
+      scope?: ScopeReport;
+      /**
+       * Open the review sheet on the simplified list. Absent means true —
+       * the default the panel sends, and the value every older test means.
+       */
+      autoSimplify?: boolean;
     }
   | { type: "DISCARD_REQUEST" }
   | { type: "DISCARD_CANCEL" }
@@ -211,6 +246,8 @@ export type AppEvent =
   | { type: "REVIEW_NAME_CHANGE"; name: string }
   | { type: "REVIEW_STEP_DELETE"; stepId: string }
   | { type: "REVIEW_SET_STEPS"; steps: MacroStep[] }
+  /** The review sheet's "Keep every step" switch. Reviewing only. */
+  | { type: "REVIEW_SIMPLIFIED_TOGGLE"; simplified: boolean }
   | { type: "REVIEW_STEP_TOGGLE"; stepId: string }
   | { type: "REVIEW_STEP_EDIT"; stepId: string; value: EditableValue }
   | { type: "REVIEW_PARAM_TOGGLE"; stepId: string }
@@ -265,6 +302,8 @@ export function idleState(
     // Every other idle state is reached from a mode the store already
     // answered for; only the first one starts unknown.
     loaded: true,
+    // The poll refills this within a second of the panel resting.
+    scopePreview: null,
     ...overrides,
   };
 }
@@ -291,16 +330,40 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         captureOffer: null,
         capturedAllLayerIds: [],
         notice: null,
-        selectionCount: typeof event.selectionCount === "number" ? event.selectionCount : null,
+        scope: event.scope ?? null,
+        ignored: 0,
+        exact: event.exact === true,
       };
 
     case "STEP_RECEIVED":
       if (state.mode !== "recording") return state;
-      return { ...state, steps: [...state.steps, event.step] };
+      // The stamp happens here, not in the sandbox: what the modifier changes
+      // is how the panel stores what the host reported, so the recorder and
+      // the engine revision are untouched. `withExactApply` returns every
+      // step it does not stamp as the same object.
+      return {
+        ...state,
+        steps: [...state.steps, state.exact ? withExactApply(event.step) : event.step],
+      };
 
-    case "RECORD_SELECTION_COUNT":
+    case "RECORD_IGNORED_COUNT":
       if (state.mode !== "recording") return state;
-      return { ...state, selectionCount: event.count };
+      if (state.ignored === event.count) return state;
+      return { ...state, ignored: event.count };
+
+    case "RECORD_SCOPE":
+      // The scope grew: a layer this recording created joined it. The chip
+      // and, later, the review hint name what is watched NOW.
+      if (state.mode !== "recording") return state;
+      return { ...state, scope: event.scope };
+
+    case "SCOPE_PEEKED": {
+      // Only the resting panel has a readout to fill, and a late answer must
+      // not disturb a recording that has already fixed its scope.
+      if (state.mode !== "idle") return state;
+      if (samePreview(state.scopePreview, event.preview)) return state;
+      return { ...state, scopePreview: event.preview };
+    }
 
     case "CAPTURE_OFFER_UPDATED":
       // Late gateway callbacks after stop land here harmlessly.
@@ -323,21 +386,30 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         return idleState(state.macros, {
           notice: {
             id: newId(),
-            message:
-              "Nothing was recorded — the scene didn't change while recording.",
+            message: "Nothing was recorded — the scene didn't change while recording.",
             tone: "info",
           },
         });
       }
-      return {
-        mode: "reviewing",
-        macros: state.macros,
-        steps: state.steps,
-        name: event.suggestedName,
-        params: [],
-        notice: null,
-        ...(event.source ? { source: event.source } : {}),
-      };
+      {
+        // The tick loop turns one drag into a chain of micro-steps, so the
+        // sheet opens on the merged list. The raw list is kept beside it and
+        // "Keep every step" puts it back.
+        const simplified = event.autoSimplify !== false;
+        return {
+          mode: "reviewing",
+          macros: state.macros,
+          steps: simplified ? simplifySteps(state.steps) : state.steps,
+          rawSteps: state.steps,
+          simplified,
+          name: event.suggestedName,
+          params: [],
+          notice: null,
+          ...(event.source ? { source: event.source } : {}),
+          ...(event.scope ? { scope: event.scope } : {}),
+          ...(state.exact ? { exact: true } : {}),
+        };
+      }
 
     case "DISCARD_REQUEST":
       if (state.mode !== "recording") return state;
@@ -369,6 +441,19 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         steps: event.steps,
         params: syncParams(state.params, event.steps),
       };
+
+    case "REVIEW_SIMPLIFIED_TOGGLE": {
+      if (state.mode !== "reviewing") return state;
+      if (state.simplified === event.simplified) return state;
+      // Params pin step ids, and the two lists do not share all of them —
+      // a merged run has one id where the raw recording had five. Pins go.
+      return {
+        ...state,
+        steps: event.simplified ? simplifySteps(state.rawSteps) : state.rawSteps,
+        simplified: event.simplified,
+        params: [],
+      };
+    }
 
     case "REVIEW_STEP_TOGGLE":
       if (state.mode !== "reviewing") return state;
@@ -407,10 +492,15 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       // nothing worth restoring.
       if (state.mode !== "idle") return state;
       if (event.draft.steps.length === 0) return state;
+      // A draft is whatever the user last had on screen, merged or not. It
+      // comes back byte-for-byte, so it is the raw list here and the switch
+      // still offers to merge it.
       return {
         mode: "reviewing",
         macros: state.macros,
         steps: event.draft.steps,
+        rawSteps: event.draft.steps,
+        simplified: false,
         name: event.draft.name,
         params: event.draft.params ?? [],
         notice: null,
@@ -437,9 +527,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       return {
         ...state,
         renamingId: null,
-        macros: state.macros.map((m) =>
-          m.id === event.macroId ? { ...m, name } : m,
-        ),
+        macros: state.macros.map((m) => (m.id === event.macroId ? { ...m, name } : m)),
       };
     }
 
@@ -475,11 +563,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
     case "MACRO_PARAM_TOGGLE":
       if (state.mode !== "idle") return state;
       return mapMacro(state, event.macroId, (macro) =>
-        withSteps(
-          macro,
-          macro.steps,
-          toggleParamPin(macro.params, macro.steps, event.stepId),
-        ),
+        withSteps(macro, macro.steps, toggleParamPin(macro.params, macro.steps, event.stepId)),
       );
 
     case "DELETE_REQUEST":
@@ -636,6 +720,17 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       if (!hasNoticeChannel(state)) return state;
       return { ...state, notice: null };
   }
+}
+
+/**
+ * Whether two peeks say the same thing. The poll asks once a second and the
+ * answer is almost always identical; comparing the serialized shape is what
+ * lets the reducer hand back the SAME state object and render nothing.
+ */
+function samePreview(a: ScopePreview | null, b: ScopePreview | null): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /** The modes that hold a `notice` — the toast and the live region read it. */

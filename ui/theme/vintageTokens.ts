@@ -27,8 +27,10 @@ export const VINTAGE_TOKENS: Record<string, string> = {
   "--sidebar-foreground": "#2A2623",
   "--sidebar-accent-foreground": "#2A2623",
 
-  // Red is the only action colour. #B5301F is its small-text twin (see
-  // --ink-red-text); this one is for fills, where 3:1 is the bar.
+  // Red is the action colour. #B5301F is its small-text twin (see
+  // --ink-red-text); this one is for fills, where 3:1 is the bar. The one
+  // other hue a control ever wears is --ink-blue below, and only the two
+  // Record keys wear it.
   "--primary": "#C8382B",
   "--primary-hover": "#AD2E22",
   "--primary-foreground": "#FFFDF9",
@@ -78,6 +80,17 @@ export const VINTAGE_TOKENS: Record<string, string> = {
   "--ink": "#2A2623",
   /** 5.2:1 on cream — small red text NEVER uses --primary. */
   "--ink-red-text": "#B5301F",
+  /**
+   * Red's exact-values twin, and the ONLY place blue appears: the two Record
+   * keys, while the Option/Alt modifier is held and for the length of the
+   * recording it starts. A cobalt at H216/S65%, its lightness solved so that
+   * its relative luminance EQUALS --primary's — 4.76:1 against the #FFF3EE
+   * legend, 3.35:1 against the deck, 4.36:1 on the cream background, the same
+   * three numbers the red meets. The hover twin matches --primary-hover
+   * (6.05:1 on the legend). See docs/design-system.md.
+   */
+  "--ink-blue": "#2B6BCB",
+  "--ink-blue-hover": "#255BAD",
   "--lamp-amber": "#D9A441",
   /** Success pilot-lamp. Red is action/failure on this panel, so the
       completion flash gets its own green — muted to match the amber. */

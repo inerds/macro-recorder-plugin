@@ -7,10 +7,7 @@
 import { getQuickJS } from "quickjs-emscripten";
 import { readFileSync } from "node:fs";
 
-const pluginCode = readFileSync(
-  new URL("../dist/plugin.js", import.meta.url),
-  "utf8",
-);
+const pluginCode = readFileSync(new URL("../dist/plugin.js", import.meta.url), "utf8");
 
 const QuickJS = await getQuickJS();
 const vm = QuickJS.newContext();
@@ -120,7 +117,8 @@ function sendToPlugin(message) {
   }
 }
 
-let pass = 0, fail = 0;
+let pass = 0,
+  fail = 0;
 function check(name, ok, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
   ok ? pass++ : fail++;
@@ -139,8 +137,14 @@ check(
 posted.length = 0;
 sendToPlugin({ t: "req", id: 2, method: "record.start", params: {} });
 check(
-  "record.start sync response (whole scene, selection counted)",
-  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.nodeId === "scene1" &&
+  // The fake selection holds the one layer, so the scope is that layer and
+  // it — not the scene — is the macro's source node.
+  "record.start sync response (layer scope, selection counted)",
+  posted.length === 1 &&
+    posted[0]?.ok === true &&
+    posted[0]?.result?.nodeId === "n1" &&
+    posted[0]?.result?.scope?.kind === "layers" &&
+    posted[0]?.result?.scope?.layers?.[0]?.id === "n1" &&
     posted[0]?.result?.selectionCount === 1,
   JSON.stringify(posted[0] ?? null),
 );
@@ -157,7 +161,8 @@ check(
   "record.tick returns diffed step synchronously with a layer binding",
   posted.length === 1 &&
     tick?.ok === true &&
-    step?.label?.includes("position.x 10 → 110") &&
+    // A position move labels as its operand now — the add form, no arrow.
+    step?.label?.includes("position.x +100") &&
     step?.payload?.layer?.id === "n1",
   JSON.stringify(step ?? tick ?? null),
 );
@@ -235,7 +240,9 @@ check(
 //     keyframe entries carry NO host ids (they are recycled by the host).
 posted.length = 0;
 sendToPlugin({
-  t: "req", id: 21, method: "record.captureKeyframes",
+  t: "req",
+  id: 21,
+  method: "record.captureKeyframes",
   params: { layerId: "n1", scope: "all" },
 });
 const capSteps = posted[0]?.result?.steps ?? [];
@@ -261,13 +268,14 @@ check(
 // 7d. scope "selected" without a selected-keyframes surface errors cleanly
 posted.length = 0;
 sendToPlugin({
-  t: "req", id: 22, method: "record.captureKeyframes",
+  t: "req",
+  id: 22,
+  method: "record.captureKeyframes",
   params: { layerId: "n1", scope: "selected" },
 });
 check(
   "capture scope=selected errors synchronously when the surface is absent",
-  posted.length === 1 && posted[0]?.ok === false &&
-    posted[0]?.error === "no-selected-keyframes",
+  posted.length === 1 && posted[0]?.ok === false && posted[0]?.error === "no-selected-keyframes",
   JSON.stringify(posted[0] ?? null),
 );
 
@@ -277,7 +285,8 @@ posted.length = 0;
 sendToPlugin({ t: "req", id: 23, method: "record.tick", params: { seq: 3 } });
 check(
   "tick with empty selection carries no captureOffer and selectionCount 0",
-  posted.length === 1 && posted[0]?.result?.captureOffer === undefined &&
+  posted.length === 1 &&
+    posted[0]?.result?.captureOffer === undefined &&
     posted[0]?.result?.selectionCount === 0,
   JSON.stringify(posted[0]?.result ?? null),
 );
@@ -288,8 +297,16 @@ vm.unwrapResult(vm.evalCode(`delete globalThis.__fakeSelection;`)).dispose();
 sendToPlugin({ t: "req", id: 9, method: "record.discard", params: {} });
 const kfSteps = [
   {
-    id: "k", kind: "keyframe", label: "kf",
-    payload: { op: "keyframes", path: ["position"], added: [{ frame: 20, value: { x: 0, y: 0 } }], removed: [], changed: [] },
+    id: "k",
+    kind: "keyframe",
+    label: "kf",
+    payload: {
+      op: "keyframes",
+      path: ["position"],
+      added: [{ frame: 20, value: { x: 0, y: 0 } }],
+      removed: [],
+      changed: [],
+    },
   },
 ];
 posted.length = 0;
@@ -302,7 +319,12 @@ check(
 sendToPlugin({ t: "req", id: 11, method: "playback.end", params: {} });
 vm.unwrapResult(vm.evalCode(`globalThis.creator.timeline = { currentFrame: 50 };`)).dispose();
 posted.length = 0;
-sendToPlugin({ t: "req", id: 12, method: "playback.begin", params: { steps: kfSteps, atPlayhead: true } });
+sendToPlugin({
+  t: "req",
+  id: 12,
+  method: "playback.begin",
+  params: { steps: kfSteps, atPlayhead: true },
+});
 check(
   "playback.begin atPlayhead reads creator.timeline.currentFrame synchronously",
   posted.length === 1 && posted[0]?.result?.frameOffset === 30,
@@ -314,13 +336,22 @@ sendToPlugin({ t: "req", id: 13, method: "playback.end", params: {} });
 //    invocation — the delay decision must never introduce a thenable.
 const staticSteps = [
   {
-    id: "s", kind: "transform", label: "move",
-    payload: { op: "set-static", path: ["position"], before: { x: 0, y: 0 }, after: { x: 10, y: 0 } },
+    id: "s",
+    kind: "transform",
+    label: "move",
+    payload: {
+      op: "set-static",
+      path: ["position"],
+      before: { x: 0, y: 0 },
+      after: { x: 10, y: 0 },
+    },
   },
 ];
 posted.length = 0;
 sendToPlugin({
-  t: "req", id: 14, method: "playback.begin",
+  t: "req",
+  id: 14,
+  method: "playback.begin",
   params: { steps: staticSteps, staggerFrames: 10, iteration: 1 },
 });
 check(
@@ -336,7 +367,9 @@ sendToPlugin({ t: "req", id: 15, method: "playback.end", params: {} });
 //     working stagger as a skipped step.
 posted.length = 0;
 sendToPlugin({
-  t: "req", id: 16, method: "playback.begin",
+  t: "req",
+  id: 16,
+  method: "playback.begin",
   params: { steps: staticSteps, staggerFrames: 10 },
 });
 posted.length = 0;
@@ -350,6 +383,127 @@ check(
   JSON.stringify(posted[0]?.result ?? null),
 );
 sendToPlugin({ t: "req", id: 18, method: "playback.end", params: {} });
+
+// 11. Selection scope. `selection.peek` must answer from the same
+//     invocation (the panel polls it while idle), and a scoped recording
+//     must drop — and count — edits to layers it does not watch.
+vm.unwrapResult(
+  vm.evalCode(`
+    globalThis.__fakeNodes.push({
+      id: "n2", name: "Layer 2", type: "SHAPE_LAYER",
+      startFrame: 0, endFrame: 150, timelineOffset: 0,
+      position: {
+        isAnimated: false,
+        staticValue: { x: 300, y: 20 },
+        keyframes: [],
+        addKeyframes(list) {},
+      },
+      fills: [], strokes: [], masks: [], shapes: [],
+    });
+    // Select the RECTANGLE inside Layer 1: the scope resolves to its owner.
+    globalThis.__fakeSelection = [globalThis.__fakeNodes[0].shapes[0]];
+  `),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 30, method: "selection.peek", params: {} });
+const peek = posted[0]?.result;
+check(
+  "selection.peek names the owning layer with NO job pump",
+  posted.length === 1 &&
+    posted[0]?.ok === true &&
+    peek?.scope?.kind === "layers" &&
+    peek?.scope?.layers?.length === 1 &&
+    peek?.scope?.layers?.[0]?.id === "n1" &&
+    peek?.sceneName === "Main Scene",
+  JSON.stringify(peek ?? posted[0] ?? null),
+);
+
+posted.length = 0;
+sendToPlugin({ t: "req", id: 31, method: "record.start", params: {} });
+const scoped = posted[0]?.result;
+check(
+  "record.start scopes to the selected shape's layer and names it as the source",
+  posted.length === 1 &&
+    scoped?.scope?.kind === "layers" &&
+    scoped?.scope?.layers?.[0]?.id === "n1" &&
+    scoped?.nodeId === "n1",
+  JSON.stringify(scoped ?? posted[0] ?? null),
+);
+
+vm.unwrapResult(
+  vm.evalCode(`globalThis.__fakeNodes[1].position.staticValue = { x: 310, y: 20 };`),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 32, method: "record.tick", params: { seq: 1 } });
+check(
+  "an edit outside the scope is counted, not recorded",
+  posted.length === 1 && posted[0]?.result?.steps?.length === 0 && posted[0]?.result?.ignored === 1,
+  JSON.stringify(posted[0]?.result ?? null),
+);
+sendToPlugin({ t: "req", id: 33, method: "record.discard", params: {} });
+
+// 12. Per-step formula: a `set-static` position step whose `apply` says
+//     "x: v + 10, y: 5" must read the TARGET's live value — Layer 2 sits at
+//     {310, 20}, so it lands on {320, 5}. The recorded `after` is nowhere
+//     near it, and neither is the default additive path.
+vm.unwrapResult(vm.evalCode(`globalThis.__fakeSelection = [globalThis.__fakeNodes[1]];`)).dispose();
+const formulaPayload = {
+  op: "set-static",
+  path: ["position"],
+  before: { x: 0, y: 0 },
+  after: { x: 999, y: 888 },
+  apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
+  layer: { id: "n2", name: "Layer 2" },
+};
+const formulaSteps = [{ id: "e", kind: "transform", label: "place", payload: formulaPayload }];
+posted.length = 0;
+sendToPlugin({ t: "req", id: 34, method: "playback.begin", params: { steps: formulaSteps } });
+const formulaBegin = posted[0]?.result;
+posted.length = 0;
+sendToPlugin({ t: "req", id: 35, method: "playback.step", params: { index: 0 } });
+const landedHandle = vm.unwrapResult(vm.evalCode(`globalThis.__fakeNodes[1].position.staticValue`));
+const landed = vm.dump(landedHandle);
+landedHandle.dispose();
+check(
+  "a formula step reads the target's live value: {310,20} + (v+10, 5) = {320,5}",
+  formulaBegin?.targetCount === 1 &&
+    posted.length === 1 &&
+    posted[0]?.ok === true &&
+    landed?.x === 320 &&
+    landed?.y === 5,
+  JSON.stringify({ begin: formulaBegin, landed, res: posted[0]?.result ?? null }),
+);
+sendToPlugin({ t: "req", id: 36, method: "playback.end", params: {} });
+
+// 13. The same step with NOTHING selected is a scene rebuild: it binds to its
+//     own recorded layer and writes the recording verbatim, formula ignored.
+vm.unwrapResult(
+  vm.evalCode(`
+    globalThis.__fakeNodes[1].position.staticValue = { x: 310, y: 20 };
+    globalThis.__fakeSelection = [];
+  `),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 37, method: "playback.begin", params: { steps: formulaSteps } });
+const sceneBegin = posted[0]?.result;
+posted.length = 0;
+sendToPlugin({ t: "req", id: 38, method: "playback.step", params: { index: 0 } });
+const rebuiltHandle = vm.unwrapResult(
+  vm.evalCode(`globalThis.__fakeNodes[1].position.staticValue`),
+);
+const rebuilt = vm.dump(rebuiltHandle);
+rebuiltHandle.dispose();
+check(
+  "scene mode ignores the formula and writes the recorded value verbatim",
+  posted.length === 1 &&
+    posted[0]?.ok === true &&
+    posted[0]?.result?.failures?.length === 0 &&
+    rebuilt?.x === 999 &&
+    rebuilt?.y === 888,
+  JSON.stringify({ begin: sceneBegin, rebuilt, res: posted[0]?.result ?? null }),
+);
+sendToPlugin({ t: "req", id: 39, method: "playback.end", params: {} });
+vm.unwrapResult(vm.evalCode(`delete globalThis.__fakeSelection;`)).dispose();
 
 onMessageCallback.dispose();
 vm.dispose();

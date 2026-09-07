@@ -23,6 +23,9 @@ function makeSceneRoot(nextId: (p: string) => string, layers: Any[]) {
     name: "Main Scene",
     layers,
   };
+  // The host seats every top-level layer in the scene; `clone()` needs that
+  // link to insert the copy beside its source, the way a duplicate arrives.
+  for (const layer of layers) layer.parent = scene;
   return scene;
 }
 
@@ -263,5 +266,222 @@ describe("the recording is pinned to the scene it started in", () => {
 
     const result = recordStop();
     expect(result.debug).toBeDefined();
+  });
+});
+
+describe("recording scope", () => {
+  /** Layer A (with a rectangle), Layer B, Layer C — a scene worth scoping. */
+  function scopedScene() {
+    const nextId = makeIds();
+    const a = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const rect = a.createRectangle({ size: { width: 80, height: 60 } });
+    const b = makeNode("Layer B", { props: { position: { x: 100, y: 0 } } }, nextId);
+    const c = makeNode("Layer C", { props: { position: { x: 200, y: 0 } } }, nextId);
+    const scene = makeSceneRoot(nextId, [a, b, c]);
+    stubCreator(scene);
+    return { a, b, c, rect, scene, nextId };
+  }
+
+  function select(...nodes: Any[]) {
+    (globalThis as Any).creator.selection.nodes = nodes;
+  }
+
+  const opsOf = (steps: Any[]) => steps.map((step) => step.payload?.op);
+
+  it("scopes the recording to the layer that owns the selected shape, and drops edits elsewhere", () => {
+    const { a, b, rect } = scopedScene();
+    select(rect);
+
+    const started = recordStart({});
+    expect(started.scope).toEqual({ kind: "layers", layers: [{ id: a.id, name: "Layer A" }] });
+    // A single-layer scope names THAT layer as the macro's source, so a
+    // no-selection replay lands on the layer it was recorded from.
+    expect(started.nodeId).toBe(a.id);
+    expect(started.nodeName).toBe("Layer A");
+
+    b.position.staticValue = { x: 110, y: 0 };
+    const tick1 = recordTick(1);
+    expect(tick1.steps).toEqual([]);
+    expect(tick1.ignored).toBe(1);
+
+    a.position.staticValue = { x: 10, y: 0 };
+    const tick2 = recordTick(2);
+    expect(opsOf(tick2.steps)).toEqual(["set-static"]);
+    // Cumulative: the count is a running total, not this tick's blip.
+    expect(tick2.ignored).toBe(1);
+  });
+
+  it("records the whole scene, and says why, when the selection is not in this scene", () => {
+    const { scene, nextId } = scopedScene();
+    select(makeNode("Elsewhere", {}, nextId));
+
+    const started = recordStart({});
+    expect(started.scope).toEqual({ kind: "scene", fallback: "unresolved" });
+    expect(started.nodeId).toBe(scene.id);
+  });
+
+  it("records the whole scene with no fallback marker when nothing is selected", () => {
+    const { a, b } = scopedScene();
+
+    expect(recordStart({}).scope).toEqual({ kind: "scene" });
+    a.position.staticValue = { x: 10, y: 0 };
+    b.position.staticValue = { x: 110, y: 0 };
+    const tick = recordTick(1);
+    expect(tick.steps).toHaveLength(2);
+    expect(tick.ignored).toBe(0);
+  });
+
+  it("records a duplicate of the scoped layer, and the edits made to the copy", () => {
+    const { a, rect } = scopedScene();
+    select(rect);
+    recordStart({});
+
+    const copy = a.clone();
+    const tick1 = recordTick(1);
+    expect(opsOf(tick1.steps)).toEqual(["add-layer"]);
+    expect((tick1.steps[0]!.payload as Any).cloneOf?.id).toBe(a.id);
+    expect(tick1.ignored).toBe(0);
+    // The tick that grew the scope reports it, so the panel names both layers.
+    expect(tick1.scope).toEqual({
+      kind: "layers",
+      layers: [
+        { id: a.id, name: "Layer A" },
+        { id: copy.id, name: copy.name },
+      ],
+    });
+
+    copy.position.staticValue = { x: 50, y: 50 };
+    const tick2 = recordTick(2);
+    expect(opsOf(tick2.steps)).toEqual(["set-static"]);
+    expect((tick2.steps[0]!.payload as Any).layer?.id).toBe(copy.id);
+    // Unchanged scope: nothing to report.
+    expect(tick2.scope).toBeUndefined();
+  });
+
+  it("records a duplicate of an unwatched layer, but still ignores that layer's own edits", () => {
+    const { b, rect } = scopedScene();
+    select(rect);
+    recordStart({});
+
+    b.clone();
+    const tick1 = recordTick(1);
+    expect(opsOf(tick1.steps)).toEqual(["add-layer"]);
+    expect((tick1.steps[0]!.payload as Any).cloneOf?.id).toBe(b.id);
+
+    b.position.staticValue = { x: 111, y: 0 };
+    const tick2 = recordTick(2);
+    expect(tick2.steps).toEqual([]);
+    expect(tick2.ignored).toBe(1);
+  });
+
+  it("ignores a scene setting in layer scope and records it in scene scope", () => {
+    const { rect, scene } = scopedScene();
+    select(rect);
+    recordStart({});
+    scene.name = "Renamed";
+    const scoped = recordTick(1);
+    expect(scoped.steps).toEqual([]);
+    expect(scoped.ignored).toBe(1);
+    recordDiscard();
+
+    select();
+    recordStart({});
+    scene.name = "Renamed again";
+    const whole = recordTick(1);
+    expect(opsOf(whole.steps)).toEqual(["set-scene"]);
+    expect(whole.ignored).toBe(0);
+  });
+
+  it("records a reorder that moved the scoped layer, and ignores a swap of two others", () => {
+    const { a, b, c, rect, scene } = scopedScene();
+    select(rect);
+    recordStart({});
+
+    scene.layers = [b, c, a];
+    const moved = recordTick(1);
+    expect(opsOf(moved.steps)).toEqual(["reorder-layers"]);
+
+    scene.layers = [c, b, a];
+    const swapped = recordTick(2);
+    expect(swapped.steps).toEqual([]);
+    expect(swapped.ignored).toBe(1);
+  });
+
+  it("does not widen the scope when the selection changes mid-recording", () => {
+    const { b, rect } = scopedScene();
+    select(rect);
+    recordStart({});
+
+    select(b);
+    b.position.staticValue = { x: 110, y: 0 };
+    const tick1 = recordTick(1);
+    expect(tick1.steps).toEqual([]);
+    expect(tick1.ignored).toBe(1);
+
+    b.position.staticValue = { x: 120, y: 0 };
+    const tick2 = recordTick(2);
+    expect(tick2.ignored).toBe(2);
+  });
+
+  it("offers no keyframe capture for a keyframed layer outside the scope", () => {
+    const { a, b, rect } = scopedScene();
+    a.position.addKeyframes([
+      { frame: 0, value: { x: 0, y: 0 } },
+      { frame: 30, value: { x: 9, y: 9 } },
+    ]);
+    b.position.addKeyframes([
+      { frame: 0, value: { x: 100, y: 0 } },
+      { frame: 30, value: { x: 190, y: 9 } },
+    ]);
+    select(rect);
+    recordStart({});
+
+    select(b);
+    expect(recordTick(1).captureOffer).toBeUndefined();
+    // The scoped layer still gets the offer — the scope is the only filter.
+    select(a);
+    expect(recordTick(2).captureOffer?.layerId).toBe(a.id);
+  });
+});
+
+describe("selectionPeek", () => {
+  it("names the layer the current selection would record", async () => {
+    const nextId = makeIds();
+    const a = makeNode("Layer A", {}, nextId);
+    const rect = a.createRectangle({ size: { width: 80, height: 60 } });
+    const scene = makeSceneRoot(nextId, [a, makeNode("Layer B", {}, nextId)]);
+    stubCreator(scene);
+    const { selectionPeek } = await import("./recorder");
+
+    expect(selectionPeek()).toEqual({ scope: { kind: "scene" }, sceneName: "Main Scene" });
+
+    (globalThis as Any).creator.selection.nodes = [rect];
+    expect(selectionPeek()).toEqual({
+      scope: { kind: "layers", layers: [{ id: a.id, name: "Layer A" }] },
+      sceneName: "Main Scene",
+    });
+  });
+
+  it("leaves no session behind — peeking never starts or disturbs a recording", async () => {
+    const nextId = makeIds();
+    const a = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const scene = makeSceneRoot(nextId, [a]);
+    stubCreator(scene);
+    const { selectionPeek } = await import("./recorder");
+
+    selectionPeek();
+    // No recording was started, so a tick has nothing to report.
+    expect(recordTick(1)).toEqual({ seq: 1, steps: [], ignored: 0 });
+
+    recordStart({});
+    selectionPeek();
+    a.position.staticValue = { x: 10, y: 0 };
+    expect(recordTick(2).steps).toHaveLength(1);
+  });
+
+  it("reports no scope at all without an active scene", async () => {
+    stubCreator(undefined);
+    const { selectionPeek } = await import("./recorder");
+    expect(selectionPeek()).toEqual({ scope: null });
   });
 });
