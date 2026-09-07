@@ -234,8 +234,13 @@ export function parseFormula(text: string): ParseResult {
  * the panel prints (`round2` in engine/labels.ts, the number fields' own
  * `decimals={2}`). A third decimal on a converted ratio is noise the user
  * did not type.
+ *
+ * Exported because the panel prints the same numbers: the step control
+ * (`ui/components/formulaControl.ts`) and the number fields
+ * (`ui/components/StepRow.tsx`) both round to it, and one panel must not
+ * show two precisions.
  */
-const DECIMALS = 2;
+export const DECIMALS = 2;
 
 /**
  * The most digits a box ever shows. Past this the number is noise, and the

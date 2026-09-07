@@ -1,0 +1,26 @@
+# Terms the docs must no longer use, one per line. `#` starts a comment.
+#
+# Each line names something the code does NOT have any more. A term here is an
+# error in any tracked Markdown file except the history records
+# (`docs/history/`, `docs/releases/`, `CHANGELOG.md`) and except a sentence
+# that marks itself as history — one that contains "was", "used to",
+# "first cut", "rejected", "superseded", "old", or "once". Say what the code
+# does now; say what it did in the past tense.
+
+# The three-value operator enum. Steps store one linear term (`LinearTerm`).
+rebaseAfterExact
+StepOperator
+operatorOf(
+
+# The five-glyph key row, and the tracked uppercase legend it wore.
+five keys
+MULTIPLY BY
+Set to / Add / Multiply
+key-op
+
+# Recording scope names that never shipped.
+selection-nudge
+
+# The display precision is two decimals (`DECIMALS` in `engine/formula.ts`).
+4 decimals
+four decimals

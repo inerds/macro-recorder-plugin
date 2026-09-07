@@ -250,9 +250,9 @@ recording clock, the status lamp, and the state word.
   the counter (see `.deck-clock` below); the state word is the reduced-motion
   state channel so it is the last thing allowed to truncate. Two nested
   surfaces cost two sets of padding — that collapse is what took the hero
-  from 195px to 148px on a 300x520 panel; the scope caption (below) took it
-  back up, and the 320x560 panel (2026-09-07) makes it 174px with the stage
-  at 119px.
+  from 195px to 148px on the old 300x520 panel; the scope caption (below)
+  took it back up, and the 320x560 panel (2026-09-07) makes it 174px with the
+  stage at 119px.
 - **The stage is a studio deck's faceplate, drawn to a reference photo
   (2026-09-03).** `ReelDeck.tsx` builds it from constants: two R=44 reels
   centred at y=47, each a spun-silver flange (radial gradient + alternating
@@ -506,7 +506,7 @@ language. Two rules keep it coherent:
   word. The verbs are Set to, Add, Subtract, Multiply, Divide, Formula…: the
   "by" is dropped because the number beside the verb says it, and it was
   the two words that made the trigger wider than the box it governs. Not
-  the keys' tracked uppercase legend: MULTIPLY BY set as a legend
+  the keys' tracked uppercase legend: MULTIPLY BY set as a legend once
   outweighed the value it governs, and the tracking wrapped the chevron
   onto a second line at 300px (2026-09-07 screenshot). Its radius is 6px —
   the radius `[role="menuitem"]` carries, so the button and the list it

@@ -27,6 +27,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm type-check
       - run: pnpm test
+      - run: pnpm lint:docs
       - run: pnpm test:quickjs
       - run: pnpm build
 
@@ -35,3 +36,36 @@ jobs:
       # one-shot `pnpm format` was skipped because it would have touched
       # too much of the tree). Add this step back once the tree has been
       # formatted and committed.
+
+  # The DOM checks the node-only unit tests cannot make: what paints on top,
+  # what a box measures, what a modifier does to a key. A separate job so a
+  # browser failure is legible on its own, and so its screenshots upload
+  # whatever the result. See scripts/ui-probe/README.md.
+  ui-probe:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Chrome is preinstalled on GitHub's ubuntu runners as
+      # `google-chrome-stable`, which is one of the names the driver looks
+      # for; set CHROME to point it somewhere else.
+      - run: pnpm test:ui
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-probe-screenshots
+          path: artifacts/ui
+          if-no-files-found: warn

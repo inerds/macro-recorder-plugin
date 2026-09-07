@@ -542,7 +542,7 @@ to test the no-`localStorage` / no-`randomUUID` paths.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-09-07.7)
+## Status and open threads (as of engine rev 2026-09-07.8)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two

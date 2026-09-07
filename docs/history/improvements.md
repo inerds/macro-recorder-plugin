@@ -12,6 +12,13 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-07 — Automation
+
+| Issue | Fix |
+|---|---|
+| Nothing could open the panel, so DOM claims went unchecked. Three bugs in one session — a verb menu painted under the deck, a deck stage letterboxed inside its glass, a verb item that appeared to do nothing — passed code review and were only caught after a headless Chrome driver was written by hand, then thrown away. `pnpm test` runs in Node with no DOM, so it can never make these checks. | `pnpm test:ui` (`scripts/ui-probe/`, no dependencies) drives the panel over the DevTools protocol and prints `PASS`/`FAIL` lines like the QuickJS smoke test. Six scenarios: the verb menu flips over the deck and `elementFromPoint` inside the overlap returns the menu; all six verbs pick their own verb, or say why one is off; `.deck-stage` matches the SVG viewBox at the size `sandbox/plugin.ts` asks Creator for; Alt over REC turns the key blue and an Alt-click records exact values; the review sheet's Keep-every-step box reads `N → M` and flips once per click; a vector step's X and Y boxes share a left edge. Screenshots go to `artifacts/ui/`, and CI runs it as a second job that uploads them whatever the result. |
+| The docs quoted numbers the code owns, and nothing checked them: the test counts went stale four times in one session, `docs/architecture.md`'s status heading still named rev `2026-09-07.7`, `CONTRIBUTING.md` still told a contributor to develop at 300x520, and prose still carried names the code had dropped. | `pnpm lint:docs` (`scripts/lint-docs.mjs`, no dependencies) reads each fact out of the file that owns it — `ENGINE_REV`, `creator.ui.show`, the stage height and the collapse breakpoint, the pacing constants, `DECIMALS`, the verb width, `--primary`/`--ink-blue` — then fails on a stale rev, a stale test count, a number quoted beside the keyword for a fact it does not match, and any term in `scripts/lint-docs.terms.txt` outside the history records. A sentence that marks itself as history is exempt. `--fix` rewrites the test counts and the engine-rev line and is inert under CI; `posttest` runs it against the report `pnpm test` writes, and CI runs `pnpm lint:docs` after `pnpm test`. `DECIMALS` is exported once from `engine/formula.ts` and imported by `formulaControl.ts` and `StepRow.tsx`, so one panel cannot show two precisions. |
+
 ## 2026-09-07 — Record exact values
 
 | Issue | Fix |

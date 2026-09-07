@@ -20,6 +20,7 @@ import {
 import { useRef, useState } from "react";
 
 import { editableValueOf, type EditableValue } from "../../engine/editing";
+import { DECIMALS as FIELD_DECIMALS } from "../../engine/formula";
 import { jsonEqual, type Json } from "../../engine/json";
 import { joinLabelParts, labelPartsOf } from "../../engine/labels";
 import type { StepPayload } from "../../engine/steps";
@@ -68,9 +69,6 @@ const LANE_SHOWN = "pointer-events-auto opacity-100";
 /** Both eye glyphs stay mounted and cross-fade, so the button never jumps. */
 const EYE_ICON_CLASS =
   "col-start-1 row-start-1 size-3.5 transition-[opacity,scale,filter] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
-
-/** The precision every number field in the editor shows. */
-const FIELD_DECIMALS = 2;
 
 /**
  * A draft as the commit compares it: every number rounded to the precision

@@ -23,18 +23,20 @@ pnpm dev
 ```
 
 `pnpm dev` serves the panel and the sandbox bundle on `http://localhost:5173`.
-Open that URL and size the viewport to about 300x520 for the standalone loop.
+Open that URL and size the viewport to about 320x560 for the standalone loop.
 `README.md` describes all three ways to run the plugin, including inside
 Creator and against the local host harness.
 
 ## Checks a change must pass
 
-Run all four before you open a pull request:
+Run every check below before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
 pnpm test          # vitest run (734 tests, 33 files)
+pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
+pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
 pnpm build         # production bundle → dist/
 ```
 
@@ -45,6 +47,13 @@ Creator invokes the sandbox's callback without pumping the QuickJS job queue,
 so a pure VM promise chain never settles there and code that passes in a
 browser can be dead in Creator. A change under `sandbox/` or `engine/` is not
 covered by `pnpm test` alone.
+
+`pnpm test:ui` is the only check that sees the panel. The unit tests run in
+Node with no DOM, so a claim about stacking, layout, or what a pointer reaches
+cannot be made there — it needs a line in `scripts/ui-probe/`, which explains
+how to add one. It starts its own Vite server, needs Chrome (`$CHROME`, the
+macOS app, or `google-chrome-stable` on `PATH`), and writes a screenshot per
+scenario to `artifacts/ui/`.
 
 The CI workflow in `.github/workflows/ci.yml` runs the same checks on every
 push and pull request.
@@ -106,6 +115,12 @@ Write every Markdown document to
 [`docs/contributing/writing-style.md`](docs/contributing/writing-style.md):
 ASD-STE100 sentence construction, Google developer style mechanics, and the
 terminology table.
+
+## Automation not yet built
+
+[`docs/contributing/backlog.md`](docs/contributing/backlog.md) records
+proposed automation this project has not built, with the evidence and size
+for each.
 
 ## Diagnose a failure from a trace
 
