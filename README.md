@@ -4,6 +4,11 @@ Macro Recorder records the edits you make in Creator — transform changes,
 fills, keyframes, structure, and more — as a named, replayable **macro**. It
 replays those steps onto whatever you select.
 
+It is published in the Creator Extensions marketplace:
+[extensions.lottiefiles.com/plugin/inerds/macro-recorder](https://extensions.lottiefiles.com/plugin/inerds/macro-recorder).
+Install it from there to use it; read on to build it, run it without Creator,
+or use it as a reference.
+
 This repository is also an open-source **reference for Creator plugin
 developers**. Beyond the product, it documents patterns that any Creator
 plugin needs:
@@ -100,6 +105,12 @@ edit, parameters (pinned values asked for on play), and the play options —
 at playhead, stagger, and repeat ×N.
 
 ## Run it
+
+### From the marketplace (use it)
+
+Install **Macro Recorder** from the
+[Creator Extensions marketplace](https://extensions.lottiefiles.com/plugin/inerds/macro-recorder) and open it from Creator's plugins
+menu. That is the released build; the two ways below are for developing it.
 
 ### Standalone (primary dev loop)
 

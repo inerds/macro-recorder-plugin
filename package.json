@@ -5,6 +5,7 @@
   "description": "A LottieFiles Creator plugin that records editing steps and replays them as macros.",
   "license": "MIT",
   "type": "module",
+  "homepage": "https://extensions.lottiefiles.com/plugin/inerds/macro-recorder",
   "repository": {
     "type": "git",
     "url": "https://github.com/inerds/macro-recorder-plugin.git"

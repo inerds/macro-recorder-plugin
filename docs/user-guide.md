@@ -15,11 +15,14 @@ internally, see `README.md`. For what the platform cannot do, see
 ## 1. Install and open
 
 1. Open [creator.lottiefiles.com](https://creator.lottiefiles.com).
-2. Open the Plugins panel, and click the **+** icon at the top right.
-3. On the **Develop** tab, point it at the built plugin folder. During
-   development, enter `http://localhost:5173` instead — see `README.md`. A
-   development build installs as **Macro Recorder (dev)** and keeps its own
-   macros, so it never touches the macros you saved with the released build.
+2. Install **Macro Recorder** from the
+   [Creator Extensions marketplace](https://extensions.lottiefiles.com/plugin/inerds/macro-recorder), or open the Plugins panel and
+   click the **+** icon at the top right to add it by hand.
+3. To run a build you made yourself, use the **Develop** tab and point it at
+   the built plugin folder. During development, enter `http://localhost:5173`
+   instead — see `README.md`. A development build installs as **Macro
+   Recorder (dev)** and keeps its own macros, so it never touches the macros
+   you saved with the released build.
 4. Open **Macro Recorder** from the plugins menu. The panel lists your saved
    macros, and it starts empty.
 

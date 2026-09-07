@@ -6,6 +6,9 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- Macro Recorder is published in the Creator Extensions marketplace:
+  [extensions.lottiefiles.com/plugin/inerds/macro-recorder](https://extensions.lottiefiles.com/plugin/inerds/macro-recorder).
+
 ## 0.8.0 — 2026-09-07
 
 - Hold Option (macOS) or Alt (Windows) while you press Record to record exact
