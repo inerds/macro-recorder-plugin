@@ -6,6 +6,8 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+## 0.8.0 — 2026-09-07
+
 - Hold Option (macOS) or Alt (Windows) while you press Record to record exact
   values. The Record key turns blue, and every change to a layer's own
   position, rotation, scale, skew, and skew axis is recorded as a **Set to**
