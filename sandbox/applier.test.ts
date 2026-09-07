@@ -6,13 +6,21 @@
  * pin that convergent behaviour, and the honest reporting that replaces the
  * failures and silent no-ops it used to produce.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { Json } from "../engine/json";
 import { makeGradientFill, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { diffSnapshots } from "../engine/diff";
 import type { StepPayload } from "../engine/steps";
-import { applyStep, delayLayer, readBaseline, type ApplyContext } from "./applier";
+import {
+  applyNodeSpec,
+  applyStep,
+  delayLayer,
+  NoteList,
+  readBaseline,
+  type ApplyContext,
+} from "./applier";
+import { serializeNode } from "./serialize";
 
 const exact: ApplyContext = { origins: {}, baselines: {} };
 
@@ -228,7 +236,7 @@ describe("static writes onto an animated target", () => {
       after: 45,
     });
 
-    // The host would discard this write silently (plugin-api.d.ts:17-18).
+    // The host would discard this write silently (docs/runtime-api.md quirk 4).
     expect(target.rotation.staticValue).toBe(0);
     expect(outcome.notes).toEqual([
       "rotation has keyframes here — static value not applied",
@@ -678,6 +686,9 @@ describe("v2: deep paths and structural ops", () => {
     expect(target.fills).toHaveLength(0);
   });
 
+  // A live geometry node carries no paint list of its own — fills belong to
+  // the shape layer or the group above it (docs/runtime-api.md). A recorded
+  // ellipse that still carries one is reported, never silently "applied".
   it("creates a recorded shape subtree end-state via add-shape", () => {
     const target = makeNode("Layer B", {}, makeIds());
 
@@ -689,7 +700,7 @@ describe("v2: deep paths and structural ops", () => {
         nodeType: "ELLIPSE",
         nodeName: "my ellipse",
         props: {
-          size: { animated: false, static: { x: 40, y: 40 } },
+          size: { animated: false, static: { width: 40, height: 40 } },
           position: { animated: true, static: { x: 0, y: 0 }, keyframes: [kf(0, { x: 0, y: 0 }), kf(30, { x: 9, y: 9 })] },
         },
         plain: {},
@@ -704,10 +715,10 @@ describe("v2: deep paths and structural ops", () => {
     const created = target.shapes[0];
     expect(created.type).toBe("ELLIPSE");
     expect(created.name).toBe("my ellipse");
-    expect(created.size.staticValue).toEqual({ x: 40, y: 40 });
+    expect(created.size.staticValue).toEqual({ width: 40, height: 40 });
     expect(frames(created.position)).toEqual([0, 30]);
-    expect(created.fills).toHaveLength(1);
-    expect(outcome.notes).toEqual([]);
+    expect(created.fills).toBeUndefined();
+    expect(outcome.notes).toEqual(["the new layer couldn't take a recorded fill"]);
   });
 
   it("removes a shape, resolving by type hint", () => {
@@ -802,23 +813,30 @@ describe("v2: deep paths and structural ops", () => {
   });
 });
 
+// Per-paint opacity is unreachable through the paint proxies — a recording
+// can only ever have recovered one from the raw document, and there is no
+// write path at all (docs/limitations.md, "Fill / stroke opacity").
 describe("fill opacity", () => {
-  it("applies a recorded fill-opacity change", () => {
+  it("reports a recorded fill-opacity change as a skip, not a phantom success", () => {
     const target = makeNode("Star 4", { fills: [{ r: 178, g: 182, b: 183 }] }, makeIds());
 
-    apply(target, {
+    const outcome = apply(target, {
       op: "set-static",
       path: ["fills", 0, "opacity"],
       before: 100,
       after: 40,
     });
 
-    expect(target.fills[0].opacity.staticValue).toBe(40);
+    expect(target.fills[0].opacity).toBeUndefined();
+    expect(outcome.notes).toEqual(["fills[0].opacity not found on this layer — skipped"]);
   });
 
-  it("carries opacity when a paint is recreated via replace-paint", () => {
+  it("drops the unusable opacity when a paint is recreated via replace-paint", () => {
     const target = makeNode("Star 4", { fills: [{ r: 1, g: 2, b: 3 }] }, makeIds());
 
+    // A recorded opacity reaches the spec through the raw-document recovery
+    // path. Passing it on to createFill is an unknown key, and the host
+    // rejects the whole create with "✗ Invalid input".
     apply(target, {
       op: "replace-paint",
       path: ["fills", 0],
@@ -830,7 +848,9 @@ describe("fill opacity", () => {
       },
     });
 
+    expect(target.fills).toHaveLength(1);
     expect(target.fills[0].type).toBe("GRADIENT_LINEAR");
+    expect(target.fills[0].opacity).toBeUndefined();
   });
 });
 
@@ -1104,15 +1124,26 @@ describe("path data replay", () => {
       shapeHint: "PATH",
     });
 
-    expect(target.shapes[0].pathData.staticValue).toEqual(recorded);
+    // runtime-api quirk 5: the host hands back a getter-based object, so the
+    // generic Object.keys-based toJson sees {} and only a structural read
+    // recovers the geometry. Reading it any other way is the regression.
+    const value = target.shapes[0].pathData.staticValue;
+    expect(Object.keys(value)).toEqual([]);
+    expect(value.closed).toBe(true);
+    expect(value.points.map((pt: Any) => pt.vertex)).toEqual([
+      { x: 10, y: 20 },
+      { x: 90, y: 20 },
+    ]);
+    expect(value.points.map((pt: Any) => pt.outTan)).toEqual([
+      { x: 5, y: 5 },
+      { x: 0, y: 0 },
+    ]);
   });
 });
 
 describe("paint removal on the real host's surface (object-level remove)", () => {
   it("replace-paint actually replaces when only paint.remove() exists", () => {
-    // Real Creator has no container.removeFill — removal is on the paint.
     const target = makeNode("Polygon 1", { fills: [{ r: 1, g: 2, b: 3 }] }, makeIds());
-    target.removeFill = undefined;
 
     const outcome = apply(target, {
       op: "replace-paint",
@@ -1131,7 +1162,6 @@ describe("paint removal on the real host's surface (object-level remove)", () =>
 
   it("remove-paint works via paint.remove() and notes a genuine miss", () => {
     const target = makeNode("Polygon 1", { fills: [{ r: 1, g: 2, b: 3 }] }, makeIds());
-    target.removeFill = undefined;
 
     apply(target, { op: "remove-paint", path: ["fills", 0] });
     expect(target.fills).toHaveLength(0);
@@ -1158,7 +1188,7 @@ describe("group re-creation", () => {
         ...shape("g1", "GROUP", { position: { x: 44, y: 44 } }),
         nodeName: "my group",
         shapes: [
-          shape("c1", "RECTANGLE", { size: { x: 10, y: 10 } }),
+          shape("c1", "RECTANGLE", { size: { width: 10, height: 10 } }),
           shape("c2", "ELLIPSE", {}),
         ],
       },
@@ -1334,8 +1364,12 @@ describe("frame offset (apply at playhead / stagger)", () => {
   });
 });
 
+// The live keyframe surface is exactly `easing, frame, id, remove, value`
+// (docs/limitations.md, "Motion-path bezier handles"), so a tangent write is
+// swallowed and the read stays undefined. Every recorded handle must produce a
+// note instead of a phantom success, and the values must still land.
 describe("motion-path handles (spatial tangents)", () => {
-  it("writes recorded in/out tangents onto added and changed keyframes", () => {
+  it("notes every refused in/out tangent on added and changed keyframes", () => {
     const target = makeNode("Rect", {}, makeIds());
     target.position.addKeyframes([kf(30, { x: 5, y: 5 })]);
     const outcome = apply(target, {
@@ -1350,21 +1384,22 @@ describe("motion-path handles (spatial tangents)", () => {
         },
       ],
     });
-    expect(outcome.notes).toEqual([]);
+    expect(outcome.notes).toEqual([
+      "motion-path handle (outTangent) @ 0 not supported by Creator",
+      "motion-path handle (inTangent) @ 30 not supported by Creator",
+      "motion-path handle (outTangent) @ 30 not supported by Creator",
+    ]);
     const [k0, k30] = target.position.keyframes;
-    expect(k0.outTangent).toEqual({ x: 40, y: 0 });
-    expect(k30.inTangent).toEqual({ x: -40, y: 0 });
-    expect(k30.outTangent).toEqual({ x: 0, y: 10 });
+    expect(frames(target.position)).toEqual([0, 30]);
+    expect(k0.value).toEqual({ x: 0, y: 0 });
+    expect(k0.outTangent).toBeUndefined();
+    expect(k30.inTangent).toBeUndefined();
+    expect(k30.outTangent).toBeUndefined();
   });
 
-  it("reports a note instead of a phantom success when the host drops the handle", () => {
+  it("still applies the keyframe's value while it reports the dropped handle", () => {
     const target = makeNode("Rect", {}, makeIds());
     target.position.addKeyframes([kf(10, { x: 0, y: 0 })]);
-    const live = target.position.getKeyframeAt(10);
-    Object.defineProperty(live, "inTangent", { get: () => undefined, set: () => {} });
-    // The fake hands out a fresh handle per lookup, so patch the lookup too.
-    const original = target.position.getKeyframeAt;
-    target.position.getKeyframeAt = (frame: number) => (frame === 10 ? live : original(frame));
     const outcome = apply(target, {
       op: "keyframes",
       path: ["position"],
@@ -1373,7 +1408,7 @@ describe("motion-path handles (spatial tangents)", () => {
       changed: [{ before: kf(10, { x: 0, y: 0 }), after: { frame: 10, value: { x: 1, y: 1 }, inTangent: { x: 3, y: 3 } } }],
     });
     expect(outcome.notes).toEqual(["motion-path handle (inTangent) @ 10 not supported by Creator"]);
-    expect(live.value).toEqual({ x: 1, y: 1 });
+    expect(target.position.getKeyframeAt(10)!.value).toEqual({ x: 1, y: 1 });
   });
 });
 
@@ -1392,7 +1427,7 @@ describe("captured-keyframe steps round-trip onto a bare layer", () => {
         position: {
           animated: true,
           keyframes: [
-            { id: "host-a", frame: 0, value: { x: 0, y: 0 }, easing: "LINEAR" },
+            { id: "host-a", frame: 0, value: { x: 0, y: 0 }, easing: { type: "LINEAR" } },
             { id: "host-b", frame: 30, value: { x: 120, y: 0 } },
           ],
         },
@@ -1412,7 +1447,7 @@ describe("captured-keyframe steps round-trip onto a bare layer", () => {
     expect(outcome.notes).toEqual([]);
     expect(frames(target.position)).toEqual([0, 30]);
     expect(target.position.keyframes[0]!.value).toEqual({ x: 0, y: 0 });
-    expect(target.position.keyframes[0]!.easing).toBe("LINEAR");
+    expect(target.position.keyframes[0]!.easing).toEqual({ type: "LINEAR" });
     expect(target.position.keyframes[1]!.value).toEqual({ x: 120, y: 0 });
   });
 });
@@ -1706,7 +1741,7 @@ describe("set-plain refuses phantom properties (trace 2026-08-26T04-04, idx 15)"
 });
 
 describe("set-plain blendMode is a lowercase union on the real host (rev .51 trace)", () => {
-  // Confirmed live: plugin-api.d.ts's BlendMode is "normal" | "multiply" |
+  // Confirmed live: the 1.0.1 BlendMode type is "normal" | "multiply" |
   // ... (all lowercase, hyphenated multi-word members). Assigning the
   // differently-cased "NORMAL" throws "✗ Invalid input" on a real host
   // (trace 2026-08-26T08-15-55-277_playback-Style-stamp.json). The applier
@@ -1750,53 +1785,56 @@ describe("set-plain blendMode is a lowercase union on the real host (rev .51 tra
 describe("delayLayer", () => {
   it("moves the in point and the layer's own animation by the same delta", () => {
     const target = makeNode("Layer A", {}, makeIds());
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
     expect(target.startFrame).toBe(10);
     expect(target.timelineOffset).toBe(10);
     expect(target.endFrame).toBe(150);
-    expect(notes).toEqual(["delayed this layer by 10 frames — in point 0 → 10"]);
+    expect(notes.messages).toEqual(["delayed this layer by 10 frames — in point 0 → 10"]);
+    // A delay that WORKED is an info note: the summary must not report it as
+    // a skipped step (item 6).
+    expect(notes.kinds).toEqual(["info"]);
   });
 
   it("reports a zero delta rather than writing nothing silently", () => {
     const target = makeNode("Layer A", {}, makeIds());
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 0 }, notes);
 
     expect(target.startFrame).toBe(0);
-    expect(notes).toEqual(["in point already at 0 — nothing to shift"]);
+    expect(notes.messages).toEqual(["in point already at 0 — nothing to shift"]);
   });
 
   it("puts the first target's in point on the playhead, then staggers from it", () => {
     const ids = makeIds();
     const first = makeNode("Layer A", {}, ids);
     const second = makeNode("Layer B", {}, ids);
-    const firstNotes: string[] = [];
-    const secondNotes: string[] = [];
+    const firstNotes = new NoteList();
+    const secondNotes = new NoteList();
 
     delayLayer(first, { base: 100, delta: 0 }, firstNotes);
     delayLayer(second, { base: 100, delta: 10 }, secondNotes);
 
     expect(first.startFrame).toBe(100);
     expect(second.startFrame).toBe(110);
-    expect(firstNotes).toEqual([
+    expect(firstNotes.messages).toEqual([
       "delayed this layer by 100 frames — in point 0 → 100 (at playhead)",
     ]);
-    expect(secondNotes).toEqual(["delayed this layer by 110 frames — in point 0 → 110"]);
+    expect(secondNotes.messages).toEqual(["delayed this layer by 110 frames — in point 0 → 110"]);
   });
 
   it("skips a layer whose shifted in point would reach its out point", () => {
     const target: Record<string, unknown> = { startFrame: 0, endFrame: 15, timelineOffset: 0 };
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 20 }, notes);
 
     expect(target.startFrame).toBe(0);
     expect(target.timelineOffset).toBe(0);
-    expect(notes).toEqual([
+    expect(notes.messages).toEqual([
       "stagger would move the in point to 20, at or past the out point (15) — skipped",
     ]);
   });
@@ -1808,12 +1846,15 @@ describe("delayLayer", () => {
       set: () => {},
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
     expect(target.startFrame).toBe(0);
-    expect(notes).toEqual(["the host kept startFrame unchanged — the write didn't take"]);
+    expect(notes.messages).toEqual([
+      "Creator kept the in point as it was — the change didn't apply",
+    ]);
+    expect(notes.kinds).toEqual(["skip"]);
   });
 
   it("skips a layer whose in point can't be read", () => {
@@ -1824,11 +1865,11 @@ describe("delayLayer", () => {
       },
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
-    expect(notes).toEqual(["couldn't read this layer's in point — stagger skipped"]);
+    expect(notes.messages).toEqual(["couldn't read this layer's in point — stagger skipped"]);
   });
 
   it("falls back to the in point alone when the host keeps timelineOffset", () => {
@@ -1838,13 +1879,13 @@ describe("delayLayer", () => {
       set: () => {},
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
     expect(target.startFrame).toBe(10);
-    expect(notes).toEqual([
-      "the host kept timelineOffset unchanged — this layer's own animation stays where it was",
+    expect(notes.messages).toEqual([
+      "Creator kept the timeline offset as it was — this layer's own animation stays where it was",
       "delayed this layer by 10 frames — in point 0 → 10",
     ]);
   });
@@ -1861,13 +1902,13 @@ describe("delayLayer", () => {
       },
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
-    expect(notes).toEqual([
+    expect(notes.messages).toEqual([
       "delayed this layer by 10 frames — in point 0 → 10",
-      "the host also moved the out point 150 → 160",
+      "Creator also moved the out point 150 → 160",
     ]);
   });
 
@@ -1880,10 +1921,217 @@ describe("delayLayer", () => {
       },
       configurable: true,
     });
-    const notes: string[] = [];
+    const notes = new NoteList();
 
     delayLayer(target, { delta: 10 }, notes);
 
-    expect(notes).toEqual(["couldn't set the in point: ✗ Invalid input — stagger skipped"]);
+    expect(notes.messages).toEqual(["couldn't set the in point: ✗ Invalid input — stagger skipped"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The 1.0.1 create* surface (fake-scene fidelity regressions)
+// ---------------------------------------------------------------------------
+
+describe("group re-creation carries the whole recorded group", () => {
+  const shapeSpec = (id: string, type: string) => ({
+    nodeId: id, nodeType: type, plain: {}, fills: [], strokes: [], masks: [], shapes: [],
+    props: {},
+  });
+
+  it("applies the group's plain flags, strokes and trims, not just name and props", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+
+    const outcome = apply(target, {
+      op: "add-shape",
+      parentPath: [],
+      spec: {
+        nodeId: "g1",
+        nodeType: "GROUP",
+        nodeName: "styled group",
+        props: { opacity: { animated: false, static: 60 } },
+        plain: { blendMode: "multiply" },
+        fills: [{ kind: "solid", color: { animated: false, static: { r: 1, g: 2, b: 3 } } }],
+        strokes: [
+          {
+            width: { animated: false, static: 4 },
+            fill: { kind: "solid", color: { animated: false, static: { r: 9, g: 9, b: 9 } } },
+          },
+        ],
+        masks: [],
+        trims: [{ start: { animated: false, static: 10 }, end: { animated: false, static: 80 }, offset: { animated: false, static: 0 } }],
+        shapes: [shapeSpec("c1", "RECTANGLE")],
+      },
+    });
+
+    const group = target.shapes[0];
+    expect(group.type).toBe("GROUP");
+    expect(group.shapes.map((s2: Any) => s2.type)).toEqual(["RECTANGLE"]);
+    expect(group.opacity.staticValue).toBe(60);
+    expect(group.blendMode).toBe("multiply");
+    expect(group.fills).toHaveLength(1);
+    expect(group.strokes).toHaveLength(1);
+    expect(group.strokes[0].width.staticValue).toBe(4);
+    expect(group.trimPaths).toHaveLength(1);
+    expect(group.trimPaths[0].start.staticValue).toBe(10);
+    expect(outcome.notes).toEqual([]);
+  });
+
+  it("says so instead of pretending when the host hands back an empty group", () => {
+    const target = makeNode("Layer A", {}, makeIds());
+    // 1.0.1 createGroup(opts?: GroupOptions): a host that ignores the shapes
+    // leaves them loose on the layer, and the user has to hear about it.
+    const honest = target.createGroup;
+    target.createGroup = () => honest.call(target);
+
+    const outcome = apply(target, {
+      op: "add-shape",
+      parentPath: [],
+      spec: {
+        nodeId: "g1", nodeType: "GROUP", nodeName: "empty group", props: {}, plain: {},
+        fills: [], strokes: [], masks: [], shapes: [shapeSpec("c1", "RECTANGLE")],
+      },
+    });
+
+    expect(outcome.notes).toEqual([
+      "the group was created empty — its shapes stayed on this layer",
+    ]);
+  });
+});
+
+describe("text layers keep ONE fill and ONE stroke (1.0.1 singular accessors)", () => {
+  const textLayer = () => {
+    const node = makeNode("Title", { type: "TEXT_LAYER" }, makeIds());
+    node.createFill({ type: "SOLID", color: { r: 1, g: 2, b: 3 } });
+    node.createStroke({ width: 2, fill: { type: "SOLID", color: { r: 4, g: 5, b: 6 } } });
+    return node;
+  };
+
+  it("removes the singular fill through its own remove()", () => {
+    const target = textLayer();
+
+    const outcome = apply(target, { op: "remove-paint", path: ["fills", 0] });
+
+    expect(target.fill).toBeUndefined();
+    expect(outcome.notes).toEqual([]);
+  });
+
+  it("removes the singular stroke through its own remove()", () => {
+    const target = textLayer();
+
+    const outcome = apply(target, { op: "remove-paint", path: ["strokes", 0] });
+
+    expect(target.stroke).toBeUndefined();
+    expect(outcome.notes).toEqual([]);
+  });
+
+  it("replaces the singular fill without claiming it added one alongside", () => {
+    const target = textLayer();
+
+    const outcome = apply(target, {
+      op: "replace-paint",
+      path: ["fills", 0],
+      spec: { kind: "solid", color: { animated: false, static: { r: 255, g: 0, b: 0 } } },
+    });
+
+    expect(target.fill.color.staticValue).toEqual({ r: 255, g: 0, b: 0 });
+    expect(outcome.notes).toEqual([]);
+  });
+});
+
+describe("readBaseline on an animated property", () => {
+  afterEach(() => {
+    delete (globalThis as Any).creator;
+  });
+
+  it("reads the value at the playhead, not the stale staticValue", () => {
+    const target = makeNode("Rect", { props: { position: { x: 0, y: 0 } } }, makeIds());
+    target.position.addKeyframes([
+      { frame: 10, value: { x: 100, y: 0 } },
+      { frame: 30, value: { x: 300, y: 0 } },
+    ]);
+    (globalThis as Any).creator = { timeline: { currentFrame: 30 } };
+
+    expect(readBaseline(target, ["position"])).toEqual({ x: 300, y: 0 });
+  });
+
+  it("falls back to the static value when the timeline is unreadable", () => {
+    const target = makeNode("Rect", { props: { position: { x: 7, y: 7 } } }, makeIds());
+    Object.defineProperty(globalThis as Any, "creator", {
+      configurable: true,
+      get() {
+        throw new Error("no host");
+      },
+    });
+
+    expect(readBaseline(target, ["position"])).toEqual({ x: 7, y: 7 });
+  });
+
+  it("keeps reading the static value for a property with no keyframes", () => {
+    const target = makeNode("Rect", { props: { position: { x: 5, y: 5 } } }, makeIds());
+    (globalThis as Any).creator = { timeline: { currentFrame: 30 } };
+
+    expect(readBaseline(target, ["position"])).toEqual({ x: 5, y: 5 });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* serialize -> applyNodeSpec round trip                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Nesting by rebuild is only honest if a copy is the layer again. The pair
+ * that carries it is `serializeNode` -> `applyNodeSpec`, so this pins the
+ * round trip on a layer that uses every channel: transform, plain flags,
+ * paints, a keyframed property, a mask and a child shape.
+ *
+ * Ids are stripped on both sides: a copy is a new node with a new id, and a
+ * keyframe id is engine-assigned and recycled (see `keyframeAt` in
+ * applier.ts), so neither is identity here.
+ */
+function stripIds(snapshot: Json): Json {
+  if (Array.isArray(snapshot)) return snapshot.map(stripIds);
+  if (snapshot !== null && typeof snapshot === "object") {
+    const out: Record<string, Json> = {};
+    for (const [key, value] of Object.entries(snapshot as Record<string, Json>)) {
+      if (key === "nodeId" || key === "id") continue;
+      out[key] = stripIds(value);
+    }
+    return out;
+  }
+  return snapshot;
+}
+
+describe("a live layer round-trips through serializeNode and applyNodeSpec", () => {
+  it("rebuilds an equal layer, with no notes", () => {
+    const ids = makeIds();
+    const source = makeNode(
+      "Ellipse 1",
+      {
+        type: "SHAPE_LAYER",
+        props: { position: { x: 120, y: 40 }, opacity: 80 },
+        fills: [{ r: 9, g: 182, b: 225 }],
+      },
+      ids,
+    );
+    source.createEllipse({ size: { width: 40, height: 40 } });
+    source.createStroke({ width: 6, fill: { type: "SOLID", color: { r: 1, g: 2, b: 3 } } });
+    source.createMask({ mode: "subtract", opacity: 40 });
+    source.visible = false;
+    source.startFrame = 12;
+    source.rotation.addKeyframes([
+      { frame: 10, value: 0 },
+      { frame: 30, value: 90 },
+    ]);
+
+    const spec = serializeNode(source);
+    const copy = makeNode("blank", { type: "SHAPE_LAYER" }, ids);
+    const notes = new NoteList();
+    applyNodeSpec(copy, spec, notes);
+
+    expect(notes.messages).toEqual([]);
+    expect(stripIds(serializeNode(copy) as unknown as Json)).toEqual(
+      stripIds(spec as unknown as Json),
+    );
   });
 });

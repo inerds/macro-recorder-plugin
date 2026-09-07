@@ -15,7 +15,7 @@ import { kindOf, type StepPayload } from "./steps";
 
 const FRAME_EPSILON = 1e-6;
 
-type Mergeable = Extract<StepPayload, { op: "set-static" | "set-plain" | "keyframes" }>;
+type Mergeable = Extract<StepPayload, { op: "set-static" | "set-plain" | "keyframes" | "set-scene" }>;
 
 function payloadOf(step: MacroStep): StepPayload | null {
   const payload = step.payload;
@@ -25,11 +25,18 @@ function payloadOf(step: MacroStep): StepPayload | null {
 }
 
 function isMergeable(payload: StepPayload): payload is Mergeable {
-  return payload.op === "set-static" || payload.op === "set-plain" || payload.op === "keyframes";
+  return (
+    payload.op === "set-static" ||
+    payload.op === "set-plain" ||
+    payload.op === "keyframes" ||
+    payload.op === "set-scene"
+  );
 }
 
 /** Same property on the same layer — the unit a run is grouped by. */
 function propertyKey(payload: Mergeable): string {
+  // A scene setting is one property of the one active scene.
+  if (payload.op === "set-scene") return `scene|${payload.key}`;
   return `${payload.layer?.id ?? ""}|${pathKey(payload.path)}`;
 }
 

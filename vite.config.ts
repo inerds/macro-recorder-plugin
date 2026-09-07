@@ -6,8 +6,19 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-import { traceServer } from "./scripts/trace-server";
+import { traceServer } from "./scripts/trace-server.ts";
 import pkg from "./package.json" with { type: "json" };
+
+/**
+ * The dev build's plugin id. Creator scopes `clientStorage` — where every
+ * saved macro lives — by the manifest's `id`, so a dev build that keeps the
+ * release id in sandbox/manifest.json ("a67faf08-…") shares ONE macro store
+ * with the released plugin: a tester who wipes the dev store from the dev
+ * strip wipes the macros they recorded for real. This second, equally fixed
+ * uuid gives the dev build its own store. It must stay stable — changing it
+ * abandons every macro a tester saved under the old one.
+ */
+const DEV_PLUGIN_ID = "5f2c9b41-7d38-4e6a-9c05-1b8ae4f37d62";
 
 /**
  * sandbox/manifest.json has no version field — the released manifest should
@@ -38,7 +49,11 @@ function injectManifestVersion(version: string): Plugin {
       const manifestPath = resolve(outDir, "manifest.json");
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
       manifest.version = dev ? `${version}-dev` : version;
-      if (dev) manifest.name = `${manifest.name} (dev)`;
+      if (dev) {
+        manifest.name = `${manifest.name} (dev)`;
+        // Its own id, so the dev build gets its own clientStorage scope.
+        manifest.id = DEV_PLUGIN_ID;
+      }
       writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     },
   };
@@ -49,7 +64,7 @@ export default defineConfig(({ command }) => ({
     react(),
     tailwindcss(),
     // `pluginDir` defaults to "plugin". The sandbox tree is named sandbox/, so
-    // it must be named here: the vendor plugin reads sandbox/manifest.json and
+    // it must be named here: the Creator plugin reads sandbox/manifest.json and
     // derives the esbuild entry from the manifest's `entry` field
     // (plugin.js → sandbox/plugin.ts). Renaming the tree without this breaks
     // both the dev endpoint and the build.

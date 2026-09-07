@@ -27,7 +27,7 @@ function importErrorText(error: unknown): string {
   if (/not a valid macro/i.test(message)) {
     return "That JSON isn't a macro. Use Copy JSON on a macro to get the right text.";
   }
-  return message || "Unable to import. Check the text and try again.";
+  return message || "Couldn't import the macro. Try again.";
 }
 
 /**
@@ -79,7 +79,10 @@ export function ImportButton({ onImport }: ImportButtonProps) {
         onClick={() => setOpen(true)}
         data-testid="import-button"
       >
-        <ClipboardPaste className="size-3!" strokeWidth={2.5} aria-hidden />
+        {/* 2px, not 2.5: `.key-quiet.key-quiet svg` already sizes this to
+            12px, and a 2.5 stroke at 12px reads heavier than every other
+            glyph on the shelf. No `size-3!` — the skin owns the size. */}
+        <ClipboardPaste strokeWidth={2} aria-hidden />
       </Button>
       <DialogRoot
         open={open}
@@ -111,7 +114,7 @@ export function ImportButton({ onImport }: ImportButtonProps) {
             }}
             aria-invalid={error !== null}
             aria-describedby={error ? errorId : undefined}
-            className="mono w-full resize-none rounded border border-border bg-background px-2 py-1.5 text-11 leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="mono w-full resize-none rounded border border-border bg-background px-2 py-1.5 text-11 leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="import-json-input"
           />
           {error && (

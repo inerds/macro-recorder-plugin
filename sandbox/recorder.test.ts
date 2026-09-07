@@ -90,6 +90,44 @@ describe("recordStop's whole-session debug fallback", () => {
     expect(result.debug?.prev).toEqual(result.debug?.next);
     expect(result.debug?.prev.layers[0]?.props.position?.static).toEqual({ x: 0, y: 0 });
   });
+
+  // Traces 2026-09-04T03-51-20-511_record.json and
+  // 2026-09-04T03-47-27-725_record.json (sandboxRev 2026-08-26.52): a
+  // debug session whose only steps came from record.captureKeyframes
+  // (scope "all") still gets the "recorded nothing" fallback, because
+  // recordCaptureKeyframes returns real MacroSteps but never sets
+  // recording.stepped (only collectDelta does). recordStop then staples the
+  // whole-session snapshot pair onto an empty final delta, and the trace
+  // claims the session dropped its diff even though captureKeyframes
+  // reported real steps.
+  it("does NOT attach the whole-session snapshot pair after record.captureKeyframes(scope 'all') returned steps (bug: recordCaptureKeyframes never sets recording.stepped)", async () => {
+    const nextId = makeIds();
+    const layer = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    layer.position.addKeyframes([
+      { frame: 0, value: { x: 0, y: 0 } },
+      { frame: 30, value: { x: 9, y: 9 } },
+    ]);
+    const scene = makeSceneRoot(nextId, [layer]);
+    stubCreator(scene);
+
+    const { recordCaptureKeyframes } = await import("./recorder");
+
+    recordStart({ debug: true });
+
+    const { steps } = recordCaptureKeyframes({ layerId: String(layer.id), scope: "all" });
+    expect(steps.length).toBeGreaterThan(0);
+
+    // No further edits happen — record.stop's own internal collectDelta()
+    // sees a quiet scene and produces zero steps, which is the condition the
+    // buggy fallback keys off.
+    const result = recordStop();
+
+    expect(result.steps).toEqual([]);
+    // This is the bug under test: the session recorded real keyframe-capture
+    // steps, so the "recorded nothing" fallback must not fire. Currently it
+    // does, because recordCaptureKeyframes never marks recording.stepped.
+    expect(result.debug).toBeUndefined();
+  });
 });
 
 describe("selection:keyframes event fallback", () => {
@@ -167,5 +205,63 @@ describe("selection:keyframes event fallback", () => {
     expect(recordTick(1).captureOffer?.selectedCount).toBe(1);
     handlers["selection:keyframes"]?.({ type: "selection:keyframes", data: [] });
     expect(recordTick(2).captureOffer?.selectedCount).toBe(0);
+  });
+});
+
+describe("the recording is pinned to the scene it started in", () => {
+  it("keeps recording the pinned scene and says so ONCE when the active scene changes", () => {
+    const nextId = makeIds();
+    const layer = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const pinned = makeSceneRoot(nextId, [layer]);
+    stubCreator(pinned);
+
+    recordStart({});
+
+    // The user switches scenes mid-recording.
+    const other = makeSceneRoot(nextId, [makeNode("Elsewhere", {}, nextId)]);
+    (globalThis as Any).creator.activeScene = other;
+
+    layer.position.staticValue = { x: 10, y: 10 };
+    const tick1 = recordTick(1);
+
+    // The edit in the PINNED scene is still recorded...
+    expect(
+      tick1.steps.some((s: Any) => s.payload?.op === "set-static"),
+    ).toBe(true);
+    // ...and the switch is reported, exactly once.
+    const noted = tick1.steps.filter((s: Any) => s.payload?.op === "not-replayable");
+    expect(noted).toHaveLength(1);
+    expect(noted[0]!.replayable).toBe(false);
+    expect(noted[0]!.label).toMatch(/Main Scene/);
+
+    layer.position.staticValue = { x: 20, y: 20 };
+    const tick2 = recordTick(2);
+    expect(tick2.steps.some((s: Any) => s.payload?.op === "not-replayable")).toBe(false);
+  });
+
+  it("says nothing while the active scene is still the recorded one", () => {
+    const nextId = makeIds();
+    const layer = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const scene = makeSceneRoot(nextId, [layer]);
+    stubCreator(scene);
+
+    recordStart({});
+    layer.position.staticValue = { x: 10, y: 10 };
+    const tick = recordTick(1);
+    expect(tick.steps.every((s: Any) => s.payload?.op !== "not-replayable")).toBe(true);
+  });
+
+  it("does not let the switch note alone suppress recordStop's whole-session debug fallback", () => {
+    const nextId = makeIds();
+    const scene = makeSceneRoot(nextId, [makeNode("Layer A", {}, nextId)]);
+    stubCreator(scene);
+
+    recordStart({ debug: true });
+    (globalThis as Any).creator.activeScene = makeSceneRoot(nextId, []);
+    const tick = recordTick(1);
+    expect(tick.steps).toHaveLength(1); // the note, and nothing else
+
+    const result = recordStop();
+    expect(result.debug).toBeDefined();
   });
 });

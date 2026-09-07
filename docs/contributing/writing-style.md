@@ -56,6 +56,7 @@ Use these words, and only these words, for these meanings:
 | record | Capture edits into steps | capture (except keyframe capture) |
 | capture | Pull existing keyframes or style into a recording | — |
 | replay, playback | Apply a macro's steps | run, execute, perform |
+| scene rebuild | A replay that finds each layer by name and rebuilds the scene | scene script |
 | target | The layer a step applies to on replay | destination, subject |
 | host | The Lottie Creator application | Creator app, platform (alone) |
 | sandbox | The QuickJS plugin runtime | VM, engine (alone) |

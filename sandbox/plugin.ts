@@ -3,7 +3,7 @@ import { ENGINE_REV, isRpcMessage, PROTOCOL_VERSION } from "../engine/protocol";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
 import { initSelectionEvents, recordCaptureKeyframes, recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
 import { handleMessage, registerHandler } from "./rpc-server";
-import { listMacros, removeMacro, renameMacro, saveMacro } from "./store";
+import { lastUsedQuota, listMacros, removeMacro, renameMacro, saveMacro } from "./store";
 import { sendTheme, watchTheme } from "./theme";
 
 // Feature-detected: caches selection:keyframes events for the capture
@@ -16,7 +16,15 @@ registerHandler("hello", () => {
   // The docs' "UI is ready" moment: hand the freshly-booted iframe the
   // host's current interface theme alongside the handshake reply.
   sendTheme();
-  return { protocolVersion: PROTOCOL_VERSION, rev: ENGINE_REV };
+  // Answered in THIS invocation — no await (docs/architecture.md) — so the
+  // quota is whatever the last clientStorage call cached, and is simply
+  // absent on a host that has no `usedQuota` at all.
+  const usedQuota = lastUsedQuota();
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    rev: ENGINE_REV,
+    ...(usedQuota === undefined ? {} : { usedQuota }),
+  };
 });
 
 registerHandler("store.list", () => listMacros());

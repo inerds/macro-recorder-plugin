@@ -558,9 +558,15 @@
   background: linear-gradient(180deg, #3A3531, #221F1C);
 }
 
+/* The cap is a red gradient with a legend ON it, so the LIGHTEST sample of
+   the face is what the legend has to survive: the old #E0574A top left
+   `#FFF3EE` at 3.43:1 there and 4.51:1 at the 60% stop. The face now starts
+   at --primary and darkens, so every sample clears 4.5:1 — top 4.76:1, mid
+   5.52:1, bottom 6.44:1. Hover and press are tuned to the same floor
+   (deck.css / index.css must move together — see design-system.md). */
 .key-plate-red.key-plate-red:not(:disabled) {
   color: #FFF3EE;
-  background: linear-gradient(180deg, #E0574A 0%, #C8382B 60%, #B3301F 100%);
+  background: linear-gradient(180deg, #C8382B 0%, #B5301F 60%, #A62C1C 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
     inset 0 0 0 1px rgba(18, 15, 12, 0.55),
@@ -572,16 +578,21 @@
   background: linear-gradient(180deg, #8F2B20, #671D15);
 }
 
+/* Pressed reads darker than rest (6.30 / 7.06 / 7.93:1). */
 .key-plate-red.key-plate-red:active:not(:disabled) {
-  background: linear-gradient(180deg, #BE3428 0%, #9E2A1E 100%);
+  background: linear-gradient(180deg, #A82D21 0%, #8F241A 100%);
   box-shadow:
     inset 0 2px 3px rgba(0, 0, 0, 0.28),
     inset 0 0 0 1px rgba(18, 15, 12, 0.6),
     0 1px 0 #0B0A09;
 }
 
+/* Hover lifts the WHOLE face a step rather than the top alone: the top has
+   only 0.26 of headroom over the 4.5 floor, so the brightening that reads is
+   the lower two thirds (bottom #A62C1C → #B5301F). Samples 4.62 / 5.11 /
+   5.67:1. */
 .key-plate-red.key-plate-red:hover:not(:disabled) {
-  background: linear-gradient(180deg, #E45C4A 0%, #BC3124 100%);
+  background: linear-gradient(180deg, #CB3A2C 0%, #B5301F 100%);
 }
 
 /* The record dot, drawn rather than imported: it inherits the cap's ink. */
@@ -657,12 +668,16 @@
   }
 
   /* The drawing shrinks toward the middle; the clock plate shrinks with it
-     so it keeps sitting in the gap rather than on top of a flange. */
+     so it keeps sitting in the gap rather than on top of a flange. 9px is
+     the floor for every readout on the deck — an 8px clock is under the
+     size at which a lit digit behind the LCD's scanlines stays legible, and
+     a collapsed panel is exactly where the clock matters. The width the
+     smaller size used to buy comes out of the padding instead. */
   .deck-clock {
     bottom: 4px;
     height: 13px;
-    padding: 0 3px;
-    font-size: 8px;
+    padding: 0 2px;
+    font-size: 9px;
     letter-spacing: 0.02em;
   }
 }
@@ -696,15 +711,16 @@
   }
 
   .deck-status {
-    gap: 4px;
+    gap: 3px;
     padding-left: 0;
   }
 
   /* The narrow panel's gutters are ~66px against the ~73px "RECORDING" wants
-     at full tracking, so the legend gives up tracking rather than letters:
-     it is the state channel when motion is off and must never truncate. */
+     at full tracking, so the legend gives up TRACKING rather than letters or
+     size: it is the state channel when motion is off and must never truncate.
+     It also holds the deck's 9px readout floor — it keeps the base size, and
+     the last of the width comes out of `.deck-status`'s gap above. */
   .deck-word {
-    font-size: 8.5px;
     letter-spacing: 0.02em;
   }
 

@@ -13,27 +13,45 @@ test pass is someone else's job.
 
 - **Recording bug** (wrong, missing, or spurious steps) → a case in
   `engine/diff.test.ts`. These are pure: feed the captured `{ prev, next }`
-  snapshot pair to `diffSnapshots` and assert the payloads. No mocking.
+  pair to `diffScene` and assert the payloads. A trace records SCENE
+  snapshots, so `diffScene` is the entry point; use `diffSnapshots` only for
+  a single node's subtree. No mocking.
 - **Playback bug** (a step didn't apply, applied wrongly, or failed) → a case in
   `sandbox/applier.test.ts`, driving `applyStep` against a node from
-  `engine/testing/fakeScene.ts`. `applyStep` returns `{ notes }` — when the
-  finding is about a deliberate non-apply (or one that should have produced a
-  note but didn't), assert on the notes, not just the node state.
+  `engine/testing/fakeScene.ts`. `applyStep` returns
+  `{ notes, noteKinds }` — when the finding is about a deliberate non-apply
+  (or one that should have produced a note but didn't), assert on the notes,
+  not just the node state. Assert the kind as well when the point of the
+  finding is how the note is counted: `skip` is a step that did not fully
+  apply, and `info` is an adaptation that worked.
+- **Scene-op bug** (nest, break, reorder, add or remove layer, scene
+  settings) → a case in `sandbox/playback.test.ts`, which drives
+  `playbackBegin`/`playbackStep` against `makeFakeScene`. A nest test asserts
+  what the new scene layer holds (`shell.scene.layers`) and that the
+  originals are gone, not the note alone.
 - **Label bug** → `engine/labels.test.ts`.
 - **Relative-math bug** → `engine/relative.test.ts`.
 
-Match the surrounding file's style: it uses inline builders (`anim()`, `kf()`,
-`solid()`, `makeNode()`), `describe`/`it` from vitest, and no snapshot testing.
-Reuse the existing helpers rather than adding new ones.
+Match the surrounding file's style: `engine/diff.test.ts` uses its own inline
+builders (`anim()`, `kf()`, `solid()`, `makeNode()`, `scene()`), and
+`sandbox/applier.test.ts` imports `makeNode`, `makeIds`, and
+`makeGradientFill` from `engine/testing/fakeScene.ts`. Both use `describe`/`it`
+from vitest and no snapshot testing. Reuse the existing helpers rather than
+adding new ones.
 
 ## The fake scene
 
 `engine/testing/fakeScene.ts` is shared with `dev/harness/host-harness.html`. It
 mirrors the real API's awkward parts on purpose:
 - `staticValue` writes are **silently discarded when keyframes exist**
-  (`plugin-api.d.ts:17-18`).
+  (runtime quirk 4 in `docs/runtime-api.md`).
 - `getKeyframeAt(frame)` matches the real `Animatable`.
-- `makeNode` exposes every `CANDIDATE_PROPS` entry.
+- `makeNode(name, options, nextId)` exposes the registry properties for the
+  node type (`propsForType` in `engine/snapshot.ts`), not every property.
+- `makeFakeScene(nextId)` is the active scene, and a `SCENE_LAYER` node
+  carries its own inner scene (`makeInnerScene`) with the three layer
+  factories. The root's `createSceneLayer()` still returns an empty shell and
+  ignores the selection, the way the host does (quirk 8).
 - `node.__control.setGone()` / `.failProp(name)` and
   `prop.__failAdd(message)` inject failures.
 

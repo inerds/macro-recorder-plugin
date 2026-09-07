@@ -50,9 +50,15 @@ export function Deck() {
         // Recording is only reachable from rest: mid-review or mid-playback
         // the key is dead, not a second way to lose work.
         recordDisabled={state.mode !== "idle"}
-        stopDisabled={state.mode !== "recording"}
+        // The deck says PLAYING; its Stop key must be able to stop that. It
+        // used to be dead through the whole run, which left the only way out
+        // inside the playing macro's own row.
+        stopDisabled={state.mode !== "recording" && state.mode !== "playing"}
         onRecord={actions.startRecording}
-        onStop={actions.stopRecording}
+        onStop={() => {
+          if (state.mode === "playing") actions.resolvePlaybackFailure("stop");
+          else actions.stopRecording();
+        }}
       />
     </div>
   );

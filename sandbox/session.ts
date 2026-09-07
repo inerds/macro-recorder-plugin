@@ -13,9 +13,12 @@ export interface RecordingSession {
   debug: boolean;
   /** Debug: the keyframe-surface probe has already run this session. */
   keyframeProbed?: boolean;
-  /** Any tick emitted a step this session — gates recordStop's
-   *  "recorded nothing" whole-session debug fallback. */
+  /** Any tick or keyframe capture emitted a step this session — gates
+   *  recordStop's "recorded nothing" whole-session debug fallback. */
   stepped?: boolean;
+  /** The "you switched scenes" step has already been emitted — it is a
+   *  standing condition, not a per-tick event, so it is said once. */
+  sceneSwitchNoted?: boolean;
 }
 
 export interface PlaybackSession {
@@ -54,6 +57,9 @@ export interface PlaybackSession {
   delay: { base?: number; perTarget: number } | null;
   /** Why stagger did nothing this run — reported against the first target. */
   staggerNote?: string;
+  /** What `playbackBegin` dropped from the selection (shapes) — reported
+   *  against the first target, once, alongside staggerNote. */
+  selectionNote?: string;
   /** The delay pass already ran, so step 0 never repeats it. */
   onceDone?: boolean;
   /** Dev diagnostics opted into at playback.begin. */

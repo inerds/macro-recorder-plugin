@@ -239,7 +239,7 @@ const DEMO_SCRIPTS: DemoScript[] = [
     ],
   },
   {
-    // Scene script: several layers, a rename resolved by priorName, a
+    // Scene rebuild: several layers, a rename resolved by priorName, a
     // reorder and a removal.
     name: "Storyboard shuffle",
     source: { nodeId: HERO.id, nodeName: HERO.name },
@@ -253,7 +253,7 @@ const DEMO_SCRIPTS: DemoScript[] = [
     ],
   },
   {
-    // Scene script: build a nest, move it, then break it apart again.
+    // Scene rebuild: build a nest, move it, then break it apart again.
     name: "Nest & break",
     source: { nodeId: HERO.id, nodeName: HERO.name },
     steps: [
@@ -282,7 +282,7 @@ const DEMO_SCRIPTS: DemoScript[] = [
     ],
   },
   {
-    // Scene script: a fresh layer of a type only createTextLayer can build.
+    // Scene rebuild: a fresh layer of a type only createTextLayer can build.
     // fontSize/text/fontFamily are PLAIN on the host (RUNTIME-API "Text
     // layer"), so they ride the set-plain channel, not set-static.
     name: "Type reveal",

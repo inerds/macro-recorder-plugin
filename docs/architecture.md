@@ -4,14 +4,14 @@ This document holds the invariants that give the code its shape: why the three
 TypeScript projects are separate, what the QuickJS sandbox can and cannot do,
 where the host proxies stop, and how the recording engine and the panel fit
 together. Read it before you extend the engine. Read
-[`runtime-api.md`](runtime-api.md) with it: the published typings are wrong in
-both directions, and every workaround anchors to a live-verified quirk listed
-there.
+[`runtime-api.md`](runtime-api.md) with it: the published typings still
+diverge from the runtime in the places that file lists, and every workaround
+anchors to a live-verified quirk listed there.
 
 The panel and the sandbox are one loop. The panel polls the sandbox every
 500ms over a small RPC protocol. The sandbox snapshots the active scene, diffs
 it against the previous snapshot, and returns labeled steps. Replay sends the
-steps back the other way. Everything between the two proxy-touching files is
+steps back the other way. Everything between the proxy-touching files is
 plain data.
 
 - The design rules for the skin, the deck, and the rack are in
@@ -26,10 +26,12 @@ correctness boundary, not organization:
 
 - `tsconfig.ui.json` — `["ui", "engine"]`, DOM libs, `vite/client` types.
 - `tsconfig.sandbox.json` — `["sandbox", "engine"]`, **no DOM lib**, and
-  `typeRoots` pointing at `@lottiefiles/creator-plugin-types` so the `creator`
-  global resolves. Also sets `noUncheckedIndexedAccess`, which the UI config
-  does not.
-- `tsconfig.node.json` — build tooling.
+  `"types": ["creator-api-types"]` with `typeRoots` at `./node_modules/@types`
+  and `./node_modules/@lottiefiles`, so the `creator` global resolves from
+  `@lottiefiles/creator-api-types`. Also sets `noUncheckedIndexedAccess`,
+  which the UI config does not.
+- `tsconfig.node.json` — build tooling only (`vite.config.ts`,
+  `scripts/trace-server.ts`), `"types": ["node"]`.
 
 So `engine/` compiles under both and must not reference `window`, `document`, or
 Node APIs. If an `engine/` module needs a platform capability, inject it (see
@@ -62,6 +64,12 @@ README states this; the consequences for how you write code:
   promise. In practice that means `creator.clientStorage.*` (`sandbox/store.ts`);
   its settlement is what pumps the queue and drains the `.then()` continuations.
   A handler that awaits a VM-only promise first is dead code in Creator.
+- A synchronous handler cannot await anything, so a value it must report is
+  cached, not fetched. `hello` answers in its own invocation and returns
+  `{protocolVersion, rev, usedQuota?}`; `sandbox/store.ts` holds the last
+  reading of `creator.clientStorage.usedQuota` and refreshes it from every
+  storage call, which is safe because each of those starts with a
+  native-backed await. A host without the member reports no `usedQuota`.
 - The sandbox has **no timers**. All timing lives in the UI —
   `RpcRecorderGateway` owns the 500ms tick loop and the sandbox only ever
   responds to messages.
@@ -70,31 +78,63 @@ README states this; the consequences for how you write code:
 exactly: `vm.callFunction` with zero `executePendingJobs` after. If you add an
 RPC method that must answer synchronously, add a check there.
 
-## Untyped host API surface (found via runtime introspection)
+## Host API surface (found via runtime introspection)
 
-The real `Animatable` proxies expose two methods the published typings omit:
-`clearKeyframes()` (the missing bulk animated→static) and `getValueAt(frame)`.
-Safe to feature-detect (`typeof prop.clearKeyframes === "function"`), never
+The real `Animatable` proxies expose `clearKeyframes()` (the bulk
+animated→static call) and `getValueAt(frame)`. 0.0.2 omitted both, and 1.0.1
+types them. Safe to feature-detect (`typeof prop.clearKeyframes === "function"`), never
 assume. Conversely, per-fill opacity does NOT exist anywhere on the paint
 surface (paint = `color`/`type`/`remove` only, colors are `{r,g,b}`) — do not
 re-attempt to record it; it is a documented platform limit.
 
 ## Layering — where the proxies stop
 
-Exactly **two** files touch Creator's live node proxies:
-`sandbox/serialize.ts` (proxy → `NodeSnapshot`) and `sandbox/applier.ts`
-(`StepPayload` → proxy writes). Everything downstream of those is plain data and
-unit-testable without a Creator mock. Preserve this: new engine logic belongs in
-`engine/`, driven by snapshots, not in a new proxy-reading module.
+**No `engine/` module touches a Creator node proxy.** Four `sandbox/` files
+do, and each one owns a different part of the boundary:
+
+- `sandbox/serialize.ts` — proxy → `NodeSnapshot`. Every snapshot in the
+  system comes from here, and nothing else reads a node for recording.
+- `sandbox/applier.ts` — `StepPayload` → proxy writes on ONE target node,
+  plus `delayLayer`'s timing write.
+- `sandbox/playback.ts` — the scene level: it resolves a recorded layer id to
+  a live node, runs the structural ops (create, remove, reorder, break, nest),
+  writes one scene setting per `set-scene` step, and reads each target back
+  for the trace probes. It shares `serialize.ts`'s `valueToJson` for those
+  reads, because a probe must see the same value the recorder would.
+- `sandbox/recorder.ts` — the session: it holds the pinned scene, reads
+  `creator.selection` for the nudge count and the capture offer, and runs the
+  dev-only introspection probes. Outside those probes it reads no node value
+  of its own — the tick's data comes from `serializeScene`.
+
+Everything downstream of the four is plain data and unit-testable without a
+Creator mock. Preserve that: new engine logic belongs in `engine/`, driven by
+snapshots, and a new node reader belongs in one of these four files. The rest
+of the host API is not the scene graph and stays out of them:
+`sandbox/store.ts` owns `creator.clientStorage`, `sandbox/theme.ts` owns
+`creator.ui.theme`, and `sandbox/plugin.ts` with `sandbox/rpc-server.ts` own
+the message channel.
 
 `engine/testing/fakeScene.ts` is the test double for that proxy surface, shared
-by `dev/harness/host-harness.html` and vitest. It reproduces the real API's traps on
+by `dev/harness/host-harness.html` and vitest. It models the
+`creator-api-types` 1.0.1 surface, corrected by
+[`runtime-api.md`](runtime-api.md) and [`limitations.md`](limitations.md),
+which win where the two disagree. It reproduces the real API's traps on
 purpose — most importantly that the host silently discards an assignment to
-`staticValue` when keyframes exist (`plugin-api.d.ts:17-18`). Never make the
-fake more permissive than the real host; that would hide the bugs it exists to
-catch.
+`staticValue` when keyframes exist (runtime quirk 4). It also REFUSES what the
+host refuses: paint lists on a geometry node, masks on a shape, layer flags on
+a group, `mode` on a trim path, `opacity` on a paint, a bare array to
+`createGroup`, and any unknown key in a `create*` options object (with the
+live host's `✗ Invalid input`). Its header comment holds the full list. Never
+make the fake more permissive than the real host; that would hide the bugs it
+exists to catch — the 2026-09-06 pass that tightened it exposed five real
+applier bugs at once. A `SCENE_LAYER` node carries a real inner scene
+(`makeInnerScene`: `layers`, `isNestableScene`, the three layer factories, and
+`remove()`), which stays inside that rule: 1.0.1 types the inner scene and its
+factories, the live shell carries `scene.layers`, and the engine
+feature-detects each factory. The root scene's own `createSceneLayer()` stays
+empty and selection-blind, as runtime quirk 8 describes.
 
-Both proxy files are defensive because proxies vary by node type and any
+Every proxy reader is defensive, because proxies vary by node type and any
 getter can throw — `serialize.ts` wraps every read in `tryRead` and simply
 omits unreadable properties; `engine/json.ts#toJson` deep-copies into JSON-safe
 data with a depth cap so nothing uncloneable escapes into an RPC payload. An
@@ -102,9 +142,9 @@ absent property is a normal outcome, never an error.
 
 ## Engine v3 — whole-scene recording (architecture as of 2026-08-22)
 
-`runtime-api.md` is required reading: the published typings are wrong in both
-directions, and every workaround in the engine anchors to a live-verified
-quirk listed there. Introspect before extending (record.start's debug probe
+`runtime-api.md` is required reading: the published typings still diverge from
+the runtime in the places it lists, and every workaround in the engine anchors
+to a live-verified quirk listed there. Introspect before extending (record.start's debug probe
 dumps node/scene surfaces into traces).
 
 ```
@@ -127,7 +167,22 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   adds in one tick),
   `nest-layers` (added SCENE layer + removals in one tick). In-layer payloads
   carry a `layer: LayerRef {id, name, priorName}` binding and, on deep paths,
-  a `shapeHint`.
+  a `shapeHint`. A mask's `mode` rides the `set-plain` channel (1.0.1 `Mask`
+  types it as a plain string), and a linear↔radial gradient swap records as
+  `replace-paint`, because no host gradient carries a writable `type`.
+- **The recording is pinned to ONE scene.** `record.start` captures
+  `creator.activeScene`, and every tick re-serializes that same proxy. A user
+  who switches scenes mid-recording gets ONE `not-replayable` step that says
+  so: `record.tick`'s result has no notes channel, and a step is visible in
+  the review list and deletable there.
+- **Scene settings (rev 2026-09-06.3)**: `SceneSnapshot` is
+  `{sceneId?, settings?, layers}`. `settings` holds `name`, `size`,
+  `backgroundColor` (`null` = transparent), `framerate`, and `duration` — the
+  plain mutable members of 1.0.1 `Scene`. Each changed key becomes one
+  absolute `set-scene` step, applied ONCE per run against `creator.activeScene`
+  in `sandbox/playback.ts#applySceneSetting`, never per target. Both fields
+  are optional: a snapshot recorded before this rev carries no `settings`, and
+  `diffSceneSettings` emits nothing when either side lacks the key.
 - **Selection nudge (rev .48, inline since .49)**: `record.start` seeds and
   every `record.tick` carries `selectionCount`; 0 → a standing dashed chip
   above the live feed that clears ITSELF when a layer is selected (slot
@@ -153,7 +208,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   with before === after — deep paths replay exactly, length-1 transform
   statics are additive-zero (style capture never teleports the target;
   pinned in applier.test), and `labelOf` renders equal pairs as
-  `prop = value`. "Add selected" stays keyframes-only. Rationale: that keeps capture and the diff stream disjoint by construction
+  `prop = value`. "Add selected keyframes" stays keyframes-only. Rationale: that keeps capture and the diff stream disjoint by construction
   (a post-tick edit arrives as a diff step; nothing double-emits; ≤500ms
   staleness accepted). The walk mirrors `diffNodeInner`'s addressing exactly
   and strips host keyframe ids (recycled). `selection.keyframes` is
@@ -173,7 +228,11 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   (remove/reorder/break/nest/fresh add-layer) replay as SCENE SCRIPTS — each
   step resolves its layer id → name → priorName → skip-note; values apply
   exactly; layers created during the replay register in `layerByRecordedId`
-  so later steps bound to recorded new-layer ids find them. Macros touching
+  so later steps bound to recorded new-layer ids find them. `playbackBegin`
+  filters the selection to LAYERS before it picks a mode
+  (`creator.utils.isLayer`, feature-detected, with a `startFrame` fallback)
+  and notes the shapes it dropped: steps address layer paths, so a selected
+  shape is never a target. Macros touching
   ≤1 pre-existing layer with a selection replay in TARGETS mode — apply to every
   selected layer with smart offsets (`propClassOf`: only length-1 transform
   paths are relative; origins = recorded first-touch value, keyframed paths
@@ -181,8 +240,21 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   (chained duplicates clone the replay's copies via per-target maps) and
   shift by the recorded offset from the target's own position.
 - **Replay means DO IT**: nest/add ops re-execute; adoption of an existing
-  layer (id-only match) is a fallback for same-scene replays where the
-  action already happened (prevents duplicate/empty-shell rebuilds).
+  layer (id-only match) is the fallback for same-scene replays where the
+  action already happened (prevents duplicate/empty-shell rebuilds). The
+  `nest-layers` chain runs in this order (rev `2026-09-07.1`): filter the
+  step-time selection through `isLayerNode`, take the sources (that
+  selection, else the recorded layers), set `creator.selection.nodes` to
+  them, and call `scene.createSceneLayer()` ONCE. A shell that comes back
+  holding the layers ends the chain — the host moved them. Otherwise
+  `nestByRebuild` rebuilds each source inside the shell's own scene from its
+  `serializeNode` snapshot, verifies the copies by reads, moves the shell to
+  the first source's slot, and removes the rebuilt originals. A verification
+  miss removes the shell and leaves the originals untouched. Only an empty
+  selection adopts the recorded nest when it is still live, or rebuilds it
+  from the recording when there is nothing to adopt. The older rungs are gone
+  — `createSceneInstance` never existed, `createSceneLayer(layers)` returns
+  undefined, and `shiftTo` takes a frame (`limitations.md`).
   `createLayerFromSpec` picks the factory by recorded type — `SCENE*` →
   `createSceneLayer`, `TEXT_LAYER` → `createTextLayer` (feature-detected;
   absent → note + skip, never a shape shell), else `createShapeLayer`. A
@@ -192,7 +264,8 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   `nest-layers` prefers the current selection as its sources (tool
   semantics); inside instance content, resolution is strictly index-ordered
   (user decision — no shape-type redirect there).
-- **Nothing applies silently**: `applyStep` returns `StepOutcome.notes` for
+- **Nothing applies silently**: `applyStep` returns `StepOutcome.notes` and
+  the parallel `noteKinds` for
   deliberate non-applies/adaptations (cross-kind recolors: gradient stops
   onto a solid LIST fill CONVERT the fill to a gradient via the
   replace-paint mechanism so the full stop values survive — user decision,
@@ -202,9 +275,18 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   the trim on demand; paint paths remap singular text fills). Genuine failures throw and pause. Keep
   this invariant — silent half-applies were the original disease. It extends
   to `set-plain`: the applier reads the flag back after writing and notes a
-  mismatch ("the host kept X unchanged"); an unreadable read-back makes no
+  mismatch ("Creator kept the X as it was — the change didn't apply"); an
+  unreadable read-back makes no
   claim (taxonomy #13). Hosts can accept an assignment and keep their own
   value, so a bare write is never proof of application.
+- **A note carries its kind** (rev `2026-09-06.4`): `NoteList.push` records a
+  `skip` — the step did not fully apply — and `NoteList.info` records an
+  `info`, an adaptation that worked. The kind rides the `playback.step`
+  result, and `summarizePlaybackNotes` (`ui/state/playbackNotes.ts`) counts
+  the skips alone, so a run that only adapted reads "3 steps adjusted". A
+  note from an older sandbox carries no kind, and the panel reads it as a
+  skip. `push` stays the default, so a new note is conservative until its
+  author says otherwise.
 - Keyframe machinery (applier): frame-keyed matching via `getKeyframeAt` with
   `hasKeyframes` phantom-guard, verified adds + frame-0 sentinel, same-frame
   add+remove guard (legacy macros), move re-pairing in the differ, collision
@@ -264,9 +346,19 @@ Two subtleties worth knowing before changing it:
   Creator, which is a bug, not a dev convenience. `app.tsx` renders a loud
   "Demo engine" banner for that case (`data-testid="demo-mode-banner"`) rather
   than silently showing fake data.
-- After falling back, the client listens for a `sandbox-ready` notify and
-  reloads the page, so Creator's hot-reload of plugin code recovers onto the real
-  engine.
+- A REJECTED handshake must reach the same place. `ui/main.tsx` used to have
+  no rejection handler, so a throw inside `createGateways` left the panel
+  blank for the whole session. It now catches, builds the mock gateways
+  itself, and renders the demo-engine panel. A second failure writes one
+  plain line into `#root`: "Macro Recorder could not start. Remove and re-add
+  the plugin in Creator."
+- After falling back, the client keeps asking. A UI inside a frame re-sends
+  `hello` (1s while the sandbox is probably still booting, 5s after 20s) and
+  reloads the page the moment it answers, so a lost boot race costs seconds
+  instead of the session. A standalone tab never retries — it has no host
+  above it, and its mocks are the point. The `sandbox-ready` notify triggers
+  the same reload, but it cannot replace the retry: the sandbox posts it at
+  plugin-eval time, when the iframe does not exist yet.
 
 `RecorderGateway.stop()` returns the **final delta only** — steps captured since
 the last `onStep` emission. It is not a full replay of the session; the UI has
@@ -279,7 +371,7 @@ already accumulated the earlier ones.
 returns `state` unchanged when the event doesn't apply to the current mode — keep
 that pattern; it is what makes late-arriving gateway callbacks (a tick that lands
 after stop) harmless. The reducer is pure and fully unit-tested; side effects
-live in `AppContext.tsx`.
+live in `ui/state/AppContext.tsx`.
 
 ## Runtime environments this code must survive
 
@@ -301,6 +393,24 @@ only to `preventDefault()`. Persistence is likewise environment-split:
 `LocalMacroStore` (localStorage, with in-memory fallback when it throws) versus
 `RpcMacroStore` → `sandbox/store.ts` (`creator.clientStorage`, keys prefixed
 `macro:`, one entry per macro).
+
+## The build — two bundlers, one dist
+
+`vite.config.ts` runs Vite 8 with `@lottiefiles/vite-plugin-creator` from the
+npm registry (no vendored tarballs since 2026-09-06; the registry plugin is
+what requires Vite 8). Vite's own bundler builds ONLY `ui.html`: the plugin
+reads `sandbox/manifest.json`, derives the entry from its `entry` field, and
+makes `plugin.js` with its own esbuild call. `pnpm build` therefore emits
+exactly three files — `manifest.json`, `plugin.js`, `ui.html` — and a
+sandbox-side change is proven only by `pnpm test:quickjs`, which drives the
+compiled bundle.
+
+`vite build --mode development` is the dev build. `injectManifestVersion`
+stamps `<version>-dev`, appends `(dev)` to the name, and swaps in a SECOND
+fixed plugin id. Creator scopes `clientStorage` by the manifest id, so
+without that swap the dev build and the released plugin share one macro
+store, and a tester who wipes the dev store wipes real work. The id must stay
+stable: changing it abandons every macro saved under the old one.
 
 ## Local harnesses
 
@@ -331,10 +441,24 @@ declares the same URL.
   #13/#20), so a host-swallowed absolute write is indistinguishable from a
   coincidental value match in probes. No trace shows it firing; watch for it.
 
-- Nesting-from-selection: CONFIRMED platform limitation (see `limitations.md`
-  for the breadcrumb evidence and the upstream ask). The guess-chain stays in
-  place so a future host that adds any of the routes starts working without
-  code changes.
+- Nesting-from-selection: the MOVE API stays a CONFIRMED platform limitation
+  (see `limitations.md` for the breadcrumb evidence and the upstream ask).
+  The guess-chain is gone since rev `2026-09-06.1`: 1.0.1 settled what the
+  dead rungs were, so replay makes ONE verified `createSceneLayer()` call and
+  reports the outcome. A host that starts moving the selection into the
+  created layer passes that verification and skips the rebuild with no code
+  change. Since rev `2026-09-07.1` a refusal rebuilds the layers inside the
+  new scene instead of reporting a false success — the three 2026-09-06T17-13
+  traces showed adoption reading like a nest that never happened. The route
+  runs on typed, not yet live-verified members (`runtime-api.md`).
+- Baselined on `@lottiefiles/creator-api-types` 1.0.1 (2026-09-06). The typed
+  surfaces this branch starts to use — `creator.utils.isLayer`, the `Scene`
+  settings writes, `getValueAt` baselines, `createGroup(GroupOptions)`,
+  `clientStorage.usedQuota`, and the nest rebuild's members (the inner
+  scene's factories, `creator.createScene`, `createSceneLayer({ scene })`,
+  `isNestableScene`, and `Scene.remove()`) — are all feature-detected and
+  none is live-verified. `runtime-api.md` lists them under "Typed in 1.0.1, live
+  verification pending"; move each one when a trace confirms it.
 - Never live-verified yet: the interface-theme relay (`sandbox/theme.ts` —
   `creator.ui.theme` / `change:theme` per the ui-library docs,
   feature-detected, silent on hosts without it); the set-plain read-back

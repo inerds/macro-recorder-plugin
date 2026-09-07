@@ -1,4 +1,4 @@
-import { Button, Input } from "@lottiefiles/creator-plugins-ui";
+import { Button, cn, Input } from "@lottiefiles/creator-plugins-ui";
 import { Check, ChevronRight, Play, Square } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
@@ -15,9 +15,18 @@ import { OverflowMenu } from "./OverflowMenu";
 import { PlaybackStatus } from "./PlaybackStatus";
 import { ICON_KEY_CLASS } from "./iconKey";
 import { describePlayOptions } from "./playOptionsText";
-import { PlayOptionsPopover } from "./PlayOptionsPopover";
+import { atPlayheadHint, PlayOptionsPopover } from "./PlayOptionsPopover";
 import { StepList } from "./StepList";
 import { StepListHeader } from "./StepListHeader";
+
+/** Why Play and its options are off on every row but the running one. */
+const PLAY_DISABLED_REASON = "Another macro is playing";
+
+/**
+ * The look a natively disabled key gets for free. These keys keep their
+ * reason (and their place in the tab order), so they wear it by hand.
+ */
+const DEAD_KEY_CLASS = "aria-disabled:cursor-default aria-disabled:opacity-40";
 
 
 export interface MacroRowProps {
@@ -87,6 +96,7 @@ export function MacroRow({
   const [optionsOpen, setOptionsOpen] = useState(false);
   const narrow = useNarrowPanel();
   const panelId = useId();
+  const playDisabledId = useId();
   const disclosureRef = useRef<HTMLButtonElement>(null);
 
   const stepCount =
@@ -105,6 +115,15 @@ export function MacroRow({
   // The sandbox only ever sees the enabled steps, so the play options must
   // read "has keyframes" from the same list.
   const noKeyframes = !hasKeyframes(enabled);
+  // The badge truncates, and the popover that explains "at playhead" is a
+  // click away — so the pointer gets the dialog's own sentence here.
+  const optionSummaryTitle =
+    optionSummary && options.atPlayhead
+      ? `${optionSummary} — ${atPlayheadHint({
+          noKeyframes,
+          sceneScript: mode.mode === "scene",
+        })}`
+      : optionSummary;
   let activeIndex: number | undefined;
   // Per-row pending/running/done/failed, keyed by FULL-array index — the same
   // enabled→full walk, so a skipped step simply gets no entry (it is not part
@@ -129,14 +148,22 @@ export function MacroRow({
 
   return (
     <li
-      className={`rack-row ${expanded ? "rack-row-open" : ""} ${justPlayed ? "success-flash" : ""}`}
+      className={cn("rack-row", expanded && "rack-row-open", justPlayed && "success-flash")}
       data-testid="macro-row"
+      data-macro-id={macro.id}
     >
+      {playDisabled && !isPlayingThis && (
+        // One reason for both of this row's dead keys and its options key.
+        <span id={playDisabledId} className="sr-only">
+          {PLAY_DISABLED_REASON}
+        </span>
+      )}
       {renaming ? (
         <div
-          className={`flex items-center gap-1 px-1.5 py-1 ${
-            expanded ? "border-b border-dotted border-border" : ""
-          }`}
+          className={cn(
+            "flex items-center gap-1 px-1.5 py-1",
+            expanded && "border-b border-dotted border-border",
+          )}
         >
           {/* The row keeps its place in the rack while it is renamed — the
               number is the row's address, not a decoration of its name. */}
@@ -180,9 +207,10 @@ export function MacroRow({
         </div>
       ) : (
         <div
-          className={`flex items-center gap-1 px-1.5 py-1 ${
-            expanded ? "border-b border-dotted border-border" : ""
-          }`}
+          className={cn(
+            "flex items-center gap-1 px-1.5 py-1",
+            expanded && "border-b border-dotted border-border",
+          )}
         >
           {/* Outside the disclosure on purpose: the button's accessible name
               is the macro, not a catalogue number. */}
@@ -192,15 +220,20 @@ export function MacroRow({
           <button
             type="button"
             ref={disclosureRef}
-            className="press flex min-w-0 flex-1 items-center gap-1 rounded-[7px] text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            // Stretches to the row's full height: the name is one line of
+            // 11px type, and a 16px target for the row's own control is
+            // under every pointer-target floor there is.
+            className="press flex min-h-[22px] min-w-0 flex-1 items-center gap-1 self-stretch rounded-[7px] text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={onToggleExpand}
+            data-row-disclosure
           >
             <ChevronRight
-              className={`me-0.5 size-3 shrink-0 text-muted-foreground/70 transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none ${
-                expanded ? "rotate-90" : ""
-              }`}
+              className={cn(
+                "me-0.5 size-3 shrink-0 text-muted-foreground/70 transition-[rotate] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+                expanded && "rotate-90",
+              )}
               strokeWidth={2.5}
               aria-hidden
             />
@@ -225,7 +258,7 @@ export function MacroRow({
               {optionSummary && (
                 <span
                   className="mono ms-1.5 max-w-[30%] shrink-0 truncate text-10 tabular-nums text-muted-foreground"
-                  title={optionSummary}
+                  title={optionSummaryTitle}
                   data-testid="play-options-summary"
                 >
                   {/* The badge truncates; the announcement never does. */}
@@ -242,20 +275,31 @@ export function MacroRow({
           {(!expanded || isPlayingThis) && (
           <button
             type="button"
-            className={ICON_KEY_CLASS}
+            className={cn(ICON_KEY_CLASS, DEAD_KEY_CLASS)}
             aria-label={isPlayingThis ? `Stop ${macro.name}` : `Play ${macro.name}`}
-            disabled={!isPlayingThis && playDisabled}
-            onClick={() =>
-              isPlayingThis ? onResolveFailure("stop") : onPlay(options)
-            }
+            // aria-disabled, not disabled: a natively disabled key drops out
+            // of the tab order with its reason, and the library's
+            // `disabled:pointer-events-none` kills the tooltip that carried
+            // it. Same idiom as SimplifyButton.
+            aria-disabled={!isPlayingThis && playDisabled}
+            {...(!isPlayingThis && playDisabled
+              ? { "aria-describedby": playDisabledId, title: PLAY_DISABLED_REASON }
+              : {})}
+            onClick={() => {
+              if (isPlayingThis) onResolveFailure("stop");
+              else if (!playDisabled) onPlay(options);
+            }}
             data-testid="play-button"
           >
             {isPlayingThis ? (
               <Square
-                className={`size-3 fill-current ${
-                  errorPaused ? "" : "text-[color:var(--ink-red-text)]"
-                }`}
-                strokeWidth={2.5}
+                className={cn(
+                  "size-3 fill-current",
+                  !errorPaused && "text-[color:var(--ink-red-text)]",
+                )}
+                // A filled square needs no outline: the 2.5 stroke grew the
+                // glyph past the Play triangle beside it.
+                strokeWidth={0}
               />
             ) : (
               <Play className="size-3.5 translate-x-[0.5px] fill-current" />
@@ -267,6 +311,7 @@ export function MacroRow({
               <PlayOptionsPopover
                 macroName={macro.name}
                 disabled={playDisabled}
+                disabledReason={PLAY_DISABLED_REASON}
                 sceneScript={mode.mode === "scene"}
                 noKeyframes={noKeyframes}
                 value={options}
@@ -355,26 +400,35 @@ export function MacroRow({
                   under the focus that pressed it would drop focus. */}
               {(() => {
                 const span = keyframeSpan(macro.steps);
+                const frames = span ? span.last - span.first : 0;
                 const durationTitle = span
-                  ? `Duration ${span.last - span.first} fr`
+                  ? `Duration ${frames} ${frames === 1 ? "frame" : "frames"}`
                   : undefined;
                 return (
                   <div className="mt-1.5 flex items-center gap-1 border-t border-dotted border-border px-1.5 pt-1.5">
                     <button
                       type="button"
-                      className={ICON_KEY_CLASS}
+                      className={cn(ICON_KEY_CLASS, DEAD_KEY_CLASS)}
                       aria-label={isPlayingThis ? `Stop ${macro.name}` : `Play ${macro.name}`}
-                      {...(durationTitle && !isPlayingThis ? { title: durationTitle } : {})}
-                      disabled={!isPlayingThis && playDisabled}
-                      onClick={() =>
-                        isPlayingThis ? onResolveFailure("stop") : onPlay(options)
-                      }
+                      aria-disabled={!isPlayingThis && playDisabled}
+                      {...(!isPlayingThis && playDisabled
+                        ? {
+                            "aria-describedby": playDisabledId,
+                            title: PLAY_DISABLED_REASON,
+                          }
+                        : durationTitle && !isPlayingThis
+                          ? { title: durationTitle }
+                          : {})}
+                      onClick={() => {
+                        if (isPlayingThis) onResolveFailure("stop");
+                        else if (!playDisabled) onPlay(options);
+                      }}
                       data-testid="footer-play-button"
                     >
                       {isPlayingThis ? (
                         <Square
                           className="size-3 fill-current text-[color:var(--ink-red-text)]"
-                          strokeWidth={2.5}
+                          strokeWidth={0}
                         />
                       ) : (
                         <Play className="size-3.5 translate-x-[0.5px] fill-current" />
@@ -398,6 +452,7 @@ export function MacroRow({
                         <PlayOptionsPopover
                           macroName={macro.name}
                           disabled={playDisabled}
+                          disabledReason={PLAY_DISABLED_REASON}
                           sceneScript={mode.mode === "scene"}
                           noKeyframes={noKeyframes}
                           value={options}

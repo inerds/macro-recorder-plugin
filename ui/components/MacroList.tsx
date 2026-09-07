@@ -1,4 +1,4 @@
-import { Button } from "@lottiefiles/creator-plugins-ui";
+import { Button, cn } from "@lottiefiles/creator-plugins-ui";
 import { useState } from "react";
 
 import { useApp } from "../state/AppContext";
@@ -15,6 +15,9 @@ export interface MacroListProps {
 export function MacroList({ playing }: MacroListProps) {
   const { state, actions } = useApp();
   const macros = state.macros;
+  // Until the store has answered, an empty list means "not known yet". Every
+  // other mode is reached from an idle state the store already answered for.
+  const loaded = state.mode !== "idle" || state.loaded;
   // Set when Copy JSON found every clipboard route denied (Creator's
   // opaque-origin iframe) — the dialog offers the JSON for a manual copy.
   const [copyFallback, setCopyFallback] = useState<CopyJsonPayload | null>(null);
@@ -63,7 +66,13 @@ export function MacroList({ playing }: MacroListProps) {
             land in, wearing the console's own type — a mono readout title,
             a two-reel motif echoing the hero, and the deck's record glyph
             on the one red key this surface gets. Copy stays natural case;
-            the uppercase is CSS. */}
+            the uppercase is CSS.
+            The well is drawn from the first paint; its words wait for the
+            store. "No macros yet" used to flash on every panel open, in
+            front of a list that was about to arrive. `invisible` rather
+            than an unmount, so the well cannot change height under the
+            reader — and a hidden key is out of the tab order with its
+            copy. */}
         <div className="rack flex flex-col items-center gap-1.5 px-6 py-9 text-center">
           {/* A miniature of the hero's reel window — bezel, two reels, the
               tape run between them. Bare circles read as a face; the
@@ -80,15 +89,25 @@ export function MacroList({ playing }: MacroListProps) {
             <circle cx="38" cy="13" r="1.75" fill="currentColor" />
             <path d="M24 13h8" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
-          <p className="mono mt-1 text-12 font-semibold uppercase tracking-[0.06em] text-foreground">
+          <p
+            className={cn(
+              "mono mt-1 text-12 font-semibold uppercase tracking-[0.06em] text-foreground",
+              !loaded && "invisible",
+            )}
+          >
             No macros yet
           </p>
-          <p className="max-w-[30ch] text-12 leading-snug text-pretty text-muted-foreground">
+          <p
+            className={cn(
+              "max-w-[30ch] text-12 leading-snug text-pretty text-muted-foreground",
+              !loaded && "invisible",
+            )}
+          >
             Record your edits, then stop to save them as a macro you can replay.
           </p>
           <Button
             size="sm"
-            className="press key key-red mt-2.5"
+            className={cn("press key key-red mt-2.5", !loaded && "invisible")}
             onClick={() => actions.startRecording()}
           >
             <span className="key-dot" aria-hidden>

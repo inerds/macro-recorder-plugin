@@ -6,6 +6,7 @@ import { RPC_ERRORS } from "../engine/protocol";
 import type { SceneSnapshot } from "../engine/snapshot";
 import { buildStep } from "../engine/steps";
 import { serializeScene } from "./serialize";
+import type { RecordingSession } from "./session";
 import { session } from "./session";
 import type { Json } from "../engine/json";
 import { toJson } from "../engine/json";
@@ -110,8 +111,10 @@ function introspectSelection(): Json {
 
 /**
  * Dev-only: the first RECTANGLE shape's real surface plus every plausible
- * home for corner rounding — the typings list `roundness` only as a creation
- * option, and no trace has ever seen `rect.roundness.staticValue` leave 0.
+ * home for corner rounding. 1.0.1 types `Rectangle.roundness` as a full
+ * `Animatable<number>`, but the proxy stays dead at runtime — no trace has
+ * ever seen `rect.roundness.staticValue` leave 0 — so this probe keeps
+ * looking for the property's real home.
  */
 function introspectRectangle(root: AnyProxy): Json {
   const find = (node: AnyProxy, depth: number): AnyProxy | undefined => {
@@ -489,11 +492,13 @@ const selectionEvents = {
 
 export function initSelectionEvents(): void {
   try {
-    const on = (creator as AnyProxy).on;
-    if (typeof on !== "function") return;
-    on.call(creator, "selection:keyframes", (event: AnyProxy) => {
+    // Typed since 1.0.1, still feature-detected: a host that predates the
+    // event bus has no `on` at all.
+    if (typeof creator.on !== "function") return;
+    creator.on("selection:keyframes", (event: AnyProxy) => {
       selectionEvents.fired += 1;
-      // Typed as PluginEvent {type, data}; accept a bare array defensively.
+      // Typed as the bare Keyframe[] payload; the runtime shape is
+      // unverified, so accept a {data} envelope defensively too.
       let data: AnyProxy;
       try {
         data = Array.isArray(event) ? event : event?.data;
@@ -565,6 +570,34 @@ function computeCaptureOffer(next: SceneSnapshot, nodes: AnyProxy[]): CaptureOff
   return offer;
 }
 
+/**
+ * The scene switched under the recording — said ONCE, as a step.
+ *
+ * `record.start` PINS `creator.activeScene` and every tick re-serializes that
+ * same proxy, so switching scenes mid-recording silently records nothing the
+ * user can see happening. Both reads here are live-verified surfaces
+ * (`creator.activeScene`, `Scene.id`).
+ *
+ * The note rides the `not-replayable` step channel because `record.tick`'s
+ * RPC result has NO notes field (engine/protocol.ts) and the debug channel is
+ * opt-in, so a production session would never be told. A `not-replayable`
+ * step is marked `replayable: false`, is visible in the review list, and the
+ * user can delete it.
+ */
+function sceneSwitchStep(recording: RecordingSession): MacroStep | undefined {
+  if (recording.sceneSwitchNoted) return undefined;
+  const pinned = tryReadValue(() => String(recording.scene.id));
+  const active = tryReadValue(() => String(creator.activeScene?.id));
+  if (pinned === undefined || active === undefined || pinned === active) return undefined;
+  recording.sceneSwitchNoted = true;
+  const name = tryReadValue(() => recording.scene.name);
+  const label = typeof name === "string" && name ? `"${name}"` : "the scene you started in";
+  return buildStep({
+    op: "not-replayable",
+    description: `You switched scenes — still recording ${label}`,
+  });
+}
+
 export function recordTick(seq: number): {
   seq: number;
   steps: MacroStep[];
@@ -579,9 +612,13 @@ export function recordTick(seq: number): {
   // selection read serves both the offer and the live nudge count.
   const nodes = selectedNodes();
   const offer = recording ? computeCaptureOffer(recording.lastSnapshot, nodes) : undefined;
+  // Appended AFTER collectDelta set `stepped`: the switch note is the
+  // sandbox talking, not something the user recorded, so it must not make a
+  // silent session look productive to recordStop's debug fallback.
+  const switched = recording ? sceneSwitchStep(recording) : undefined;
   return {
     seq,
-    steps: delta.steps,
+    steps: switched ? [...delta.steps, switched] : delta.steps,
     ...(offer ? { captureOffer: offer } : {}),
     ...(recording ? { selectionCount: nodes.length } : {}),
     ...(delta.debug ? { debug: delta.debug } : {}),
@@ -622,6 +659,10 @@ export function recordCaptureKeyframes(params: {
   if (params.scope === "selected" && payloads.length === 0) {
     throw new Error(RPC_ERRORS.noSelectedKeyframes);
   }
+  // Captured steps are session steps too: recordStop's "recorded nothing"
+  // fallback must stay quiet after them (traces 2026-09-04T03-47-27 and
+  // 03-51-20 stapled a whole-session pair onto capture-only sessions).
+  if (payloads.length > 0) recording.stepped = true;
   return { steps: payloads.map(buildStep) };
 }
 

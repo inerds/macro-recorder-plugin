@@ -17,7 +17,9 @@ internally, see `README.md`. For what the platform cannot do, see
 1. Open [creator.lottiefiles.com](https://creator.lottiefiles.com).
 2. Open the Plugins panel, and click the **+** icon at the top right.
 3. On the **Develop** tab, point it at the built plugin folder. During
-   development, enter `http://localhost:5173` instead — see `README.md`.
+   development, enter `http://localhost:5173` instead — see `README.md`. A
+   development build installs as **Macro Recorder (dev)** and keeps its own
+   macros, so it never touches the macros you saved with the released build.
 4. Open **Macro Recorder** from the plugins menu. The panel lists your saved
    macros, and it starts empty.
 
@@ -46,8 +48,17 @@ and if your system asks for reduced motion the reels stay still.
 In a very short panel, under about 352px tall, the deck scales down but keeps
 whole, turning reels. Nothing moves anywhere else.
 
+The panel wears one skin and keeps it. Only the surround around the panel
+follows Creator's own light or dark setting.
+
 > If a red banner says **Plugin engine is outdated**, remove the plugin and add
 > it again: Creator caches the engine once per load.
+
+If the panel cannot reach the plugin engine, it opens on the demo engine and
+says so: *Couldn't reach the plugin sandbox — recording and playback are
+simulated. Reload the plugin to retry.* Nothing you do there reaches your
+scene. The panel keeps asking in the background, and it reloads onto the real
+engine as soon as the engine answers.
 
 ---
 
@@ -61,10 +72,14 @@ whole, turning reels. Nothing moves anywhere else.
      property on child shapes (size, roundness, points, path geometry…)
    - keyframes: added, removed, moved, value- or easing-changed (motion-path
      curve handles are **not** exposed to plugins — see §11)
-   - fills and strokes: added, removed, recolored, switched solid ↔ gradient
-   - masks, trim paths, layer flags (visible, locked, blend mode…), renames
+   - fills and strokes: added, removed, recolored, switched solid ↔ gradient,
+     and switched linear ↔ radial
+   - masks (including a mask's mode), trim paths, layer flags (visible,
+     locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,
-     reordering, breaking a scene instance apart, nesting layers
+     reordering, breaking a scene layer apart, nesting layers
+   - scene settings: size, background (a transparent one included), frame
+     rate, duration, and the scene name
 3. Watch the steps appear live in the panel as you work. The recorder samples
    twice a second, so a long drag shows up as a handful of steps — see
    *Simplify*.
@@ -74,9 +89,16 @@ whole, turning reels. Nothing moves anywhere else.
    opens.
 
 **Discard**, beside Stop at the bottom, throws the session away, and it asks
-first when steps exist. Deleting a layer while you record is itself a recorded
-step. Recording stops on its own only when the scene goes away, and it says
-so.
+first when steps exist — *Discard this recording? Its 4 steps will be lost.* —
+with **Discard recording** as the confirm key. Deleting a layer while you
+record is itself a recorded step. Recording stops on its own only when the
+scene goes away, and it says so.
+
+**One scene per recording.** The recorder stays on the scene you started in.
+If you switch scenes while you record, it adds one step that says so —
+*You switched scenes — still recording "Scene 1"* — and it keeps recording
+that first scene. The step is a marker: playback skips it. Delete it in the
+review sheet, or leave it as a reminder.
 
 ---
 
@@ -105,7 +127,7 @@ see its steps and edit them in place. Your changes save immediately.
 
 **Tip — select a layer before you record.** A macro recorded on one selected
 layer replays on *any* selected layer later. A recording that builds new
-layers replays as a scene script bound to those layers. Recording with nothing
+layers replays as a scene rebuild bound to those layers. Recording with nothing
 selected still works, and that is how you make structure macros. The panel
 reminds you of the trade-off when you start that way.
 
@@ -116,29 +138,32 @@ reminds you of the trade-off when you start that way.
 A layer that is already animated can hand its keyframes to a recording,
 without re-authoring. While you record, select **one** layer that has
 keyframes. A card appears above the live feed ("*Layer* has N keyframes on M
-properties") with two choices:
+properties. Adding them also captures the layer's current values.") with two
+choices:
 
-- **Add all** takes the layer's whole state. Every animated property becomes
-  keyframe steps, and its fills travel whole: solid stays solid, and a radial
-  gradient stays radial. Replaying replaces a mismatched fill, and adds one
-  where none exists. The rest of its current *look* — static transform values,
-  stroke widths, text and font, and blend mode — rides along as value steps.
-  Those steps read as `property = value` in the feed. Playing the saved macro
-  recreates the motion and the look on any selected layer, at the playhead,
-  with stagger. Position, scale, and rotation values deliberately do not move
-  a replay target, because a style should not teleport the layer it lands on.
-- **Add selected (n)** takes only the keyframes you selected on the timeline.
-  On current Creator builds it shows **(0), disabled**: Creator does not yet
-  report the timeline's keyframe selection to plugins. That is a host
-  limitation, not a broken button. The plugin also listens for the selection
-  event, so the key lights up by itself the moment a Creator build starts
-  delivering it. **Add all** is unaffected.
+- **Add all keyframes** takes the layer's whole state. Every animated property
+  becomes keyframe steps, and its fills travel whole: solid stays solid, and a
+  radial gradient stays radial. Replaying replaces a mismatched fill, and adds
+  one where none exists. The rest of its current *look* — static transform
+  values, stroke widths, text and font, and blend mode — rides along as value
+  steps. Those steps read as `property = value` in the feed. Playing the saved
+  macro recreates the motion and the look on any selected layer, at the
+  playhead, with stagger. Position, scale, and rotation values deliberately do
+  not move a replay target, because a style should not teleport the layer it
+  lands on.
+- **Add selected keyframes (n)** takes only the keyframes you selected on the
+  timeline. On current Creator builds it shows **(0)** and is off, with the
+  reason on the key: *Creator hasn't reported any selected keyframes to
+  plugins*. That is a host limitation, not a broken button. The plugin also
+  listens for the selection event, so the key lights up by itself the moment
+  a Creator build starts delivering it. **Add all keyframes** is unaffected.
 
 The offer follows your selection: select a different layer and it updates, and
 deselect and it leaves. It shows for a single selected layer only, and not for
-scene-instance layers, because their content is shared between instances.
-After **Add all**, that button disables for the layer, so a second tap cannot
-double up the steps.
+a scene layer, because a scene layer's content belongs to the scene it shows,
+and every layer that shows that scene shares it.
+After **Add all keyframes**, that key goes off for the layer and reads
+*Already added*, so a second tap cannot double up the steps.
 
 ---
 
@@ -147,8 +172,9 @@ double up the steps.
 A single drag produces a run of small steps (`position.x 0 → 12`, `12 → 40`,
 `40 → 100`). **Simplify** merges every such run into one `0 → 100` step. It
 also folds keyframe edit chains (add a keyframe, then nudge it three times)
-into one net change. Steps whose net effect is nothing (rotate 45°, rotate back)
-disappear.
+into one net change. A scene setting you changed several times — the frame
+rate, say — folds the same way, into one step from the first value to the
+last. Steps whose net effect is nothing (rotate 45°, rotate back) disappear.
 
 Simplify will *not* do the following:
 
@@ -187,6 +213,11 @@ editable this way — re-record those.
 Click **▶** on a macro row. How the plugin applies the macro depends on what
 the macro recorded.
 
+**Macros replay onto layers.** Select the layer, not a shape inside it. A
+shape in the selection is skipped, and the plugin says so once: *2 selected
+shapes skipped — macros replay onto layers*. With no layer left in the
+selection, you get the usual *Select a layer first*.
+
 **Macros that touched one layer** apply to **every selected layer**. With
 nothing selected, they apply to the layer they were recorded on, if it still
 exists. The values adapt per target:
@@ -199,12 +230,38 @@ exists. The values adapt per target:
   motion's first keyframe
 
 **Macros that touched several layers or changed scene structure** replay as a
-**scene script**: each step finds its layer by identity, then by name, and
+**scene rebuild**: each step finds its layer by identity, then by name, and
 reports a skip if it cannot. Duplicate steps really duplicate, and edits
 recorded on a copy go to the copy the replay created. Layers the replay
 recreates keep their kind: a recorded text layer comes back as a real text
 layer, with its text, font, size, and alignment applied. If the host cannot
-create one, the plugin skips the step with a note rather than faking it.
+create one, the plugin skips the step with a note rather than faking it. An
+image layer is always such a step: a recording holds no image asset, so the
+plugin reports *can't re-create an image layer — the recording has no image
+asset — skipped*. Every other edit to that image layer replays normally when
+the layer is already there.
+
+**A nest step rebuilds the layers.** Creator gives no plugin a way to move a
+layer into a scene, so the plugin rebuilds instead. It copies each selected
+layer into the new scene, places the new scene where the first selected layer
+was, and removes the originals. A run says *nested the 3 selected layers
+(rebuilt inside the new scene — Creator can't move them)*. An image layer
+cannot be copied, so it stays where it is: *an image layer can't be rebuilt
+inside the new scene — left it where it was*, and the count drops to *nested 2
+of the 3 selected layers*. If the rebuild fails, nothing moves: *couldn't
+rebuild your 3 selected layers inside a new scene — left them where they are*.
+With nothing selected, the plugin nests the layers it recorded. If they are
+gone but the nested scene is still there — you replay in the scene you
+recorded in — it uses that scene and says so: *Nested Scene 5 already exists
+— using it*. With neither left, it rebuilds the nested scene from the
+recording: *couldn't find the layers to nest — rebuilt Nested Scene 5 from
+the recording instead*. The copies are new layers, so undo takes several
+steps.
+
+**Scene settings apply to the scene.** A step that recorded the size,
+background, frame rate, duration, or name goes to the active scene once per
+play, whatever you have selected. Playback names the setting it wrote, and it
+says so when Creator keeps the old value.
 
 **Duplicate-macros are tools.** "Duplicate the layer, then move or recolor the
 copy" clones each *selected* layer and edits that clone, offset from the
@@ -226,6 +283,8 @@ time. You watch the macro happen rather than see it land all at once:
 - a step that fails swaps its number for a **red marker** and keeps it for the
   rest of the playback, even if you Continue past it
 - the row shows *Playing step X of Y* throughout
+- every other macro's Play key goes off and says why: *Another macro is
+  playing*
 
 The pace scales with the macro. A short macro steps about three times a
 second. A long one — a whole captured timeline, say — speeds up, so the walk
@@ -241,8 +300,9 @@ Three things can interrupt it:
 Anything the plugin deliberately does *not* apply — a value the layer did not
 need, or a fill it does not have — is never silent. The plugin collects it as
 a **note** and shows a toast when the playback ends ("4 steps adapted or
-skipped — this layer can't take masks (3 times) and other reasons"). The full
-list goes to the log for developers.
+skipped — this layer can't take masks (3 times) and other reasons"). That
+toast stays for eight seconds, because it is the only account of what the run
+adapted. The full list goes to the log for developers.
 
 ---
 
@@ -252,7 +312,7 @@ Click the **sliders next to ▶** to open the play options. In a very narrow
 panel the sliders leave the closed row, and the ⋮ menu offers **Play
 options…** instead. The dialog has
 **Cancel**. What you choose sticks to the row: the plain ▶ uses it too, and
-the row shows it (`×8 · +4f · @playhead`).
+the row shows it (`repeat ×8 · stagger 4 frames · at playhead`).
 
 ### At playhead
 
@@ -270,7 +330,7 @@ own animation moves with the in point.
 ### Stagger
 
 Stagger is meaningful only with several layers selected, so it is disabled for
-macros that replay as a scene script. It adds **N frames per layer**: the
+macros that replay as a scene rebuild. It adds **N frames per layer**: the
 first selected layer starts at the playhead, the second N frames later, the
 third 2N later, and so on. That is a cascade in one click. Combine it with *At
 playhead*, or leave the playhead off to stagger from the recorded frames.
@@ -357,7 +417,9 @@ Three of these actions have more to them:
   macro.
 - Expand: the open card's footer keeps **Play**, the play options, and the ⋮
   menu, so nothing needs collapsing first. Hover Play for the macro's duration
-  in frames.
+  ("Duration 30 frames"), and hover the **Steps (N)** heading for what the
+  macro will touch — *Applies to selected layers, or the recorded one*, or
+  *Rebuilds the scene — finds 2 layers by name*.
 
 A macro travels as plain JSON. Steps, disabled flags, and parameters ride
 along, so you can share macros between people and projects: paste the text
@@ -377,8 +439,9 @@ which is why sharing is copy and paste.
 - **Select before you play.** One-layer macros apply to every selected layer.
   With nothing selected, they fall back to the original layer.
 - **Read the notes toast.** "4 steps adapted or skipped — fills not found on
-  this layer" is the macro telling you that the layer's structure differs.
-- **Name your layers.** Scene scripts find layers by id, then by **name**, so
+  this layer" is the macro telling you that the layer's structure differs. A
+  run that only adapted says "adjusted" instead, and skipped nothing.
+- **Name your layers.** A scene rebuild finds layers by id, then by **name**, so
   consistent naming makes macros portable across files.
 
 ---
@@ -394,12 +457,26 @@ likely to meet these:
 - **Motion-path curves** (bezier handles between position keyframes) are not
   exposed either — curved motion replays as straight lines between the same
   keyframes.
-- **Nesting selected layers into a scene** cannot be replayed, because no API
-  route moves existing layers into a scene. The step reports itself honestly.
+- **A color token or slot** records as the flat color it resolves to, because
+  the binding itself is not exposed. Replay applies that color, and the target
+  keeps no token.
+- **Effects and ungroup** have no plugin API at all, so the recorder never
+  sees those edits.
+- **Nesting selected layers into a scene** rebuilds them, because no API route
+  moves existing layers into a scene. The plugin copies each selected layer
+  into the new scene, and then removes the original. The copies are new
+  layers, so undo takes one step per copy and one per removal. An image layer
+  stays where it is, with a note. With nothing selected in the scene the macro
+  was recorded in, the step uses the nested scene that already exists instead
+  of building a copy next to it.
+- **A new image layer** cannot be re-created on replay: a recording holds the
+  layer, not the image asset behind it. The step says so and skips.
+- **Macros replay onto layers**, so a shape in the selection is skipped with a
+  note. Select the layer that holds the shape.
 - Layer-reorder replay is live-verified: the macro records which layers it
   reordered, and replay checks them before it moves anything. Mask creation on
-  replay is fixed in this build, and a live session has not re-verified it
-  yet. Mask *edits* replay after the mask exists.
+  replay was fixed in the 0.4.0 build, and a live session has not re-verified
+  it since. Mask *edits* replay after the mask exists.
 - Fast drags are sampled at 2 steps per second — use *Simplify*.
 - Creator's plugin sandbox blocks file downloads. That is why sharing is
   **Copy JSON** and paste into **Import**, rather than a file export.

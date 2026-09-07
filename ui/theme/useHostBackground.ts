@@ -14,17 +14,34 @@ interface ThemeMessage {
  * wears its one committed skin (VINTAGE_TOKENS) and never flips.
  *
  * The message is the official ThemeProvider sync shape — the sandbox relay
- * (sandbox/theme.ts) forwards `{ type: "change:theme", tokens, themeName }`
- * per the ui-library docs; the legacy `{ type: "theme", isLight }` shape is
- * still accepted for the harness. Resolution order: pushed background/base
- * token → themeName / isLight → null, which leaves the CSS fallback (dark)
- * in charge — standalone dev has no host to match.
+ * (sandbox/theme.ts) forwards
+ * `{ type: "change:theme", tokens, themeName, isLight }` per the ui-library
+ * docs; the legacy `{ type: "theme", isLight }` shape is still accepted for
+ * the harness. Resolution order: pushed background/base token → isLight →
+ * themeName → null, which leaves the CSS fallback (dark) in charge —
+ * standalone dev has no host to match.
+ *
+ * Two things arrive from another window here, so both are checked: the
+ * message must come from the host frame (`window.parent`), and the colour it
+ * carries must survive the CSS parser before it reaches a style declaration.
  *
  * KEEP IN SYNC with the pre-React head script in index.html, which runs the
  * same resolution to paint the gutter before the bundle loads.
  */
 const LIGHT_BG = "hsl(0 0% 100%)"; // theme.css :root --background
 const DARK_BG = "hsl(198 16.7% 11.8%)"; // theme.css .dark --background
+
+/** A value from another window only reaches a style declaration if CSS
+ *  itself accepts it. `CSS.supports` is absent in old engines and in some
+ *  test doubles; there, the value passes as it always did. */
+function isPaintable(value: string): boolean {
+  try {
+    if (typeof CSS === "undefined" || typeof CSS?.supports !== "function") return true;
+    return CSS.supports("background-color", value);
+  } catch {
+    return false;
+  }
+}
 
 function resolveBackground(data: ThemeMessage): string | null {
   const pushed =
@@ -46,6 +63,9 @@ export function useHostBackground(): string | null {
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
+      // Only the host frame speaks for the theme; every other window is a
+      // stranger able to repaint the panel's chrome.
+      if (event.source !== window.parent) return;
       const data = (event.data?.pluginMessage ?? event.data) as ThemeMessage;
       if (!data || typeof data !== "object") return;
       const isTheme =
@@ -55,7 +75,7 @@ export function useHostBackground(): string | null {
         (data.tokens && typeof data.tokens === "object");
       if (!isTheme) return;
       const resolved = resolveBackground(data);
-      if (resolved) setBackground(resolved);
+      if (resolved && isPaintable(resolved)) setBackground(resolved);
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);

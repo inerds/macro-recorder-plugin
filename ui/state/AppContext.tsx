@@ -38,12 +38,25 @@ import {
   type AppState,
   type Notice,
 } from "./appReducer";
+import { summarizePlaybackNotes } from "./playbackNotes";
 
 /**
  * Defaults for a macro's parameter form: the pinned steps that still exist
  * and still carry an editable value. A macro whose pins have all gone stale
  * plays straight away rather than showing an empty form.
  */
+/**
+ * The sandbox store passes the host's own rejection text through, or says
+ * "Storage full — delete a macro first" when the host names its cap. An RPC
+ * timeout carries no user-readable cause, so that one keeps the plain line.
+ */
+function saveFailureText(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  return message && !message.startsWith("timeout")
+    ? message
+    : "Couldn't save the macro. Try again.";
+}
+
 function paramDefaults(macro: Macro): Record<string, EditableValue> {
   const values: Record<string, EditableValue> = {};
   for (const param of macro.params ?? []) {
@@ -95,7 +108,7 @@ export interface AppActions {
   /** Imports a pasted macro JSON; rejects so the caller can show the error inline. */
   importJson(json: string): Promise<void>;
   /** Shows a toast (and announces it) through the shared notice channel. */
-  notify(message: string, tone: Notice["tone"]): void;
+  notify(message: string, tone: Notice["tone"], kind?: Notice["kind"]): void;
 
   /** Opens the parameter form when the macro has parameters; else plays. */
   play(macroId: string, options?: PlayOptions): void;
@@ -227,10 +240,10 @@ export function AppProvider({
     }
   }, [state]);
 
-  const notify = useCallback((message: string, tone: Notice["tone"]) => {
+  const notify = useCallback((message: string, tone: Notice["tone"], kind?: Notice["kind"]) => {
     dispatch({
       type: "NOTICE",
-      notice: { id: newId(), message, tone },
+      notice: { id: newId(), message, tone, ...(kind ? { kind } : {}) },
     });
   }, []);
 
@@ -266,29 +279,16 @@ export function AppProvider({
         case "done": {
           playbackRunRef.current = null;
           const notes = event.notes ?? [];
+          const noteKinds = event.noteKinds ?? [];
           dispatch({ type: "PLAY_DONE" });
           // Steps the targets didn't need or couldn't take are not
           // failures, but staying quiet about them would be the silent
           // half-apply this playback path exists to avoid.
           if (notes.length > 0) {
             console.info("[macro-recorder] playback notes:\n" + notes.join("\n"));
-            // Dedupe identical reasons so the toast names what happened:
-            // '4 steps skipped — fills not found on this target'.
-            const counts = new Map<string, number>();
-            for (const note of notes) {
-              const reason = note.replace(/^Step \d+ · [^:]+: /, "");
-              counts.set(reason, (counts.get(reason) ?? 0) + 1);
-            }
-            const [topReason, topCount] = [...counts.entries()].sort(
-              (a, b) => b[1] - a[1],
-            )[0]!;
-            const message =
-              notes.length === 1
-                ? notes[0]!.replace(/^Step (\d+) · ([^:]+): /, "Step $1 ($2): ")
-                : `${notes.length} steps adapted or skipped — ${topReason}` +
-                  (topCount > 1 ? ` (${topCount} times)` : "") +
-                  (counts.size > 1 ? " and other reasons" : "");
-            notify(message, "info");
+            // Tagged so the toast gives it a long read: this line is the
+            // whole report of what the run adapted or skipped.
+            notify(summarizePlaybackNotes(notes, noteKinds), "info", "playback-notes");
           }
           break;
         }
@@ -319,7 +319,7 @@ export function AppProvider({
       const macro = findMacro(macroId);
       if (!macro) return;
       void store.save(update(macro)).catch(() => {
-        notify("Could not update macro", "error");
+        notify("Couldn't update the macro. Try again.", "error");
       });
     },
     [findMacro, store, notify],
@@ -344,7 +344,7 @@ export function AppProvider({
           })
           .catch((error: unknown) => {
             const message =
-              error instanceof Error ? error.message : "Could not start recording";
+              error instanceof Error ? error.message : "Couldn't start recording. Try again.";
             notify(message, "error");
           });
       },
@@ -375,7 +375,7 @@ export function AppProvider({
             } else if (raw === RPC_ERRORS.nodeGone) {
               notify("That layer is no longer in the scene.", "error");
             } else {
-              notify(`Couldn't add keyframes — ${raw}`, "error");
+              notify("Couldn't add the keyframes. Try again.", "error");
             }
           });
       },
@@ -441,8 +441,11 @@ export function AppProvider({
           // row's popover can still turn it off for the session.
           playOptions: { atPlayhead: true },
         };
-        void store.save(macro).catch(() => {
-          notify("Could not save macro", "error");
+        void store.save(macro).catch((error: unknown) => {
+          // The sandbox store passes the host's own words through (or
+          // "Storage full — delete a macro first" when the host names the
+          // cap), so show them instead of a fixed line.
+          notify(saveFailureText(error), "error");
         });
         void store.remove(REVIEW_DRAFT_ID).catch(() => {});
         dispatch({ type: "REVIEW_SAVE", macro });
@@ -463,7 +466,7 @@ export function AppProvider({
         dispatch({ type: "RENAME_COMMIT", macroId, name });
         if (trimmed) {
           void store.rename(macroId, trimmed).catch(() => {
-            notify("Could not rename macro", "error");
+            notify("Couldn't rename the macro. Try again.", "error");
           });
         }
       },
@@ -514,7 +517,7 @@ export function AppProvider({
       confirmDelete(macroId) {
         dispatch({ type: "DELETE_CONFIRM", macroId });
         void store.remove(macroId).catch(() => {
-          notify("Could not delete macro", "error");
+          notify("Couldn't delete the macro. Try again.", "error");
         });
       },
       duplicateMacro(macroId) {
@@ -536,7 +539,7 @@ export function AppProvider({
         if (params.length > 0) copy.params = params;
         dispatch({ type: "DUPLICATE", macro: copy });
         void store.save(copy).catch(() => {
-          notify("Could not duplicate macro", "error");
+          notify("Couldn't duplicate the macro. Try again.", "error");
         });
       },
       async copyMacroJson(macroId) {
