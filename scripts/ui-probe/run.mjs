@@ -40,11 +40,33 @@ async function startDevServer() {
   const port = await freePort();
   const url = `http://127.0.0.1:${port}/`;
   console.log(`# starting vite on ${url}`);
-  devServer = spawn("pnpm", ["exec", "vite", "--port", String(port), "--strictPort"], {
-    cwd: ROOT,
-    stdio: ["ignore", "ignore", "inherit"],
-    detached: true,
-  });
+  // `--host 127.0.0.1`: the probe polls that address, so Vite must bind it.
+  // Left to its default, Vite binds `localhost`, which on GitHub's ubuntu
+  // runners resolves to ::1 first — every poll got ECONNREFUSED and the
+  // job timed out on 2026-09-07 while the same command passed on macOS,
+  // where `localhost` binds both families.
+  devServer = spawn(
+    "pnpm",
+    ["exec", "vite", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    {
+      cwd: ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    },
+  );
+  // Keep Vite's last lines so a start-up failure says why instead of only
+  // that it timed out.
+  const tail = [];
+  const keep = (chunk) => {
+    for (const line of String(chunk).split("\n")) {
+      if (line.trim() === "") continue;
+      tail.push(line);
+      if (tail.length > 30) tail.shift();
+      if (process.env.UI_PROBE_VERBOSE) console.log(`# vite: ${line}`);
+    }
+  };
+  devServer.stdout.on("data", keep);
+  devServer.stderr.on("data", keep);
   devServer.on("error", (error) => {
     console.error(`# vite failed to start: ${error.message}`);
   });
@@ -57,7 +79,11 @@ async function startDevServer() {
     } catch {
       // not listening yet
     }
-    if (Date.now() > deadline) throw new Error("vite did not come up within 60s");
+    if (Date.now() > deadline) {
+      throw new Error(
+        `vite did not come up within 60s\n# vite output:\n${tail.map((l) => `#   ${l}`).join("\n")}`,
+      );
+    }
     await sleep(250);
   }
 }
