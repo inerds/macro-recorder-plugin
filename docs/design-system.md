@@ -208,7 +208,8 @@ recording clock, the status lamp, and the state word.
   state channel so it is the last thing allowed to truncate. Two nested
   surfaces cost two sets of padding — that collapse is what took the hero
   from 195px to 148px on a 300x520 panel; the scope caption (below) took it
-  back up to 165px.
+  back up, and the 320x560 panel (2026-09-07) makes it 174px with the stage
+  at 119px.
 - **The stage is a studio deck's faceplate, drawn to a reference photo
   (2026-09-03).** `ReelDeck.tsx` builds it from constants: two R=44 reels
   centred at y=47, each a spun-silver flange (radial gradient + alternating
@@ -350,8 +351,12 @@ recording clock, the status lamp, and the state word.
   happens one level up, where `.panel-root`'s `overflow: clip` carves the
   plate's 10px radius out of it against the dark `.host-frame` gutter. `.deck-stage`'s
   height is then tuned against the BLED window width so the drawing is
-  width-limited rather than height-limited: window = panel - 2x chassis
-  padding, and `height = 110 * (window / 272)` (117px at a 300px panel). Get
+  width-limited rather than height-limited: window = iframe - 2x host-frame
+  gutter (8px, and the frame is painted in Creator too) - 2x chassis
+  padding (5px), and `height = 110 * (window / 272)` (294px and 119px at the
+  320px panel the sandbox opens, `sandbox/plugin.ts`; the old 117px at 300px
+  omitted the gutters and was 6px tall). Measure it headlessly rather than
+  derive it. Get
   this wrong and the reels quietly letterbox inside the glass instead of
   filling it — widening the chassis on its own buys nothing.
 - Deck CSS lives in **`ui/styles/deck.css`**, imported from `index.css`
@@ -363,10 +368,11 @@ recording clock, the status lamp, and the state word.
   travels as `data-deck` on `.deck-stage`; the stage `div` carries the dark
   plate and the SVG only the mechanism.
 - **The collapse threshold is a real breakpoint, not a round number.**
-  `@container panel (max-height: 369px)` (needs `container: panel / size` on
-  `.panel-root`) is set where the *list* stops working — hero 165px
-  (`5 + 110 + 4 + 24 + 4 + 13 + 5`), list needs ~150px for its header, a
-  row, and a peek. Re-derive it whenever the hero's height changes. It was 520px once,
+  `@container panel (max-height: 371px)` (needs `container: panel / size` on
+  `.panel-root`) is set where the *list* stops working — hero 174px
+  (`5 + 119 + 4 + 24 + 4 + 13 + 5`), list needs ~150px for its header, a
+  row, and a peek. Re-derive it whenever the hero's height changes; the
+  320px panel moved it from 369 to 371 with the stage's 2px. It was 520px once,
   which is exactly the panel height README tells you to develop at, so the
   hero rendered collapsed at every realistic size and the reels were sliced
   through the middle. When it does collapse the stage scales the drawing DOWN

@@ -12,6 +12,12 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-07 — Panel size (ENGINE_REV `2026-09-07.8`)
+
+| Issue | Fix |
+|---|---|
+| The panel opened at 300 × 520, tight for the verb editor and the list. | `creator.ui.show({ width: 320, height: 560 })` (user decision). The deck's stage height is tuned to the bled width — iframe minus the host-frame gutters and chassis padding, 294px — so it is 119px now (the old 117 omitted the gutters), the hero 174px, and the collapse breakpoint 371px (was 369); README's dev viewport line follows. Measured headlessly: stage 294 × 119 matches the 272 × 110 drawing's aspect. `creator.ui.show` sizes are not live-verified in `docs/runtime-api.md`; the first Creator load after this rev checks them. |
+
 ## 2026-09-07 — Step formulas (ENGINE_REV `2026-09-07.7`)
 
 | Issue | Fix |

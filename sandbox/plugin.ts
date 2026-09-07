@@ -1,7 +1,15 @@
 import type { Macro } from "../engine/macro";
 import { ENGINE_REV, isRpcMessage, PROTOCOL_VERSION } from "../engine/protocol";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
-import { initSelectionEvents, recordCaptureKeyframes, recordDiscard, recordStart, recordStop, recordTick, selectionPeek } from "./recorder";
+import {
+  initSelectionEvents,
+  recordCaptureKeyframes,
+  recordDiscard,
+  recordStart,
+  recordStop,
+  recordTick,
+  selectionPeek,
+} from "./recorder";
 import { handleMessage, registerHandler } from "./rpc-server";
 import { lastUsedQuota, listMacros, removeMacro, renameMacro, saveMacro } from "./store";
 import { sendTheme, watchTheme } from "./theme";
@@ -10,7 +18,10 @@ import { sendTheme, watchTheme } from "./theme";
 // offer (the polled getter is empty-in-practice on the live host).
 initSelectionEvents();
 
-creator.ui.show({ width: 300, height: 520 });
+// 320 × 560 (user decision, 2026-09-07; was 300 × 520): the list gains two
+// rows and the reels 8px. The deck's stage height in deck.css is tuned to
+// THIS width — change one and re-derive the other.
+creator.ui.show({ width: 320, height: 560 });
 
 registerHandler("hello", () => {
   // The docs' "UI is ready" moment: hand the freshly-booted iframe the
@@ -35,9 +46,7 @@ registerHandler("store.rename", (params) => {
 });
 registerHandler("store.remove", (params) => removeMacro((params as { id: string }).id));
 
-registerHandler("record.start", (params) =>
-  recordStart((params ?? {}) as { debug?: boolean }),
-);
+registerHandler("record.start", (params) => recordStart((params ?? {}) as { debug?: boolean }));
 registerHandler("record.tick", (params) => recordTick((params as { seq: number }).seq));
 registerHandler("record.captureKeyframes", (params) =>
   recordCaptureKeyframes(params as { layerId: string; scope: "all" | "selected" }),
@@ -52,9 +61,7 @@ registerHandler("selection.peek", () => selectionPeek());
 registerHandler("playback.begin", (params) =>
   playbackBegin(params as Parameters<typeof playbackBegin>[0]),
 );
-registerHandler("playback.step", (params) =>
-  playbackStep(params as { index: number }),
-);
+registerHandler("playback.step", (params) => playbackStep(params as { index: number }));
 registerHandler("playback.end", () => playbackEnd());
 
 creator.ui.onMessage((message: unknown) => {

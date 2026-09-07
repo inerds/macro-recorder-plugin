@@ -46,7 +46,7 @@ the nameplate, so you can see which way it is going. The reels
 are pure confirmation: the lamp and the state word always say the same thing,
 and if your system asks for reduced motion the reels stay still.
 
-In a very short panel, under about 369px tall, the deck scales down but keeps
+In a very short panel, under about 371px tall, the deck scales down but keeps
 whole, turning reels. The scope caption stays. Nothing moves anywhere else.
 
 The panel wears one skin and keeps it. Only the surround around the panel

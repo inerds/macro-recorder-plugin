@@ -109,7 +109,8 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:5173` and size the viewport to about 300×520. The
+Open `http://localhost:5173` and size the viewport to about 320×560, the
+size the plugin asks Creator for in `sandbox/plugin.ts`. The
 **Dev settings** strip at the panel foot (dev builds only) loads the ten demo
 macros, clears the store, controls the mock recorder and playback scenarios,
 and shows captured traces.

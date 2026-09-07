@@ -6,6 +6,8 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- The panel opens at 320 × 560 instead of 300 × 520: two more rows in the
+  list, and the reels a touch larger.
 - What you select before you press Record now decides what the recorder
   watches. Select a layer and only that layer records; a selected shape
   counts as its layer. Select nothing and the whole scene records, as
