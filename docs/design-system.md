@@ -434,8 +434,8 @@ language. Two rules keep it coherent:
   `NARROW_PANEL_PX` = 262, kept equal to the CSS) because the menu is
   portalled out of the container query's reach. Open cards keep everything.
 - **A transform step's value is a verb and a number box, one row per
-  component.** A compact menu button naming what replay does — SET TO, ADD,
-  SUBTRACT, MULTIPLY BY, DIVIDE BY, and FORMULA for anything the five cannot
+  component.** A compact menu button naming what replay does — Set to, Add,
+  Subtract, Multiply, Divide, and Formula… for anything the five cannot
   say — then a 64px `Input`. Two controls before it were rejected on sight:
   a bare expression box reading `v + 30` (user report, 2026-09-07) showed the
   user a language rather than a control, and the five glyph keys that replaced
@@ -474,10 +474,10 @@ language. Two rules keep it coherent:
   `DropdownContent`/`DropdownItem`, the same four the row's overflow menu
   uses. The current verb carries a leading `Check`; the others carry an
   invisible one, so the words stay on one left edge. A verb the arithmetic
-  cannot reach — MULTIPLY BY or DIVIDE BY from a recorded 0 — is
-  `aria-disabled` with the reason in its `title`, never the library's
-  `disabled`: that one sets `pointer-events: none` and takes the reason with
-  it.
+  cannot reach — Multiply or Divide from a recorded 0, and Divide when the box
+  beside it reads 0 — is `aria-disabled` with the reason in its `title`, never
+  the library's `disabled`: that one sets `pointer-events: none` and takes the
+  reason with it.
 - **The menu is portalled, so the row that commits on blur has to know it is
   open.** `StepValueEditor` raises `onMenuOpenChange`, and `StepRow` holds it
   in a ref its `onBlur` reads: opening a verb menu moves focus out of the

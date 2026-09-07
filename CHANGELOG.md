@@ -6,6 +6,20 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- What you select before you press Record now decides what the recorder
+  watches. Select a layer and only that layer records; a selected shape
+  counts as its layer. Select nothing and the whole scene records, as
+  before. The deck shows which one Record will do, and the recording screen
+  names it. Edits to other layers are dropped and counted ("2 changes
+  outside Layer A ignored"), never recorded by surprise. Duplicates and new
+  layers still record. Scene settings record in whole-scene recordings only.
+- The review sheet now opens on the simplified list, because a single drag is
+  recorded as a chain of micro-steps. Select **Keep every step** above the
+  step list to see the recording as it was captured; the choice holds until
+  you close the panel. A saved macro keeps its manual **Simplify** button.
+- Playback walks the step list in about a second and a half instead of four
+  and a half. Short macros pace the same as before; long ones no longer take
+  many seconds to finish.
 - The pencil on a step for a layer's own position, rotation, skew, skew axis,
   or scale now opens **a verb and a number box**: **Set to**, **Add**,
   **Subtract**, **Multiply**, **Divide**, or **Formula…** for a whole
@@ -17,9 +31,9 @@ one row per fix — is `docs/history/improvements.md`.
   current value. The default is unchanged — a drag opens as **Add** `60`, a
   scale as **Multiply** `2` — so a macro you never edit behaves as it
   always did.
-- Every number the panel prints or converts now shows **two decimals** instead
-  of four. A number that two decimals would flatten into "changes nothing"
-  keeps the digits it needs, and what you type is stored as you type it.
+- Numbers in the panel show **two decimals**. A number that two decimals would
+  flatten into "changes nothing" keeps the digits it needs, and what you type
+  is stored as you type it.
 - A recorded "rotation to 0", "skew to 0", or "scale to 100%" step now
   applies **exactly**, in macros you saved before this version too. Such a
   step used to replay as a delta, so a target at 30° ended at −15° instead
@@ -37,21 +51,8 @@ one row per fix — is `docs/history/improvements.md`.
   the others. A layer that could not take a step — a property already on the
   timeline, for instance — now keeps its own starting point for the steps that
   follow, instead of measuring against a value only its neighbours reached.
-
-- The review sheet now opens on the simplified list, because a single drag is
-  recorded as a chain of micro-steps. Select **Keep every step** above the
-  step list to see the recording as it was captured; the choice holds until
-  you close the panel. A saved macro keeps its manual **Simplify** button.
-- Playback walks the step list in about a second and a half instead of four
-  and a half. Short macros pace the same as before; long ones no longer take
-  many seconds to finish.
-- What you select before you press Record now decides what the recorder
-  watches. Select a layer and only that layer records; a selected shape
-  counts as its layer. Select nothing and the whole scene records, as
-  before. The deck shows which one Record will do, and the recording screen
-  names it. Edits to other layers are dropped and counted ("2 changes
-  outside Layer A ignored"), never recorded by surprise. Duplicates and new
-  layers still record. Scene settings record in whole-scene recordings only.
+- A macro the panel cannot draw now reports what happened and how to recover,
+  instead of leaving the panel blank.
 
 ## 0.7.0 — 2026-09-07
 

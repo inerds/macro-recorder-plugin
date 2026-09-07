@@ -82,6 +82,19 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   `[nest] shell.scene.createShapeLayer` breadcrumb is the FIRST live evidence
   for the inner-scene factories: report it, because `runtime-api.md` still
   lists them as pending.
+  Two more fences at rev `2026-09-07.2`. Recording is SCOPED to the selection
+  at `record.start`, so a step that never appears can be a deliberate drop,
+  not a differ bug: `record.start` reports the `scope`, `record.tick` reports
+  a cumulative `ignored` count and a grown `scope` on the tick that grew it,
+  and `debug.ignored` gives that tick's own drop count. Check those three
+  before you call a missing step a diff failure. The idle `selection.peek`
+  poll is kept out of the bundle on purpose, so a trace shows no evidence of
+  what the panel displayed before Record. One more fence at rev
+  `2026-09-07.7`: a `set-static` or `keyframes` payload can carry `apply`,
+  one `LinearTerm` (`{scale, offset}`) or one per component. Playback reads
+  the target's LIVE value for such a step, so its `before` probe is that live
+  value and not the baseline frozen at `playback.begin` — a formula step's
+  result is expected to differ from the recorded `after`.
 
 ## The dev strip
 

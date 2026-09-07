@@ -76,13 +76,13 @@ Replay picks one of two modes. A macro that touched at most one layer applies
 to every **selected layer**: the layer's own position, rotation, and skew
 shift each target from its own start, scale multiplies, and everything else
 applies exactly. Each transform step carries a formula on the target's
-current value, written `v` — `v + 60`, `v * 2`, or a plain number to set the
-value exactly — and the pencil edits it. Only layers are targets — a selected
-shape is dropped with a note, because every step addresses its layer by
-path. A macro that touched
-several layers, or that restructured the scene, replays as a **scene
-rebuild**: each step finds its layer by recorded id, then by name, then skips
-with a note.
+current value, and the pencil opens it as a verb and a number — Set to, Add,
+Subtract, Multiply, Divide, or Formula… for a whole expression such as
+`v * 2 + 10`, where `v` is that current value. Only layers are targets — a
+selected shape is dropped with a note, because every step addresses its layer
+by path. A macro that touched several layers, or that restructured the scene,
+replays as a **scene rebuild**: each step finds its layer by recorded id,
+then by name, then skips with a note.
 
 Two rules govern every step:
 
@@ -142,7 +142,7 @@ the fake scene from the console through `window.harness`.
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (682 tests, 30 files)
+pnpm test          # vitest: engine logic, reducer, demo-macro replay (716 tests, 31 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)

@@ -140,7 +140,7 @@ omits unreadable properties; `engine/json.ts#toJson` deep-copies into JSON-safe
 data with a depth cap so nothing uncloneable escapes into an RPC payload. An
 absent property is a normal outcome, never an error.
 
-## Engine v3 — whole-scene recording (architecture as of 2026-08-22)
+## Engine v3 — whole-scene diff, selection-scoped recording (2026-08-22, scoped 2026-09-07)
 
 `runtime-api.md` is required reading: the published typings still diverge from
 the runtime in the places it lists, and every workaround in the engine anchors
@@ -362,7 +362,18 @@ Where each piece lives and the invariants worth keeping:
   of this feature stored a three-value `StepOperator` enum and put three keys
   in the row; exact, add, and multiply are three points in the term space, so
   the enum bought a control the user had to read and gave nothing the pair
-  does not. One box holds all three, and every point between them.
+  does not. The row shows one verb menu and one number box per component —
+  Set to, Add, Subtract, Multiply, Divide, and Formula… for the raw
+  expression — and `ui/components/formulaControl.ts` DERIVES the verb from
+  the stored term, so the pair stays the only thing on disk.
+- **`explicitFormulaOf` (`engine/operator.ts`) is the only reader of
+  `payload.apply`.** It honours a term or a per-component record, converts
+  the first cut's `"exact"` / `"add"` / `"multiply"` strings to the formula
+  they meant on a `set-static` step, drops them on a `keyframes` step, and
+  treats anything else as absent. One reader is what keeps a macro saved by
+  an older build from reaching a `toFixed` on `undefined`; `PanelErrorBoundary`
+  (`ui/main.tsx`) is the second line, so a render error shows what happened
+  instead of a blank panel.
 - **`engine/formula.ts` is the parser, and it is the only place text becomes
   a term.** A tokenizer plus recursive descent over the usual precedence,
   evaluating to a polynomial in `v` of degree 1. `+` and `-` add polynomials,
@@ -522,7 +533,7 @@ to test the no-`localStorage` / no-`randomUUID` paths.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-08-26.52)
+## Status and open threads (as of engine rev 2026-09-07.7)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two

@@ -33,6 +33,7 @@ carries no title, and the transport row under the reels is the readout:
 | **State word** | READY · RECORDING · REWIND · PLAYING · PAUSED · DONE. |
 | **Counter** | The steps captured while you record or review, and the step being applied during playback. |
 | **Clock** | Appears while you record, and shows minutes and seconds (m:ss). |
+| **Scope caption** | Under the transport row: *RECORDS · LAYER A* before you record, and *RECORDING · LAYER A* while you record. |
 | **The reels** | Spin while you record, rewind when you trigger a macro, run forward while it plays, and coast to a stop when it ends. When the deck is at rest you can spin them yourself: drag a reel and let go, and they coast like a platter while the counter runs with them. |
 
 The counter is the four-digit readout at the right of the transport row, and
@@ -45,8 +46,8 @@ the nameplate, so you can see which way it is going. The reels
 are pure confirmation: the lamp and the state word always say the same thing,
 and if your system asks for reduced motion the reels stay still.
 
-In a very short panel, under about 352px tall, the deck scales down but keeps
-whole, turning reels. Nothing moves anywhere else.
+In a very short panel, under about 369px tall, the deck scales down but keeps
+whole, turning reels. The scope caption stays. Nothing moves anywhere else.
 
 The panel wears one skin and keeps it. Only the surround around the panel
 follows Creator's own light or dark setting.
@@ -261,8 +262,8 @@ between **Multiply** and **Divide**, the number stays as you typed it:
 the number converts through the value the step recorded, so it keeps
 meaning the same edit. A drag from 100 to 130 opens as **Add** `30`. Choose
 **Set to** and the box shows `130`. Choose **Multiply** and it shows `1.3`.
-A step recorded from 0 cannot use **Multiply** or **Divide** — those two
-items go quiet and say why.
+A step recorded from 0 cannot use **Multiply** or **Divide**, and **Divide**
+needs a number that is not 0 — those items go quiet and say why.
 
 Numbers show two decimals. A number that two decimals would flatten into
 "changes nothing" — a shift of `0.00004`, a scale of `1.00001` — keeps the
@@ -376,8 +377,8 @@ time. You watch the macro happen rather than see it land all at once:
   playing*
 
 The pace scales with the macro. A short macro steps about three times a
-second. A long one — a whole captured timeline, say — speeds up, so the walk
-takes about a second and a half rather than a minute.
+second. A long one — a whole captured timeline, say — speeds up: 15 steps
+walk in about a second and a half, and 200 steps in about four seconds.
 
 Three things can interrupt it:
 
@@ -399,9 +400,9 @@ adapted. The full list goes to the log for developers.
 
 Click the **sliders next to ▶** to open the play options. In a very narrow
 panel the sliders leave the closed row, and the ⋮ menu offers **Play
-options…** instead. The dialog has
-**Cancel**. What you choose sticks to the row: the plain ▶ uses it too, and
-the row shows it (`repeat ×8 · stagger 4 frames · at playhead`).
+options…** instead. The dialog has **Play** and **Cancel**. What you choose
+sticks to the row: the plain ▶ uses it too, and the row shows it
+(`repeat ×8 · stagger 4 frames · at playhead`).
 
 ### At playhead
 
