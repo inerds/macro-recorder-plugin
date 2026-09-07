@@ -35,10 +35,14 @@ skip a failing check to reach the end.
    X.Y.Z`, with no body, ending in the attribution trailer this session uses
    (`Co-Authored-By` and `Claude-Session` lines — match the shape of recent
    commits from `git log --oneline --all --grep=Release`).
-9. Tag the release commit: `git tag vX.Y.Z`.
+9. Tag the release commit with an ANNOTATED tag: `git tag -a vX.Y.Z -m "Release X.Y.Z"`.
+   A lightweight tag is not sent by `--follow-tags` (0.8.0 shipped its tag
+   in a second push for this reason).
 10. Stop. Report the version, the changelog block, and the check results, and
     ask the user before you push. Only on explicit confirmation, run
-    `git push origin main --follow-tags` — the tag is what triggers
+    `git push origin main --follow-tags`, then confirm with
+    `git ls-remote --tags origin vX.Y.Z` (push the tag by name if it is
+    missing) — the tag is what triggers
     `release.yml`.
 
 ## Never
