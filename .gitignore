@@ -4,5 +4,6 @@ traces/
 .claude/settings.local.json
 .DS_Store
 *.zip
-release/
+/release/
 *.log
+artifacts/

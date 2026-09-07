@@ -27,12 +27,16 @@
     "bundle": "pnpm build && node scripts/bundle.mjs",
     "bundle:dev": "tsc -b && NODE_ENV=development vite build --mode development && node scripts/bundle.mjs --dev",
     "type-check": "tsc -b",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=artifacts/vitest.json",
+    "posttest": "node scripts/lint-docs.mjs --fix --quiet --counts-file artifacts/vitest.json",
+    "lint:docs": "node scripts/lint-docs.mjs",
     "test:watch": "vitest",
     "test:quickjs": "vite build >/dev/null && node scripts/quickjs-smoke.mjs",
+    "test:ui": "node scripts/ui-probe/run.mjs",
     "preview": "vite preview",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "release:check": "node scripts/release-notes.mjs --unreleased"
   },
   "dependencies": {
     "@lottiefiles/creator-plugins-ui": "^0.2.2",

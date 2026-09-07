@@ -12,7 +12,13 @@
  * can show. Anything else — `v * 2 + 10`, half-typed text, a paste the parser
  * refuses — is Formula, and the box shows the expression as it stands.
  */
-import { expandExponent, evalTerm, parseFormula, roundKeepingMeaning } from "../../engine/formula";
+import {
+  DECIMALS,
+  expandExponent,
+  evalTerm,
+  parseFormula,
+  roundKeepingMeaning,
+} from "../../engine/formula";
 
 /** The five verbs that take a number. `Formula` is the absence of one. */
 export type FormulaOp = "=" | "+" | "-" | "*" | "/";
@@ -57,9 +63,6 @@ export const FORMULA_VERB = "Formula";
 
 /** The verbs in menu order — the source for both the render and the tests. */
 export const OP_ORDER: readonly FormulaOp[] = ["=", "+", "-", "*", "/"];
-
-/** The most decimals an operand ever shows. Past this a converted ratio is noise. */
-const DECIMALS = 2;
 
 /**
  * The values an operand must never be ROUNDED onto, per verb. A `+ 0.00004`

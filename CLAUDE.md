@@ -32,6 +32,8 @@ rationale lives in `docs/`.
   still diverge from the runtime in the places this file lists.
 - [`docs/limitations.md`](docs/limitations.md) — confirmed host limits, with
   evidence.
+- [`docs/contributing/backlog.md`](docs/contributing/backlog.md) — proposed
+  automation this project has not built, with evidence and size for each.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, the checks a change must pass,
   and how a release is cut.
 
@@ -74,7 +76,9 @@ claiming plugin-side work is done.
    it there. Keep reasoning and design notes out of that log; they belong in
    `docs/architecture.md` or `docs/design-system.md`. File a confirmed platform
    limit in [`docs/limitations.md`](docs/limitations.md) with its evidence, and
-   move the entry to the improvements log if the host later lifts it.
+   move the entry to the improvements log if the host later lifts it. Run
+   `pnpm lint:docs` before you claim a document is updated: it checks the
+   numbers and the names the docs quote against the code that owns them.
 3. **Keep the proxy boundary.** Reads of Creator's live node proxies belong
    in `sandbox/serialize.ts` and writes in `sandbox/applier.ts`;
    `sandbox/playback.ts` and `sandbox/recorder.ts` touch proxies only to

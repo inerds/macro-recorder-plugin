@@ -147,6 +147,7 @@ the fake scene from the console through `window.harness`.
 ```bash
 pnpm test          # vitest: engine logic, reducer, demo-macro replay (734 tests, 33 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
+pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)
 ```
@@ -155,6 +156,12 @@ pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.h
 pumping the VM job queue. A pure VM promise chain never settles there, so code
 that passes in a browser can be dead in Creator. The smoke test drives the
 real bundle with zero pumps and asserts the RPC contract holds.
+
+`test:ui` exists because the unit tests run in Node with no DOM. It opens the
+panel in headless Chrome over the DevTools protocol and asks the page what
+paints on top, what a box measures, and what a key does under a modifier —
+the questions that caught a menu buried behind the deck. See
+[`scripts/ui-probe/README.md`](scripts/ui-probe/README.md).
 
 ## Repository layout
 
