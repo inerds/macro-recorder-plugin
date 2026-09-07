@@ -55,7 +55,7 @@ jobs:
           prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
 
       - name: Keep the dev bundle as a workflow artifact (collaborators only)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macro-recorder-${{ github.ref_name }}-dev
           path: release/macro-recorder-${{ github.ref_name }}-dev.zip
