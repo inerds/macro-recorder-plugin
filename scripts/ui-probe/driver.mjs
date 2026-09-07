@@ -71,14 +71,31 @@ export async function launchProbe({ baseUrl } = {}) {
       "--no-default-browser-check",
       "--disable-gpu",
       "--disable-dev-shm-usage",
+      // GitHub's ubuntu runners cannot give Chrome its user-namespace
+      // sandbox, and without this flag Chrome exits before it opens the
+      // debugging port (CI run 34143912141, 2026-09-07). The profile is a
+      // temp dir and the only page is our own dev server, so the sandbox
+      // buys nothing here.
+      "--no-sandbox",
       "--hide-scrollbars",
       "about:blank",
     ],
-    { stdio: "ignore" },
+    { stdio: ["ignore", "ignore", "pipe"] },
   );
+  // Keep Chrome's last lines so a start-up failure says why.
+  const tail = [];
+  chrome.stderr.on("data", (chunk) => {
+    for (const line of String(chunk).split("\n")) {
+      if (line.trim() === "") continue;
+      tail.push(line);
+      if (tail.length > 20) tail.shift();
+      if (process.env.UI_PROBE_VERBOSE) console.log(`# chrome: ${line}`);
+    }
+  });
 
   let wsUrl = null;
-  for (let attempt = 0; attempt < 80 && wsUrl === null; attempt += 1) {
+  // 30 s: a cold runner unpacks Chrome's profile and fonts on first launch.
+  for (let attempt = 0; attempt < 240 && wsUrl === null; attempt += 1) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
       wsUrl = list.find((target) => target.type === "page")?.webSocketDebuggerUrl ?? null;
@@ -89,7 +106,9 @@ export async function launchProbe({ baseUrl } = {}) {
   }
   if (wsUrl === null) {
     chrome.kill();
-    throw new Error("Chrome did not open a debugging port");
+    throw new Error(
+      `Chrome did not open a debugging port\n# chrome output:\n${tail.map((l) => `#   ${l}`).join("\n")}`,
+    );
   }
 
   const socket = new WebSocket(wsUrl);
