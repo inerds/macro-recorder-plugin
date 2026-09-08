@@ -4,6 +4,7 @@ import {
   deckCountLabel,
   deckLabel,
   deckLamp,
+  deckToggleLabel,
   deriveDeckState,
   type DeckFlags,
   type DeckInput,
@@ -124,14 +125,7 @@ describe("deriveDeckState", () => {
   }
 
   it("every state has a lamp decision and a label", () => {
-    const all: DeckState[] = [
-      "idle",
-      "recording",
-      "rewind",
-      "playing",
-      "paused",
-      "done",
-    ];
+    const all: DeckState[] = ["idle", "recording", "rewind", "playing", "paused", "done"];
     for (const state of all) {
       expect(deckLabel(state)).toMatch(/^[A-Z]/);
       expect([null, "red", "amber"]).toContain(deckLamp(state));
@@ -146,5 +140,15 @@ describe("deckCountLabel", () => {
     expect(deckCountLabel("playing", 4)).toBe("4 steps played");
     expect(deckCountLabel("paused", 2)).toBe("2 steps played");
     expect(deckCountLabel("idle", 0)).toBe("0 steps");
+  });
+});
+
+describe("deckToggleLabel", () => {
+  it("says Stop only while a recording runs", () => {
+    expect(deckToggleLabel("recording")).toBe("Stop");
+    const rest: DeckState[] = ["idle", "rewind", "playing", "paused", "done"];
+    for (const state of rest) {
+      expect(deckToggleLabel(state)).toBe("Record");
+    }
   });
 });

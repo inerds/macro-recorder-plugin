@@ -1,16 +1,16 @@
 /**
- * Holding Alt (Option) over REC promises an exact-values recording, and the
- * key says so by turning blue before it is pressed.
+ * Holding Alt (Option) over the Record key promises an exact-values
+ * recording, and the key says so by turning blue before it is pressed.
  *
  * The promise and the recording read the same `altKey` (`recordModifier.ts`),
  * but nothing in a unit test proves the pointer path is wired: the hover
  * colour comes from a React state that only a real `mousemove` carrying the
  * modifier can set. CDP's `modifiers: 1` is that modifier.
  */
-const REC = '[data-testid="record-button"]';
+const KEY = '[data-testid="record-button"]';
 
 const classOf = (probe) =>
-  probe.evaluate(`document.querySelector(${JSON.stringify(REC)})?.className ?? null`);
+  probe.evaluate(`document.querySelector(${JSON.stringify(KEY)})?.className ?? null`);
 
 export default async function recordExactModifier(probe) {
   const { check } = probe;
@@ -18,7 +18,7 @@ export default async function recordExactModifier(probe) {
   await probe.setViewport(320, 560);
   await probe.navigate();
 
-  const rect = await probe.rectOf(REC);
+  const rect = await probe.rectOf(KEY);
   check("the deck has a Record key", rect !== null);
   if (!rect) return;
   const x = rect.x + rect.w / 2;
@@ -26,13 +26,13 @@ export default async function recordExactModifier(probe) {
 
   await probe.hover(x, y);
   const resting = await classOf(probe);
-  check("REC rests red", /key-plate-red/.test(resting ?? ""), resting ?? "no class");
+  check("the Record key rests red", /key-plate-red/.test(resting ?? ""), resting ?? "no class");
 
   // The pointer has to MOVE for a mousemove to land, so nudge a pixel.
   await probe.hover(x + 1, y, { alt: true });
   const held = await classOf(probe);
   check(
-    "Alt held over REC turns the key blue",
+    "Alt held over the Record key turns it blue",
     /key-plate-blue/.test(held ?? ""),
     held ?? "no class",
   );
@@ -40,7 +40,7 @@ export default async function recordExactModifier(probe) {
   await probe.hover(x + 2, y);
   const released = await classOf(probe);
   check(
-    "releasing Alt puts REC back to red",
+    "releasing Alt puts the Record key back to red",
     /key-plate-red/.test(released ?? "") && !/key-plate-blue/.test(released ?? ""),
     released ?? "no class",
   );

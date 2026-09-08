@@ -8,8 +8,8 @@ import { useReelSpin } from "./useReelSpin";
 
 /**
  * The deck is on EVERY screen: it is the panel's transport and its status
- * light at once, so recording never has to move the Stop key somewhere else
- * and playback never has to borrow a row to say it is running.
+ * light at once, so recording never has to move its key somewhere else and
+ * playback never has to borrow a row to say it is running.
  *
  * One chassis, not a card holding a plate. The hero element IS the dark
  * faceplate: the reel window is recessed into it and the transport row sits
@@ -39,6 +39,15 @@ export function Deck() {
       : state.mode === "recording"
         ? state.scope
         : null;
+  // The scene's own name for a whole-scene caption (user decision,
+  // 2026-09-08): the idle peek carries it, and a recording keeps the one
+  // record.start reported.
+  const sceneName =
+    state.mode === "idle"
+      ? state.scopePreview?.sceneName
+      : state.mode === "recording"
+        ? state.sceneName
+        : undefined;
 
   // The reels can be spun by hand, but only while nothing else is turning
   // them: "idle" is the state whose word is "Ready", and "paused" holds the
@@ -57,25 +66,25 @@ export function Deck() {
         counterOverride={spinCounter}
         startedAt={state.mode === "recording" ? state.startedAt : null}
         scope={scope}
+        {...(sceneName ? { sceneName } : {})}
         scopePhase={
           state.mode === "idle" ? "idle" : state.mode === "recording" ? "recording" : null
         }
         stage={<ReelDeck state={deckState} stageRef={stageRef} interactive={spinnable} />}
-        // Recording is only reachable from rest: mid-review or mid-playback
-        // the key is dead, not a second way to lose work.
-        recordDisabled={state.mode !== "idle"}
-        // The deck says PLAYING; its Stop key must be able to stop that. It
-        // used to be dead through the whole run, which left the only way out
-        // inside the playing macro's own row.
-        stopDisabled={state.mode !== "recording" && state.mode !== "playing"}
+        // One key, two jobs, and the mode decides which. A recording is only
+        // reachable from rest, so mid-review or mid-playback the key is dead
+        // rather than a second way to lose work; while a recording runs it is
+        // live, because it IS the way out of one. A playback is stopped from
+        // the row that plays it — the deck no longer carries a second Stop.
+        toggleDisabled={state.mode !== "idle" && state.mode !== "recording"}
         // The Option/Alt modifier rides the press itself; the key that read
-        // it is the key that starts the recording.
-        onRecord={(options) => actions.startRecording(options)}
-        recordingExact={state.mode === "recording" && state.exact}
-        onStop={() => {
-          if (state.mode === "playing") actions.resolvePlaybackFailure("stop");
-          else actions.stopRecording();
+        // it is the key that starts the recording. A press that stops one
+        // never asks.
+        onToggle={(options) => {
+          if (state.mode === "recording") actions.stopRecording();
+          else actions.startRecording(options);
         }}
+        recordingExact={state.mode === "recording" && state.exact}
       />
     </div>
   );

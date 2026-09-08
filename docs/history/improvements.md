@@ -12,6 +12,14 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-08 — One Record key
+
+| Issue | Fix |
+|---|---|
+| **The deck carried two keys for one decision.** RECORD and STOP sat side by side, and one of the pair was always dead: STOP through the whole idle screen, RECORD through the whole recording. The pair also took the middle of the chassis, so neither key was centred on anything and the `REC` legend existed to make the two of them fit. | One key, and it toggles (user decision, 2026-09-08). `deckToggleLabel` (`ui/components/deck/deckState.ts`) gives the word, the `aria-label`, and the press one source: Record at rest, Stop while a recording runs, and the key is LIVE while it says Stop. The dead-key rule still covers review and playback, where a recording is not reachable. `.deck-toggle` fixes the width at 84px — the nameplate's width on screen — so the key lines up with the plate above it and does not resize under the pointer that pressed it, and the row's `1fr auto 1fr` now centres one key on the chassis (probe `record-toggle`: 0.00px off at the 320px panel). The recording screen keeps its own Stop and Discard; a playback is stopped from the row that plays it. |
+| The scope caption said the word Record twice. `RECORDS · LAYER A` sat under a key reading RECORD, and the legend pushed the name off the middle of the chassis. | `.deck-scope` shows the name alone, centred under the key. The `title` fallback and the sr-only sentence stay, so the meaning is not lost, and the sentence adds "exact values" while an exact recording runs — the blue key says that in colour alone. |
+| Nothing proved the transport row's centring or the caption's, and `pnpm test` cannot: both are rendered boxes. | `scripts/ui-probe/scenarios/record-toggle.mjs` measures the key's box against the row's, and the caption's against the panel's, then presses the key twice and checks the word, the accessible name, the width, and where the second press lands. `review-simplified` now stops the recording with the deck's toggle. |
+
 ## 2026-09-08 — A solo-layer macro needs a selection (ENGINE_REV `2026-09-08.2`)
 
 | Issue | Fix |

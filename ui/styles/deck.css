@@ -388,12 +388,10 @@
  * height so the hero's budget is arithmetic rather than a hope about fonts.
  */
 /*
- * The transport bar. Its ONLY child is the key pair, which is what lets the
- * keys centre on the chassis itself rather than on whatever space the
- * readouts left over. Status and counter moved onto the faceplate for exactly
- * this reason: at 300px the row is 290px, an equal-width pair is ~150px, and
- * true centring demands equal gutters of ~70px — which the state word
- * ("RECORDING") does not fit inside. Something had to leave the row.
+ * The transport bar: three cells, and the middle one holds the whole
+ * transport. Status and counter moved onto the faceplate so the key could
+ * have the middle of the chassis to itself; a second key there took the
+ * centre away from the first.
  */
 .deck-row {
   position: relative;
@@ -402,22 +400,28 @@
   align-items: center;
   /* 1fr | auto | 1fr — equal outer tracks are what keep the middle one
      centred on the CHASSIS rather than on the space the readouts left over.
-     This only fits because the REC legend shrank the pair to ~122px, leaving
-     ~84px per gutter against the ~73px the status legend needs. */
+     At the 320px panel the row is 294px, the key 84px, and each gutter
+     ~100px against the ~73px the status legend needs at full tracking. */
   grid-template-columns: 1fr auto 1fr;
   gap: 6px;
 }
 
 /*
- * Equal keys, whatever the labels say: an auto-flow column grid with
- * `grid-auto-columns: 1fr` sizes every track to the widest item, so RECORD
- * and STOP match without a hard-coded width that a translation would break.
+ * The one transport key. Its width is FIXED, not fitted: the same key reads
+ * RECORD and then STOP, and a key that shrank as it was pressed would move
+ * under the pointer that pressed it.
+ *
+ * The width is the nameplate's (user decision, 2026-09-08): the key sits
+ * directly under the riveted MACRO-REC plate in the window, and the two read
+ * as one column when their edges line up. The plate is 78 units of the
+ * 272-unit drawing (ReelDeck.tsx PLATE.w); the stage is 294px at the 320px
+ * panel, so 78 × 294 / 272 = 84.3px — 84px. RECORD, the wider legend, needs
+ * 60.6px with the cap's padding (measured headlessly at 10px/700, 0.05em
+ * tracking), so the word has room on every system face in the stack.
+ * Re-derive when the panel width or PLATE changes.
  */
-.deck-keys {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 6px;
+.deck-toggle.deck-toggle {
+  min-width: 84px;
 }
 
 /* Faceplate indicator, top-left: the corners of the window are the one place
@@ -447,7 +451,7 @@
 }
 
 /*
- * The scope caption: one line under the transport row saying what Record will
+ * The scope caption: one line under the transport row naming what Record will
  * watch, before it is pressed. A real element, not a pseudo — the hero's
  * pseudo-element budget is spent (docs/design-system.md).
  *
@@ -461,17 +465,11 @@
   height: 13px;
   min-width: 0;
   align-items: center;
-  gap: 4px;
-  padding-left: 2px;
-}
-
-/* Both spans are `.deck-word`: same silkscreen, so the caption reads as more
-   of the faceplate rather than a second typographic voice on it. */
-.deck-scope-legend {
-  flex: none;
-  /* One step back — the label is furniture and the layer name is the answer.
-     Opacity, not a second colour: the chassis has one silkscreen ink. */
-  opacity: 0.62;
+  /* Centred under the key it belongs to. The RECORDS · legend that used to
+     lead it is gone: the key above already says Record, so the legend said
+     the word twice and pushed the name off the middle of the chassis. */
+  justify-content: center;
+  padding-inline: 2px;
 }
 
 /* The name is what gives way when the panel is narrow: `.deck-word` already

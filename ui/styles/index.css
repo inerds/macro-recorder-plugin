@@ -848,8 +848,8 @@ body > div > [role="presentation"]:has(> [role="menu"]) {
   color: var(--ink);
 }
 
-/* The record glyph on the empty state's Record key (the transport's REC
-   wears a bare legend by user decision, 2026-08-24) — currentColor
+/* The record glyph on the empty state's Record key (the deck's transport
+   key wears a bare legend by user decision, 2026-08-24) — currentColor
    throughout, so it recolors with the key. */
 .key-dot {
   display: grid;

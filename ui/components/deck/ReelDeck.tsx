@@ -82,7 +82,9 @@ function cutoutPath(spokeA: number, spokeB: number): string {
 }
 
 function cutouts(spokes: number[]): string[] {
-  return spokes.map((a, i) => cutoutPath(a, i === spokes.length - 1 ? spokes[0] + 360 : spokes[i + 1]));
+  return spokes.map((a, i) =>
+    cutoutPath(a, i === spokes.length - 1 ? spokes[0] + 360 : spokes[i + 1]),
+  );
 }
 
 /* The two reels rest at different angles, the way they do after a wind. */
@@ -152,11 +154,25 @@ const RETURN_PATH = [
 function Tape({ d }: { d: string }) {
   return (
     <g>
-      <path className="tape" d={d} fill="none" stroke="#5E4231" strokeWidth="2" strokeLinecap="round" />
+      <path
+        className="tape"
+        d={d}
+        fill="none"
+        stroke="#5E4231"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
       {/* The secondary motion layer. Three-fold symmetric reels can say
           "turning" but never "which way"; this travelling highlight is what
           makes rewind read as reverse. */}
-      <path className="tape-shimmer" d={d} fill="none" stroke="#C6A57B" strokeWidth="1.2" strokeLinecap="round" />
+      <path
+        className="tape-shimmer"
+        d={d}
+        fill="none"
+        stroke="#C6A57B"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
     </g>
   );
 }
@@ -195,24 +211,63 @@ function Reel({ x, side }: { x: number; side: "left" | "right" }) {
             />
           ))}
           {/* Groove where the lip steps down to the spoked field. */}
-          <circle r={CUT_OUT + 1.6} fill="none" stroke="#000000" strokeOpacity="0.35" strokeWidth="0.9" />
-          <circle r={CUT_OUT + 2.5} fill="none" stroke="#FFFFFF" strokeOpacity="0.3" strokeWidth="0.6" />
+          <circle
+            r={CUT_OUT + 1.6}
+            fill="none"
+            stroke="#000000"
+            strokeOpacity="0.35"
+            strokeWidth="0.9"
+          />
+          <circle
+            r={CUT_OUT + 2.5}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeOpacity="0.3"
+            strokeWidth="0.6"
+          />
         </g>
         {/* Cut-out edges: a lit lip on one side and the shadow line on the
             other read as machined thickness. */}
         {cuts.map((d) => (
-          <path key={`hi-${d}`} d={d} transform="translate(0.5 0.5)" fill="none" stroke="#FFFFFF" strokeOpacity="0.22" strokeWidth="0.7" />
+          <path
+            key={`hi-${d}`}
+            d={d}
+            transform="translate(0.5 0.5)"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeOpacity="0.22"
+            strokeWidth="0.7"
+          />
         ))}
         {cuts.map((d) => (
-          <path key={`lo-${d}`} d={d} fill="none" stroke="#0A0908" strokeOpacity="0.85" strokeWidth="1.1" />
+          <path
+            key={`lo-${d}`}
+            d={d}
+            fill="none"
+            stroke="#0A0908"
+            strokeOpacity="0.85"
+            strokeWidth="1.1"
+          />
         ))}
         {/* Outer rim + lip highlight */}
         <circle r={R} fill="none" stroke="#0A0908" strokeWidth="1.2" />
         <circle r={R - 1.3} fill="none" stroke="#FFFFFF" strokeOpacity="0.45" strokeWidth="0.7" />
         {/* Hub */}
         <circle r={HUB_R} fill="url(#hub-metal)" stroke="#0A0908" strokeWidth="0.9" />
-        <circle r={HUB_R - 1.2} fill="none" stroke="#FFFFFF" strokeOpacity="0.5" strokeWidth="0.6" />
-        <circle r={HUB_R - 4.2} fill="none" stroke="#000000" strokeOpacity="0.22" strokeWidth="0.6" />
+        <circle
+          r={HUB_R - 1.2}
+          fill="none"
+          stroke="#FFFFFF"
+          strokeOpacity="0.5"
+          strokeWidth="0.6"
+        />
+        <circle
+          r={HUB_R - 4.2}
+          fill="none"
+          stroke="#000000"
+          strokeOpacity="0.22"
+          strokeWidth="0.6"
+        />
         {bolts.map((angle) => {
           const [bx, by] = polar(BOLT_AT, angle);
           return (
@@ -237,7 +292,14 @@ function Reel({ x, side }: { x: number; side: "left" | "right" }) {
 
 function CutMask({ side }: { side: "left" | "right" }) {
   return (
-    <mask id={`reel-cut-${side}`} maskUnits="userSpaceOnUse" x={-R - 1} y={-R - 1} width={2 * R + 2} height={2 * R + 2}>
+    <mask
+      id={`reel-cut-${side}`}
+      maskUnits="userSpaceOnUse"
+      x={-R - 1}
+      y={-R - 1}
+      width={2 * R + 2}
+      height={2 * R + 2}
+    >
       <circle r={R} fill="#fff" />
       {cutouts(SPOKES[side]).map((d) => (
         <path key={d} d={d} fill="#000" />
@@ -252,7 +314,13 @@ function Roller({ x, y }: { x: number; y: number }) {
     <g transform={`translate(${x} ${y})`}>
       <circle r={ROLLER_R + 3} fill="url(#reel-shadow)" />
       <circle r={ROLLER_R} fill="url(#hub-metal)" stroke="#0A0908" strokeWidth="0.8" />
-      <circle r={ROLLER_R - 1.1} fill="none" stroke="#FFFFFF" strokeOpacity="0.45" strokeWidth="0.6" />
+      <circle
+        r={ROLLER_R - 1.1}
+        fill="none"
+        stroke="#FFFFFF"
+        strokeOpacity="0.45"
+        strokeWidth="0.6"
+      />
       <circle r="5.2" fill="#1A1816" stroke="#FFFFFF" strokeOpacity="0.25" strokeWidth="0.5" />
       <circle r="2.2" fill="url(#hub-metal)" stroke="#0A0908" strokeWidth="0.5" />
       <circle r="0.6" cx="-0.5" cy="-0.6" fill="#FFFFFF" fillOpacity="0.6" />
@@ -265,10 +333,39 @@ function Nameplate() {
   const { x, y, w, h } = PLATE;
   const my = y + h / 2;
   return (
-    <g>
-      <rect x={x - 1} y={y} width={w + 2} height={h + 1.5} rx="4" fill="#000000" fillOpacity="0.55" />
-      <rect x={x} y={y} width={w} height={h} rx="3" fill="url(#plate-metal)" stroke="#0A0908" strokeWidth="0.8" />
-      <rect x={x + 0.8} y={y + 0.8} width={w - 1.6} height={h - 1.6} rx="2.4" fill="none" stroke="#FFFFFF" strokeOpacity="0.5" strokeWidth="0.6" />
+    // `data-part` lets the headless probe measure the plate the transport
+    // key is sized to match; it is not a styling hook.
+    <g data-part="nameplate">
+      <rect
+        x={x - 1}
+        y={y}
+        width={w + 2}
+        height={h + 1.5}
+        rx="4"
+        fill="#000000"
+        fillOpacity="0.55"
+      />
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={h}
+        rx="3"
+        fill="url(#plate-metal)"
+        stroke="#0A0908"
+        strokeWidth="0.8"
+      />
+      <rect
+        x={x + 0.8}
+        y={y + 0.8}
+        width={w - 1.6}
+        height={h - 1.6}
+        rx="2.4"
+        fill="none"
+        stroke="#FFFFFF"
+        strokeOpacity="0.5"
+        strokeWidth="0.6"
+      />
       {[x + 5.5, x + w - 5.5].map((rx) => (
         <g key={rx} transform={`translate(${rx} ${my})`}>
           <circle r="2.1" fill="url(#hub-metal)" stroke="#0A0908" strokeWidth="0.5" />
