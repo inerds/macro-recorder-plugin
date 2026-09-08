@@ -19,8 +19,9 @@ await runSuite({
   errorLabel: "test:harness",
   artifactDir: "artifacts/harness/",
   async warmUp(probe) {
-    // Room for the 320x560 panel and the harness's log beside it.
-    await probe.setViewport(900, 700);
+    // Room for the 320x560 panel and the harness's log beside it. Scale 1:
+    // see `setViewport` for what scale 2 does to clicks in the frame on Linux.
+    await probe.setViewport(900, 700, { scale: 1 });
     await probe.navigateHarness();
   },
 });
