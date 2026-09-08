@@ -13,7 +13,7 @@
     <title>Macro Recorder host harness</title>
     <style>
       body { margin: 0; font-family: system-ui; display: flex; gap: 16px; padding: 16px; }
-      iframe { border: 1px solid #ccc; width: 300px; height: 520px; }
+      iframe { border: 1px solid #ccc; width: 320px; height: 560px; }
       pre { font-size: 11px; background: #f4f4f4; padding: 8px; flex: 1; overflow: auto; }
     </style>
   </head>
@@ -31,13 +31,37 @@
       const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 
       const scene = makeScene();
+      // The host seats every top-level layer in the active scene, and the
+      // plugin reads that scene at `record.start`, at every tick, and to
+      // resolve a playback target (sandbox/recorder.ts, sandbox/playback.ts).
+      // Without it the harness could mount the panel and never record a step.
+      const activeScene = {
+        id: "scene-harness",
+        name: "Harness Scene",
+        layers: [scene.A, scene.B, scene.C, scene.D],
+      };
+      for (const layer of activeScene.layers) layer.parent = activeScene;
+
       const storage = new Map();
       const uiMessageHandlers = [];
       let iframe = null;
+      let panelSize = { width: 320, height: 560 };
+      function applyPanelSize() {
+        if (!iframe) return;
+        iframe.style.width = panelSize.width + "px";
+        iframe.style.height = panelSize.height + "px";
+      }
 
       const creator = {
+        activeScene,
         ui: {
-          show(options) { log("ui.show", options); },
+          // Creator sizes the panel iframe from this call; the harness does
+          // the same, so the panel is laid out at the size it ships at.
+          show(options) {
+            log("ui.show", options);
+            panelSize = { width: options?.width ?? 320, height: options?.height ?? 560 };
+            applyPanelSize();
+          },
           onMessage(cb) { uiMessageHandlers.push(cb); },
           postMessage(data) {
             iframe?.contentWindow?.postMessage({ pluginMessage: clone(data) }, "*");
@@ -63,6 +87,7 @@
       window.harness = {
         selection: [],
         nodes: { A: scene.A, B: scene.B, C: scene.C, D: scene.D },
+        scene: activeScene,
         storage,
         log: (msg) => log(msg),
         /** Convenience for building a keyframed property from the console. */
@@ -85,6 +110,7 @@
         iframe = document.createElement("iframe");
         iframe.setAttribute("sandbox", "allow-scripts");
         iframe.src = "/";
+        applyPanelSize();
         document.getElementById("panel-slot").appendChild(iframe);
         window.addEventListener("message", (event) => {
           if (iframe && event.source === iframe.contentWindow && event.data?.pluginMessage) {

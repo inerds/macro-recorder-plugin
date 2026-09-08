@@ -5,16 +5,6 @@ entry names the evidence that motivated it, what it would build, and a rough
 size (S: a session, M: a few sessions, L: a project of its own). Move an entry
 out of this file and into `docs/history/improvements.md` once it ships.
 
-## Host-harness round trip: `pnpm test:harness`
-
-On 2026-09-07, three real panel bugs surfaced only after a hand-rolled
-headless-Chrome driver was built ad hoc to check claims about the DOM; no
-standing test drives the plugin end to end outside Creator. This test would
-drive `dev/harness/host-harness.html` with the same driver as the UI probe
-suite: record, edit a fake node, stop, save, select two other fake nodes,
-play, and assert the played values. It is the one check that exercises
-record and playback together against a live-looking scene graph. Size: M.
-
 ## `ENGINE_REV` gate and pre-commit hook
 
 `ENGINE_REV` moved eight times in one day during the 2026-09-07 session

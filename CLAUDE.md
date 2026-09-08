@@ -47,6 +47,8 @@ pnpm type-check                # tsc -b across all three project references
 pnpm test                      # vitest run (768 tests, 34 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
+pnpm test:ui                   # headless Chrome: the panel alone, on mock gateways
+pnpm test:harness              # headless Chrome: the host harness — record and playback together
 pnpm bundle                    # release zip → release/macro-recorder-v<version>.zip
 pnpm bundle:dev                # dev build (dev strip on, "(dev)" manifest) → …-dev.zip
 pnpm wiki:check                # build the docs/ wiki mirror to a temp dir and verify its links
@@ -65,6 +67,12 @@ pnpm vitest engine/diff.test.ts        # watch just that file
 stale until you `pnpm build` — the script does that for you, but it means a
 sandbox-side change is *not* covered by `pnpm test` alone. Run both before
 claiming plugin-side work is done.
+
+`pnpm test:harness` is the only test that runs record and playback together:
+the real sandbox bundle, the real panel, and `engine/testing/fakeScene.ts` as
+the host. It builds nothing — the dev server compiles `plugin.js` on request
+— so it always sees the source you just edited. Run it after any change to
+`sandbox/`, and after any change to the record or replay path in `ui/`.
 
 ## Rules for every change
 

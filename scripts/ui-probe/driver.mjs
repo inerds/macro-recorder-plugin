@@ -6,8 +6,10 @@
  * costs nothing to install and nothing to keep current. Chrome is launched
  * once per run; every scenario re-navigates the one page.
  *
- * The helpers come in two layers. The lower one is generic — `navigate`,
- * `click`, `rectOf`, `onTopAt`. The upper one knows THIS panel: it loads the
+ * The helpers come in three layers. The lower one is generic — `navigate`,
+ * `click`, `rectOf`, `onTopAt`. The middle one reaches into the host
+ * harness's panel FRAME — `navigateHarness`, `evaluateInPanel`,
+ * `panelRectOf`, `clickInPanel`. The upper one knows THIS panel: it loads the
  * demo macros through the Dev settings drawer, expands a macro, opens a
  * step's pencil, opens the verb menu. Scenarios should read as prose about
  * the panel, so anything that names a selector belongs in this file.
@@ -19,7 +21,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ARTIFACT_DIR = fileURLToPath(new URL("../../artifacts/ui/", import.meta.url));
+const DEFAULT_ARTIFACT_DIR = "artifacts/ui/";
+const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -58,7 +61,8 @@ export function chromePath() {
  * the run out of the developer's own Chrome profile — and out of its
  * localStorage, which this panel uses for the demo macro store.
  */
-export async function launchProbe({ baseUrl } = {}) {
+export async function launchProbe({ baseUrl, artifactDir = DEFAULT_ARTIFACT_DIR } = {}) {
+  const artifacts = join(REPO_ROOT, artifactDir);
   const port = await freePort();
   const userDataDir = mkdtempSync(join(tmpdir(), "ui-probe-chrome-"));
   const chrome = spawn(
@@ -124,6 +128,24 @@ export async function launchProbe({ baseUrl } = {}) {
   // vanished, a running recording went back to rest — and both read as app
   // bugs. Timestamp every document load so `settle()` can wait one out.
   let lastLoadAt = Date.now();
+
+  // ---- the panel frame -------------------------------------------------
+  //
+  // The host harness seats the panel in `<iframe sandbox="allow-scripts">`.
+  // Chrome isolates a sandboxed iframe into its own process
+  // (IsolateSandboxedIframes), so the panel arrives as a SEPARATE CDP target
+  // with its own session: `Runtime.evaluate` on the page session cannot see
+  // its DOM at all. Auto-attach in flat mode delivers that session over the
+  // one socket, and every command carrying `sessionId` is routed to it.
+  //
+  // A same-process frame attaches no target. Then the fallback is an
+  // execution context: `Runtime.executionContextCreated` on the page session
+  // reports one per frame, tagged with `auxData.frameId`, and evaluating
+  // against that `contextId` reaches the frame's DOM.
+  let panelSession = null;
+  /** frameId → executionContextId, for the same-process fallback. */
+  const contextByFrame = new Map();
+
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
     if (message.id && pending.has(message.id)) {
@@ -134,9 +156,32 @@ export async function launchProbe({ baseUrl } = {}) {
     if (message.method === "Page.loadEventFired" || message.method === "Page.frameStoppedLoading") {
       lastLoadAt = Date.now();
     }
+    if (message.method === "Target.attachedToTarget") {
+      const { targetInfo, sessionId } = message.params;
+      if (targetInfo.type === "iframe") {
+        panelSession = sessionId;
+        // The child session starts with every domain disabled.
+        for (const domain of ["Page", "Runtime", "DOM"]) {
+          void send(`${domain}.enable`, {}, sessionId).catch(() => {});
+        }
+      }
+      return;
+    }
+    if (message.method === "Target.detachedFromTarget") {
+      if (message.params.sessionId === panelSession) panelSession = null;
+      return;
+    }
+    if (message.method === "Runtime.executionContextCreated" && !message.sessionId) {
+      const { id, auxData } = message.params.context;
+      if (auxData?.frameId) contextByFrame.set(auxData.frameId, id);
+      return;
+    }
+    if (message.method === "Runtime.executionContextsCleared" && !message.sessionId) {
+      contextByFrame.clear();
+    }
   };
 
-  const send = (method, params = {}) =>
+  const send = (method, params = {}, sessionId) =>
     new Promise((resolve, reject) => {
       const id = (nextId += 1);
       pending.set(id, (message) =>
@@ -144,9 +189,16 @@ export async function launchProbe({ baseUrl } = {}) {
           ? reject(new Error(`${method}: ${JSON.stringify(message.error)}`))
           : resolve(message.result),
       );
-      socket.send(JSON.stringify({ id, method, params }));
+      socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
 
+  // Before the first navigation, or the panel frame's target attaches
+  // unseen and nothing can reach it.
+  await send("Target.setAutoAttach", {
+    autoAttach: true,
+    waitForDebuggerOnStart: false,
+    flatten: true,
+  });
   await send("Page.enable");
   await send("Runtime.enable");
 
@@ -338,11 +390,276 @@ export async function launchProbe({ baseUrl } = {}) {
     );
 
   const screenshot = async (name) => {
-    mkdirSync(ARTIFACT_DIR, { recursive: true });
+    mkdirSync(artifacts, { recursive: true });
     const shot = await send("Page.captureScreenshot", { captureBeyondViewport: false });
-    const file = join(ARTIFACT_DIR, `${name}.png`);
+    const file = join(artifacts, `${name}.png`);
     writeFileSync(file, Buffer.from(shot.data, "base64"));
     return file;
+  };
+
+  // ---- the host harness's panel frame -----------------------------------
+
+  /** The `<iframe>` element in the harness page, in page coordinates. */
+  const PANEL_FRAME = "#panel-slot iframe";
+
+  /** Set only in the same-process fallback; the OOPIF path uses a session. */
+  let panelContextId = null;
+
+  /** The execution context of the child frame, when it has no own target. */
+  const findPanelContext = async () => {
+    const { frameTree } = await send("Page.getFrameTree");
+    const child = (frameTree.childFrames ?? []).find((entry) =>
+      String(entry.frame.url).startsWith(baseUrl),
+    );
+    if (!child) return null;
+    return contextByFrame.get(child.frame.id) ?? null;
+  };
+
+  /**
+   * Wait until the panel frame is reachable, and report HOW. `"target"` is
+   * the out-of-process iframe Chrome gives a sandboxed frame; `"context"` is
+   * the same-process fallback. Scenarios never care which — this exists so a
+   * change in Chrome's process model shows up as a printed word rather than
+   * as every panel assertion timing out.
+   */
+  const attachPanel = async ({ timeout = 20000 } = {}) => {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      if (panelSession !== null) {
+        panelContextId = null;
+        return "target";
+      }
+      panelContextId = await findPanelContext();
+      if (panelContextId !== null) return "context";
+      if (Date.now() > deadline) throw new Error("the panel frame never became reachable");
+      await sleep(100);
+    }
+  };
+
+  /** `evaluate`, but inside the panel frame. */
+  const evaluateInPanel = async (expression) => {
+    if (panelSession === null && panelContextId === null) await attachPanel();
+    const params = { expression, awaitPromise: true, returnByValue: true };
+    if (panelSession === null) params.contextId = panelContextId;
+    const result = await send("Runtime.evaluate", params, panelSession ?? undefined);
+    if (result.exceptionDetails) {
+      const detail = result.exceptionDetails.exception?.description ?? result.exceptionDetails.text;
+      throw new Error(`evaluate in panel failed: ${detail}`);
+    }
+    return result.result.value;
+  };
+
+  /** `evaluate`, named for the harness page's own world (`window.harness`). */
+  const evaluateInHost = (expression) => evaluate(expression);
+
+  const waitForInPanel = async (expression, { timeout = 8000, interval = 100, what } = {}) => {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const value = await evaluateInPanel(expression);
+      if (value) return value;
+      if (Date.now() > deadline) {
+        throw new Error(`timed out waiting for ${what ?? expression} (in the panel)`);
+      }
+      await sleep(interval);
+    }
+  };
+
+  /**
+   * A panel element's box in PAGE coordinates: the frame's own box plus the
+   * element's box inside it. `Input.dispatchMouseEvent` only ever goes to the
+   * top page — Chrome routes the event down to the frame under the point —
+   * so this is what makes `click(x, y)` land on something in the panel.
+   */
+  const panelRectOf = async (selector) => {
+    const frame = await rectOf(PANEL_FRAME);
+    if (!frame) return null;
+    const inner = await evaluateInPanel(
+      `(() => { const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return null; const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`,
+    );
+    if (!inner) return null;
+    return {
+      x: frame.x + inner.x,
+      y: frame.y + inner.y,
+      w: inner.w,
+      h: inner.h,
+      frame,
+    };
+  };
+
+  /**
+   * Click the centre of a panel element with a real pointer, after scrolling
+   * it into the frame's view. Falls back to a DOM `click()` when the point
+   * belongs to something else — same rule as `clickOn`: driving the panel to
+   * a state is not the assertion.
+   */
+  const clickInPanel = async (selector, options) => {
+    await waitForInPanel(`!!document.querySelector(${JSON.stringify(selector)})`, {
+      what: `something to click: ${selector}`,
+      timeout: 8000,
+    });
+    await evaluateInPanel(
+      `(() => { const el = document.querySelector(${JSON.stringify(selector)});
+        if (el) el.scrollIntoView({ block: "center", inline: "nearest" }); })()`,
+    );
+    await sleep(150);
+    const rect = await panelRectOf(selector);
+    if (!rect) throw new Error(`nothing to click in the panel: ${selector}`);
+    const reachable = await evaluateInPanel(
+      `(() => { const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return false; const r = el.getBoundingClientRect();
+        const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return !!(top && (el === top || el.contains(top))); })()`,
+    );
+    if (reachable) {
+      await click(rect.x + rect.w / 2, rect.y + rect.h / 2, options);
+      return rect;
+    }
+    await evaluateInPanel(
+      `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (el) el.click(); })()`,
+    );
+    await sleep(180);
+    return rect;
+  };
+
+  /**
+   * Load the host harness from scratch and wait for the panel inside it.
+   *
+   * The harness fetches the dev server's live `plugin.js`, evaluates it
+   * against a fake `creator`, then mounts the real panel in a sandboxed
+   * iframe. Everything the scenarios assert rides on that boot finishing, so
+   * this waits for the fake host, the frame, the panel's transport key, and
+   * finally for the handshake to have chosen the REAL sandbox over the mocks.
+   */
+  const navigateHarness = async (options = {}) => {
+    const { requireRpc = true } = options;
+    panelSession = null;
+    panelContextId = null;
+    contextByFrame.clear();
+    await send("Page.navigate", { url: "about:blank" });
+    await sleep(50);
+    await send("Page.navigate", { url: new URL("host-harness.html", baseUrl).href });
+    await waitFor(`document.readyState === "complete" && !!window.harness`, {
+      what: "the fake host",
+      timeout: 20000,
+    });
+    await waitFor(
+      `(document.getElementById('log')?.textContent ?? '').includes('UI iframe mounted')`,
+      { what: "plugin.js to be evaluated", timeout: 20000 },
+    );
+    const how = await attachPanel();
+    await waitForInPanel(`!!document.querySelector('[data-testid="record-button"]')`, {
+      what: "the panel's transport",
+      timeout: 20000,
+    });
+    if (requireRpc) {
+      // The panel falls back to mock gateways when the handshake times out
+      // (four 150 ms tries). A suite that silently probed the mocks would
+      // assert nothing about the sandbox at all.
+      await waitForInPanel(`!document.querySelector('[data-testid="demo-mode-banner"]')`, {
+        what: "the panel to talk to the real sandbox",
+        timeout: 10000,
+      });
+    }
+    // One frame for the entrance transitions to finish.
+    await sleep(250);
+    return how;
+  };
+
+  // ---- fake-scene helpers ----------------------------------------------
+
+  /** Put the harness's fake selection on the named nodes ("A", "B", …). */
+  const selectNodes = (names) =>
+    evaluate(
+      `(() => { window.harness.selection = ${JSON.stringify(names)}.map((n) => window.harness.nodes[n]);
+        return window.harness.selection.map((n) => n.name); })()`,
+    );
+
+  /** One fake node's transform, read through the same proxies the plugin uses. */
+  const readNode = (name) =>
+    evaluate(
+      `(() => { const node = window.harness.nodes[${JSON.stringify(name)}];
+        if (!node) return null;
+        const read = (prop) => (node[prop] ? node[prop].staticValue : undefined);
+        return { name: node.name, position: read("position"), rotation: read("rotation"),
+                 opacity: read("opacity"), scale: read("scale") }; })()`,
+    );
+
+  /**
+   * Set the fake selection and wait for the deck caption to agree.
+   *
+   * The panel asks the sandbox what Record would watch about once a second
+   * while it rests (`ui/state/AppContext.tsx`, PEEK_MS). A press that beats
+   * that answer records the scope the caption still shows, so every scenario
+   * that changes the selection has to wait here first. Returns the caption,
+   * or null when it never said the expected name.
+   */
+  const selectNodesAndWait = async (names, expected, { timeout = 8000 } = {}) => {
+    await selectNodes(names);
+    return await waitForInPanel(
+      `(() => { const v = document.querySelector('.deck-scope-value');
+        return v && v.textContent.trim() === ${JSON.stringify(expected)} ? v.textContent.trim() : null; })()`,
+      { what: `the caption to read ${JSON.stringify(expected)}`, timeout },
+    ).catch(() =>
+      evaluateInPanel(`document.querySelector('.deck-scope-value')?.textContent?.trim() ?? null`),
+    );
+  };
+
+  /**
+   * Press the deck's transport key and wait for the recording to be live.
+   * `exact` holds Alt over the key, which is the promise the panel reads off
+   * the pointer event itself (`ui/components/recordModifier.ts`).
+   */
+  const startRecording = async ({ exact = false } = {}) => {
+    await clickInPanel('[data-testid="record-button"]', { alt: exact });
+    await waitForInPanel(`!!document.querySelector('[data-testid="recording-view"]')`, {
+      what: "the recording view",
+      timeout: 10000,
+    });
+  };
+
+  /** The same key again, then the review sheet the stop hands its steps to. */
+  const stopRecording = async () => {
+    await clickInPanel('[data-testid="record-button"]');
+    await waitForInPanel(`!!document.querySelector('[data-testid="review-panel"]')`, {
+      what: "the review sheet",
+      timeout: 10000,
+    });
+  };
+
+  /** Steps the deck's counter has seen this recording. */
+  const recordedStepCount = async () => {
+    const text = await evaluateInPanel(
+      `document.querySelector('.lcd-count [aria-hidden="true"]')?.textContent ?? null`,
+    );
+    return text === null ? null : Number(text);
+  };
+
+  const waitForRecordedSteps = (count, timeout = 10000) =>
+    waitForInPanel(
+      `(() => { const el = document.querySelector('.lcd-count [aria-hidden="true"]');
+        const n = el ? Number(el.textContent) : 0; return n >= ${count} ? n : null; })()`,
+      { what: `${count} recorded step(s) on the deck counter`, timeout },
+    );
+
+  /** Save the reviewed recording and wait for its row on the rack. */
+  const saveMacro = async () => {
+    await clickInPanel('[data-testid="save-macro-button"]');
+    return await waitForInPanel(`document.querySelectorAll('[data-testid="macro-row"]').length`, {
+      what: "the saved macro's row",
+      timeout: 8000,
+    });
+  };
+
+  /** Play the first row and wait until nothing is running any more. */
+  const playFirstMacro = async () => {
+    await clickInPanel('[data-testid="play-button"]');
+    await waitForInPanel(
+      `!document.querySelector('[data-testid="playback-progress"]') &&
+       !document.querySelector('[data-testid="playback-error"]')`,
+      { what: "the run to finish", timeout: 15000 },
+    );
   };
 
   // ---- panel helpers ---------------------------------------------------
@@ -493,6 +810,23 @@ export async function launchProbe({ baseUrl } = {}) {
     screenshot,
     sleep,
     close,
+    // the host harness's panel frame
+    navigateHarness,
+    attachPanel,
+    evaluateInHost,
+    evaluateInPanel,
+    waitForInPanel,
+    panelRectOf,
+    clickInPanel,
+    selectNodes,
+    selectNodesAndWait,
+    readNode,
+    startRecording,
+    stopRecording,
+    recordedStepCount,
+    waitForRecordedSteps,
+    saveMacro,
+    playFirstMacro,
     // panel-aware
     macroRowCount,
     openDevSettings,
