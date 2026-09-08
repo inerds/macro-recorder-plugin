@@ -120,14 +120,7 @@ export interface SceneSnapshot {
 }
 
 /** Transform + opacity — present on layers and groups. */
-const TRANSFORM_PROPS = [
-  "position",
-  "scale",
-  "rotation",
-  "skew",
-  "skewAxis",
-  "opacity",
-] as const;
+const TRANSFORM_PROPS = ["position", "scale", "rotation", "skew", "skewAxis", "opacity"] as const;
 
 /**
  * Animatable property names per node type (creator-api-types 1.0.1). Unknown

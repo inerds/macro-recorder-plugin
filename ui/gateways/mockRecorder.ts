@@ -23,11 +23,36 @@ const SCENE_SCOPE: ScopeReport = { kind: "scene" };
  * editing and parameter pins exactly as a recording would.
  */
 const BURST_SCRIPT: StepPayload[] = [
-  { op: "set-static", path: ["position"], before: { x: 100, y: 120 }, after: { x: 160, y: 120 }, layer: LAYER },
-  { op: "set-static", path: ["position"], before: { x: 160, y: 120 }, after: { x: 200, y: 120 }, layer: LAYER },
+  {
+    op: "set-static",
+    path: ["position"],
+    before: { x: 100, y: 120 },
+    after: { x: 160, y: 120 },
+    layer: LAYER,
+  },
+  {
+    op: "set-static",
+    path: ["position"],
+    before: { x: 160, y: 120 },
+    after: { x: 200, y: 120 },
+    layer: LAYER,
+  },
   { op: "set-static", path: ["rotation"], before: 0, after: 45, layer: LAYER },
-  { op: "set-static", path: ["fills", 0, "color"], before: { r: 40, g: 40, b: 40 }, after: { r: 255, g: 90, b: 0 }, layer: LAYER },
-  { op: "keyframes", path: ["position"], added: [{ frame: 60, value: { x: 200, y: 120 } }], removed: [], changed: [], layer: LAYER },
+  {
+    op: "set-static",
+    path: ["fills", 0, "color"],
+    before: { r: 40, g: 40, b: 40 },
+    after: { r: 255, g: 90, b: 0 },
+    layer: LAYER,
+  },
+  {
+    op: "keyframes",
+    path: ["position"],
+    added: [{ frame: 60, value: { x: 200, y: 120 } }],
+    removed: [],
+    changed: [],
+    layer: LAYER,
+  },
   { op: "set-static", path: ["strokes", 0, "width"], before: 2, after: 4, layer: LAYER },
   { op: "set-plain", path: ["visible"], before: true, after: false, layer: LAYER },
 ];
@@ -41,7 +66,7 @@ const CAPTURE_OFFER: CaptureOffer = {
   layerId: LAYER.id,
   layerName: LAYER.name,
   pathCount: 3,
-  keyframeCount: 6,  // keyframes only — statics ride Add all regardless
+  keyframeCount: 6, // keyframes only — statics ride Add all regardless
   selectedCount: 2,
 };
 
@@ -111,9 +136,28 @@ const CAPTURE_SELECTED_SCRIPT: StepPayload[] = [
 
 const LONG_SCRIPT: StepPayload[] = Array.from({ length: 20 }, (_, i) => {
   const cycle: StepPayload[] = [
-    { op: "set-static", path: ["position"], before: { x: 100 + i * 10, y: 120 }, after: { x: 110 + i * 10, y: 120 }, layer: LAYER },
-    { op: "set-static", path: ["fills", 0, "color"], before: { r: i * 12, g: 80, b: 120 }, after: { r: i * 12 + 12, g: 80, b: 120 }, layer: LAYER },
-    { op: "keyframes", path: ["scale"], added: [{ frame: i * 5, value: { x: 1, y: 1 } }], removed: [], changed: [], layer: LAYER },
+    {
+      op: "set-static",
+      path: ["position"],
+      before: { x: 100 + i * 10, y: 120 },
+      after: { x: 110 + i * 10, y: 120 },
+      layer: LAYER,
+    },
+    {
+      op: "set-static",
+      path: ["fills", 0, "color"],
+      before: { r: i * 12, g: 80, b: 120 },
+      after: { r: i * 12 + 12, g: 80, b: 120 },
+      layer: LAYER,
+    },
+    {
+      op: "keyframes",
+      path: ["scale"],
+      added: [{ frame: i * 5, value: { x: 1, y: 1 } }],
+      removed: [],
+      changed: [],
+      layer: LAYER,
+    },
     { op: "set-static", path: ["strokes", 0, "width"], before: i, after: i + 1, layer: LAYER },
   ];
   return cycle[i % cycle.length]!;

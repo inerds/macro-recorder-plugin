@@ -9,10 +9,7 @@ export interface PlaybackStatusProps {
 }
 
 /** Row-level playback feedback: progress, or a failed step awaiting a decision. */
-export function PlaybackStatus({
-  playing,
-  onResolveFailure,
-}: PlaybackStatusProps) {
+export function PlaybackStatus({ playing, onResolveFailure }: PlaybackStatusProps) {
   // The paused run waits for a decision that lives in this box — and the box
   // sits inside a card that can be scrolled well off screen. Bring it to the
   // eye the way the step list follows the playhead (StepList.tsx).
@@ -75,8 +72,7 @@ export function PlaybackStatus({
           else. The run says one thing on the way in and one on the way out,
           both through the panel's own live region (app.tsx). */}
       <span className="min-w-0 flex-1 truncate tabular-nums" aria-hidden>
-        Playing step {Math.min(playing.currentStep + 1, playing.total)} of{" "}
-        {playing.total}…
+        Playing step {Math.min(playing.currentStep + 1, playing.total)} of {playing.total}…
       </span>
       <Button
         size="sm"

@@ -20,9 +20,7 @@ export function SimplifyButton({ steps, onSimplify }: SimplifyButtonProps) {
   const canSimplify = simplified !== steps.length;
   const hintId = useId();
 
-  const hint = canSimplify
-    ? `Merges ${steps.length} steps into ${simplified}`
-    : "Nothing to merge";
+  const hint = canSimplify ? `Merges ${steps.length} steps into ${simplified}` : "Nothing to merge";
 
   return (
     <>

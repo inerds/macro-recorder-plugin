@@ -23,14 +23,6 @@ would append one line per captured trace to `traces/index.jsonl` (timestamp,
 kind, sandbox and UI revisions, byte size), and `pnpm traces:stale` would list
 entries whose revision predates the current `ENGINE_REV`. Size: S.
 
-## Prettier clean-up, then `format:check` in CI
-
-`pnpm format:check` fails on 34 files today; `.github/workflows/ci.yml:20-24`
-documents the omission as deliberate, pending a one-shot cleanup. The build
-is one commit that runs `pnpm format` across the tree, reviewed for
-unintended diffs, followed by adding `pnpm format:check` back into
-`ci.yml` so the tree cannot drift again. Size: S.
-
 ## Token contrast test: `ui/theme/vintageTokens.test.ts`
 
 The 2026-09-07 session hand-solved the blue Record key's stops to match the

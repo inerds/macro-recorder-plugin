@@ -138,17 +138,12 @@ describe("diffSnapshots — static props", () => {
   it("classifies an opacity change as a transform step", () => {
     const payloads = diffProps({ opacity: anim(1) }, { opacity: anim(0.25) });
 
-    expect(payloads).toEqual([
-      { op: "set-static", path: ["opacity"], before: 1, after: 0.25 },
-    ]);
+    expect(payloads).toEqual([{ op: "set-static", path: ["opacity"], before: 1, after: 0.25 }]);
     expect(kindOf(payloads[0]!)).toBe("transform");
   });
 
   it("classifies a non-transform prop change as 'other'", () => {
-    const payloads = diffProps(
-      { size: anim({ x: 10, y: 10 }) },
-      { size: anim({ x: 20, y: 10 }) },
-    );
+    const payloads = diffProps({ size: anim({ x: 10, y: 10 }) }, { size: anim({ x: 20, y: 10 }) });
 
     expect(kindOf(payloads[0]!)).toBe("other");
   });
@@ -238,15 +233,16 @@ describe("diffSnapshots — fills and strokes", () => {
 
   it("emits a set-static on ['fills', i, 'stops'] when gradient stops change", () => {
     const before: Json = [{ offset: 0, color: RED }];
-    const after: Json = [{ offset: 0, color: RED }, { offset: 1, color: BLUE }];
+    const after: Json = [
+      { offset: 0, color: RED },
+      { offset: 1, color: BLUE },
+    ];
     const payloads = diffSnapshots(
       makeNode({ fills: [gradient(before)] }),
       makeNode({ fills: [gradient(after)] }),
     );
 
-    expect(payloads).toEqual([
-      { op: "set-static", path: ["fills", 0, "stops"], before, after },
-    ]);
+    expect(payloads).toEqual([{ op: "set-static", path: ["fills", 0, "stops"], before, after }]);
     expect(kindOf(payloads[0]!)).toBe("fill");
   });
 
@@ -270,9 +266,9 @@ describe("diffSnapshots — fills and strokes", () => {
 
   it("records a solid → gradient flip as replace-paint with the end-state spec", () => {
     const after = gradient([{ offset: 0, color: BLUE }]);
-    expect(
-      diffSnapshots(makeNode({ fills: [solid(RED)] }), makeNode({ fills: [after] })),
-    ).toEqual([{ op: "replace-paint", path: ["fills", 0], spec: after }]);
+    expect(diffSnapshots(makeNode({ fills: [solid(RED)] }), makeNode({ fills: [after] }))).toEqual([
+      { op: "replace-paint", path: ["fills", 0], spec: after },
+    ]);
   });
 });
 
@@ -548,7 +544,9 @@ describe("diffSnapshots — structure", () => {
       makeNode({ strokes: [{ width: anim(3), fill }] }),
     );
 
-    expect(payloads).toEqual([{ op: "add-stroke", path: ["strokes", 0], spec: { width: 3, fill } }]);
+    expect(payloads).toEqual([
+      { op: "add-stroke", path: ["strokes", 0], spec: { width: 3, fill } },
+    ]);
     expect(kindOf(payloads[0]!)).toBe("stroke");
   });
 
@@ -587,9 +585,7 @@ describe("diffSnapshots — structure", () => {
       makeNode({ shapes: [makeShape("c1", "RECTANGLE")] }),
     );
 
-    expect(payloads).toEqual([
-      { op: "remove-shape", path: ["shapes", 1], shapeType: "ELLIPSE" },
-    ]);
+    expect(payloads).toEqual([{ op: "remove-shape", path: ["shapes", 1], shapeType: "ELLIPSE" }]);
     expect(kindOf(payloads[0]!)).toBe("shape");
   });
 
@@ -638,8 +634,7 @@ describe("diffSnapshots — v2 recursion", () => {
   });
 
   it("recurses through nested groups with the leaf shape's hint", () => {
-    const leaf = (v: number) =>
-      makeShape("leaf", "STAR", { props: { innerRadius: anim(v) } });
+    const leaf = (v: number) => makeShape("leaf", "STAR", { props: { innerRadius: anim(v) } });
     const prev = makeNode({ shapes: [makeShape("g1", "GROUP", { shapes: [leaf(10)] })] });
     const next = makeNode({ shapes: [makeShape("g1", "GROUP", { shapes: [leaf(25)] })] });
 
@@ -655,8 +650,7 @@ describe("diffSnapshots — v2 recursion", () => {
   });
 
   it("addresses edits by the CURRENT index when children were matched by id", () => {
-    const rect = (v: number) =>
-      makeShape("r1", "RECTANGLE", { props: { roundness: anim(v) } });
+    const rect = (v: number) => makeShape("r1", "RECTANGLE", { props: { roundness: anim(v) } });
     // rectangle moved from index 0 to index 1 while its roundness changed
     const prev = makeNode({ shapes: [rect(0), makeShape("e1", "ELLIPSE")] });
     const next = makeNode({ shapes: [makeShape("e1", "ELLIPSE"), rect(8)] });
@@ -693,9 +687,7 @@ describe("diffSnapshots — v2 recursion", () => {
     });
     expect(
       diffSnapshots(makeNode({ masks: [mask(100)] }), makeNode({ masks: [mask(40)] })),
-    ).toEqual([
-      { op: "set-static", path: ["masks", 0, "opacity"], before: 100, after: 40 },
-    ]);
+    ).toEqual([{ op: "set-static", path: ["masks", 0, "opacity"], before: 100, after: 40 }]);
 
     const added = mask(100);
     expect(diffSnapshots(makeNode({ masks: [] }), makeNode({ masks: [added] }))).toEqual([
@@ -713,9 +705,7 @@ describe("diffSnapshots — v2 recursion", () => {
       start: anim({ x, y: 0 }),
       end: anim({ x: 100, y: 0 }),
     });
-    expect(
-      diffSnapshots(makeNode({ fills: [grad(0)] }), makeNode({ fills: [grad(50)] })),
-    ).toEqual([
+    expect(diffSnapshots(makeNode({ fills: [grad(0)] }), makeNode({ fills: [grad(50)] }))).toEqual([
       {
         op: "set-static",
         path: ["fills", 0, "start"],
@@ -728,12 +718,14 @@ describe("diffSnapshots — v2 recursion", () => {
 
 describe("diffSnapshots — paint opacity", () => {
   it("diffs a solid fill's opacity", () => {
-    const paint = (o: number): PaintSnapshot => ({ kind: "solid", color: anim(RED), opacity: anim(o) });
+    const paint = (o: number): PaintSnapshot => ({
+      kind: "solid",
+      color: anim(RED),
+      opacity: anim(o),
+    });
     expect(
       diffSnapshots(makeNode({ fills: [paint(100)] }), makeNode({ fills: [paint(40)] })),
-    ).toEqual([
-      { op: "set-static", path: ["fills", 0, "opacity"], before: 100, after: 40 },
-    ]);
+    ).toEqual([{ op: "set-static", path: ["fills", 0, "opacity"], before: 100, after: 40 }]);
   });
 });
 
@@ -774,7 +766,9 @@ describe("diffScene — whole-scene recording", () => {
   });
 
   it("records layer deletion and reordering", () => {
-    const a = layer("A", "a"), b = layer("B", "b"), c = layer("C", "c");
+    const a = layer("A", "a"),
+      b = layer("B", "b"),
+      c = layer("C", "c");
     expect(diffScene(scene(a, b), scene(a))).toEqual([
       { op: "remove-layer", layer: { id: "B", name: "b" } },
     ]);
@@ -794,7 +788,9 @@ describe("diffScene — whole-scene recording", () => {
   });
 
   it("carries the reordered layers' identities (id + name), not just positional indices (trace 2026-08-26T08-15-02, rev .51: a foreign scene replays reorder-layers by raw position with no identity to check)", () => {
-    const a = layer("A", "a"), b = layer("B", "b"), c = layer("C", "c");
+    const a = layer("A", "a"),
+      b = layer("B", "b"),
+      c = layer("C", "c");
     const ops = diffScene(scene(a, b, c), scene(c, a, b));
 
     expect(ops).toEqual([
@@ -824,13 +820,15 @@ describe("diffScene — whole-scene recording", () => {
 describe("diffScene — duplicate detection with Creator's offset", () => {
   it("matches a copy whose position (and rotation) differ from the source", () => {
     const src = makeNode({
-      nodeId: "L1", nodeName: "Polygon 1",
+      nodeId: "L1",
+      nodeName: "Polygon 1",
       nodeType: "CONTAINER",
       props: { position: anim({ x: 33, y: 52 }), rotation: anim(16) },
       shapes: [makeShape("s1", "POLYGON", { props: { points: anim(5) } })],
     });
     const copy = makeNode({
-      nodeId: "L2", nodeName: "Polygon 2",
+      nodeId: "L2",
+      nodeName: "Polygon 2",
       nodeType: "CONTAINER",
       props: { position: anim({ x: 43, y: 62 }), rotation: anim(16) },
       shapes: [makeShape("s2", "POLYGON", { props: { points: anim(5) } })],
@@ -849,11 +847,15 @@ describe("diffScene — duplicate detection with Creator's offset", () => {
 
   it("still refuses to match layers with different content", () => {
     const src = makeNode({
-      nodeId: "L1", nodeName: "Polygon 1", nodeType: "CONTAINER",
+      nodeId: "L1",
+      nodeName: "Polygon 1",
+      nodeType: "CONTAINER",
       shapes: [makeShape("s1", "POLYGON")],
     });
     const other = makeNode({
-      nodeId: "L2", nodeName: "Ellipse 1", nodeType: "CONTAINER",
+      nodeId: "L2",
+      nodeName: "Ellipse 1",
+      nodeType: "CONTAINER",
       shapes: [makeShape("s2", "ELLIPSE")],
     });
     const ops = diffScene({ layers: [src] }, { layers: [src, other] });
@@ -867,7 +869,9 @@ describe("diffScene — break-scene detection and renames", () => {
     const keep = makeNode({ nodeId: "K1", nodeName: "Outline", nodeType: "CONTAINER" });
     const outA = makeNode({ nodeId: "N1", nodeName: "Bubble", nodeType: "CONTAINER" });
     const outB = makeNode({
-      nodeId: "N2", nodeName: "Fish", nodeType: "CONTAINER",
+      nodeId: "N2",
+      nodeName: "Fish",
+      nodeType: "CONTAINER",
       shapes: [makeShape("s1", "PATH")],
     });
 
@@ -899,20 +903,30 @@ describe("diffScene — break-scene detection and renames", () => {
 describe("text layer plain props", () => {
   it("diffs font changes as set-plain steps", () => {
     const prev = makeNode({
-      nodeId: "T1", nodeName: "Text 1", nodeType: "TEXT_LAYER",
+      nodeId: "T1",
+      nodeName: "Text 1",
+      nodeType: "TEXT_LAYER",
       plain: { text: "Hello", fontFamily: "Inter", fontSize: 24 },
     });
     const next = makeNode({
-      nodeId: "T1", nodeName: "Text 1", nodeType: "TEXT_LAYER",
+      nodeId: "T1",
+      nodeName: "Text 1",
+      nodeType: "TEXT_LAYER",
       plain: { text: "Hello!", fontFamily: "Archivo", fontSize: 24 },
     });
     const ops = diffScene({ layers: [prev] }, { layers: [next] });
     expect(ops).toContainEqual({
-      op: "set-plain", path: ["text"], before: "Hello", after: "Hello!",
+      op: "set-plain",
+      path: ["text"],
+      before: "Hello",
+      after: "Hello!",
       layer: { id: "T1", name: "Text 1" },
     });
     expect(ops).toContainEqual({
-      op: "set-plain", path: ["fontFamily"], before: "Inter", after: "Archivo",
+      op: "set-plain",
+      path: ["fontFamily"],
+      before: "Inter",
+      after: "Archivo",
       layer: { id: "T1", name: "Text 1" },
     });
   });
@@ -940,8 +954,18 @@ describe("diffScene — nest detection and instance content", () => {
   it("edits inside a scene instance's content diff as deep shape paths", () => {
     const content = (r: number) =>
       makeShape("inner1", "CONTAINER", { props: { rotation: anim(r) } });
-    const prev = makeNode({ nodeId: "I", nodeName: "Meta Balls", nodeType: "SCENE_LAYER", shapes: [content(0)] });
-    const next = makeNode({ nodeId: "I", nodeName: "Meta Balls", nodeType: "SCENE_LAYER", shapes: [content(30)] });
+    const prev = makeNode({
+      nodeId: "I",
+      nodeName: "Meta Balls",
+      nodeType: "SCENE_LAYER",
+      shapes: [content(0)],
+    });
+    const next = makeNode({
+      nodeId: "I",
+      nodeName: "Meta Balls",
+      nodeType: "SCENE_LAYER",
+      shapes: [content(30)],
+    });
 
     expect(diffScene({ layers: [prev] }, { layers: [next] })).toEqual([
       {
@@ -988,10 +1012,12 @@ describe("diffSnapshots — motion-path handles", () => {
     const after = makeNode({ props: { position: anim({ x: 0, y: 0 }, [{ ...k, frame: 45 }]) } });
     const steps = diffSnapshots(before, after);
     expect(steps[0]).toMatchObject({ op: "keyframes", added: [], removed: [] });
-    expect((steps[0] as Extract<StepPayload, { op: "keyframes" }>).changed[0]!.after).toMatchObject({
-      frame: 45,
-      inTangent: { x: -30, y: 0 },
-    });
+    expect((steps[0] as Extract<StepPayload, { op: "keyframes" }>).changed[0]!.after).toMatchObject(
+      {
+        frame: 45,
+        inTangent: { x: -30, y: 0 },
+      },
+    );
   });
 });
 
@@ -1023,8 +1049,16 @@ describe("diffSnapshots — mask mode", () => {
 
 describe("diffSnapshots — gradient type swap", () => {
   it("a LINEAR → RADIAL swap replaces the paint instead of diffing its parts", () => {
-    const linear: PaintSnapshot = { kind: "gradient", gradientType: "GRADIENT_LINEAR", stops: anim([]) };
-    const radial: PaintSnapshot = { kind: "gradient", gradientType: "GRADIENT_RADIAL", stops: anim([]) };
+    const linear: PaintSnapshot = {
+      kind: "gradient",
+      gradientType: "GRADIENT_LINEAR",
+      stops: anim([]),
+    };
+    const radial: PaintSnapshot = {
+      kind: "gradient",
+      gradientType: "GRADIENT_RADIAL",
+      stops: anim([]),
+    };
     const before = makeNode({ fills: [linear] });
     const after = makeNode({ fills: [radial] });
     expect(diffSnapshots(before, after)).toEqual([
@@ -1054,18 +1088,38 @@ describe("diffScene — scene settings", () => {
 
   it("emits one set-scene step per changed setting", () => {
     const steps = diffScene(
-      scene({ name: "Main", size: { width: 100, height: 100 }, framerate: 30, duration: 5, backgroundColor: null }),
-      scene({ name: "Main", size: { width: 200, height: 100 }, framerate: 60, duration: 5, backgroundColor: null }),
+      scene({
+        name: "Main",
+        size: { width: 100, height: 100 },
+        framerate: 30,
+        duration: 5,
+        backgroundColor: null,
+      }),
+      scene({
+        name: "Main",
+        size: { width: 200, height: 100 },
+        framerate: 60,
+        duration: 5,
+        backgroundColor: null,
+      }),
     );
     expect(steps).toEqual([
-      { op: "set-scene", key: "size", before: { width: 100, height: 100 }, after: { width: 200, height: 100 } },
+      {
+        op: "set-scene",
+        key: "size",
+        before: { width: 100, height: 100 },
+        after: { width: 200, height: 100 },
+      },
       { op: "set-scene", key: "framerate", before: 30, after: 60 },
     ]);
   });
 
   it("treats a null background as a real value, not an absent one", () => {
     expect(
-      diffScene(scene({ backgroundColor: { r: 255, g: 255, b: 255 } }), scene({ backgroundColor: null })),
+      diffScene(
+        scene({ backgroundColor: { r: 255, g: 255, b: 255 } }),
+        scene({ backgroundColor: null }),
+      ),
     ).toEqual([
       { op: "set-scene", key: "backgroundColor", before: { r: 255, g: 255, b: 255 }, after: null },
     ]);

@@ -31,9 +31,7 @@ const MIN_DELAY_MS = 20;
  */
 export function paceDelayMs(enabledCount: number): number {
   if (enabledCount <= 0) return 0;
-  return Math.round(
-    Math.min(MAX_DELAY_MS, Math.max(MIN_DELAY_MS, RUN_BUDGET_MS / enabledCount)),
-  );
+  return Math.round(Math.min(MAX_DELAY_MS, Math.max(MIN_DELAY_MS, RUN_BUDGET_MS / enabledCount)));
 }
 
 /**

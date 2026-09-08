@@ -46,11 +46,7 @@ describe("stepStatusFor", () => {
       "pending",
       "pending",
     ]);
-    expect(strip(run({ currentStep: 5, doneCount: 5 }), 3)).toEqual([
-      "done",
-      "done",
-      "running",
-    ]);
+    expect(strip(run({ currentStep: 5, doneCount: 5 }), 3)).toEqual(["done", "done", "running"]);
   });
 
   it("keeps a failed step marked after Continue, and into later iterations", () => {

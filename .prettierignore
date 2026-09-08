@@ -1,5 +1,9 @@
 dist/
 node_modules/
 traces/
+artifacts/
+release/
+marketing/
+.claude/worktrees/
 pnpm-lock.yaml
 *.md

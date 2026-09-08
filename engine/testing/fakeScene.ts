@@ -629,7 +629,10 @@ export function makeNode(
       const copy = makeNode(`${name} copy`, { type: nodeType, props: copyProps }, nextId);
       if (Array.isArray(node.fills)) {
         for (const fill of node.fills) {
-          copy.createFill({ type: "SOLID", color: fill.color?.staticValue ?? { r: 0, g: 0, b: 0 } });
+          copy.createFill({
+            type: "SOLID",
+            color: fill.color?.staticValue ?? { r: 0, g: 0, b: 0 },
+          });
         }
       }
       if (Array.isArray(node.shapes)) {
@@ -772,16 +775,18 @@ export function makeNode(
       return group;
     };
 
-    const factory = (type: string) => (opts: FakeNodeOptions["props"] = {}) => {
-      const child = makeNode(
-        `${type.toLowerCase()} ${node.shapes.length + 1}`,
-        { type, props: opts },
-        nextId,
-      );
-      child.parent = node;
-      node.shapes.push(child);
-      return child;
-    };
+    const factory =
+      (type: string) =>
+      (opts: FakeNodeOptions["props"] = {}) => {
+        const child = makeNode(
+          `${type.toLowerCase()} ${node.shapes.length + 1}`,
+          { type, props: opts },
+          nextId,
+        );
+        child.parent = node;
+        node.shapes.push(child);
+        return child;
+      };
     for (const shapeType of SHAPE_FACTORY_TYPES) {
       node[`create${shapeType.charAt(0)}${shapeType.slice(1).toLowerCase()}`] = factory(shapeType);
     }
@@ -839,10 +844,7 @@ export function makeNode(
       if (opts.opacity !== undefined && !isFiniteNumber(opts.opacity)) invalidInput();
       let mode = (opts.mode ?? "add") as string;
       const mask: Any = {
-        pathData: makeAnimatable(
-          (opts.pathData ?? { points: [], closed: true }) as Json,
-          nextId,
-        ),
+        pathData: makeAnimatable((opts.pathData ?? { points: [], closed: true }) as Json, nextId),
         opacity: makeAnimatable((opts.opacity ?? 100) as Json, nextId),
         remove() {
           const at = node.masks.indexOf(mask);
@@ -1045,11 +1047,19 @@ export function makeFakeScene(nextId: (prefix: string) => string = makeIds()): A
 /** The four-node scene the host harness exposes as window.harness.nodes. */
 export function makeScene() {
   const nextId = makeIds();
-  const A = makeNode("Layer A", { props: { position: { x: 100, y: 50 } }, fills: [{ r: 10, g: 20, b: 30 }] }, nextId);
+  const A = makeNode(
+    "Layer A",
+    { props: { position: { x: 100, y: 50 } }, fills: [{ r: 10, g: 20, b: 30 }] },
+    nextId,
+  );
   A.createRectangle({ size: { width: 80, height: 60 } });
   const B = makeNode("Layer B", { props: { position: { x: 400, y: 300 } } }, nextId);
   B.createStar({});
-  const C = makeNode("Layer C", { props: { position: { x: -50, y: 10 }, scale: { x: 200, y: 200 } } }, nextId);
+  const C = makeNode(
+    "Layer C",
+    { props: { position: { x: -50, y: 10 }, scale: { x: 200, y: 200 } } },
+    nextId,
+  );
   // no fills — exercises the resolvePath failure path
   const D = makeNode("Bare", { fills: [] }, nextId);
   return { nextId, A, B, C, D };

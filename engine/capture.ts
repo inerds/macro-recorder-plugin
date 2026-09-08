@@ -23,13 +23,7 @@
  * resolves captured paths identically to recorded ones.
  */
 import { jsonEqual, type Json } from "./json";
-import type {
-  AnimatableSnapshot,
-  KfSnap,
-  NodeSnapshot,
-  PaintSnapshot,
-  Path,
-} from "./snapshot";
+import type { AnimatableSnapshot, KfSnap, NodeSnapshot, PaintSnapshot, Path } from "./snapshot";
 import type { LayerRef, StepPayload } from "./steps";
 
 /** A selected keyframe as read (defensively) off the host's selection list. */

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -20,8 +20,10 @@
         if (!data || data.type !== "change:theme") return;
         var tokens = data.tokens || {};
         var bg =
-          tokens["--background"] || tokens["background"] ||
-          tokens["--base"] || tokens["base"] ||
+          tokens["--background"] ||
+          tokens["background"] ||
+          tokens["--base"] ||
+          tokens["base"] ||
           (typeof data.isLight === "boolean"
             ? data.isLight
               ? "hsl(0 0% 100%)"

@@ -7,14 +7,30 @@
      page and the vitest suite drive the SAME test double. That module is
      imported as TypeScript, which the Vite dev server transforms on request —
      so this page works under `pnpm dev`, not from a static build. -->
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <title>Macro Recorder host harness</title>
     <style>
-      body { margin: 0; font-family: system-ui; display: flex; gap: 16px; padding: 16px; }
-      iframe { border: 1px solid #ccc; width: 320px; height: 560px; }
-      pre { font-size: 11px; background: #f4f4f4; padding: 8px; flex: 1; overflow: auto; }
+      body {
+        margin: 0;
+        font-family: system-ui;
+        display: flex;
+        gap: 16px;
+        padding: 16px;
+      }
+      iframe {
+        border: 1px solid #ccc;
+        width: 320px;
+        height: 560px;
+      }
+      pre {
+        font-size: 11px;
+        background: #f4f4f4;
+        padding: 8px;
+        flex: 1;
+        overflow: auto;
+      }
     </style>
   </head>
   <body>
@@ -25,7 +41,8 @@
 
       const logEl = document.getElementById("log");
       function log(...args) {
-        logEl.textContent += args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ") + "\n";
+        logEl.textContent +=
+          args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ") + "\n";
       }
 
       const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -62,21 +79,37 @@
             panelSize = { width: options?.width ?? 320, height: options?.height ?? 560 };
             applyPanelSize();
           },
-          onMessage(cb) { uiMessageHandlers.push(cb); },
+          onMessage(cb) {
+            uiMessageHandlers.push(cb);
+          },
           postMessage(data) {
             iframe?.contentWindow?.postMessage({ pluginMessage: clone(data) }, "*");
           },
         },
         selection: {
-          get nodes() { return [...window.harness.selection]; },
+          get nodes() {
+            return [...window.harness.selection];
+          },
         },
         clientStorage: {
-          async keys() { return [...storage.keys()]; },
-          async get(key) { return clone(storage.get(key)); },
-          async set(key, value) { storage.set(key, clone(value)); },
-          async delete(key) { storage.delete(key); },
-          async clear() { storage.clear(); },
-          async usedQuota() { return 0; },
+          async keys() {
+            return [...storage.keys()];
+          },
+          async get(key) {
+            return clone(storage.get(key));
+          },
+          async set(key, value) {
+            storage.set(key, clone(value));
+          },
+          async delete(key) {
+            storage.delete(key);
+          },
+          async clear() {
+            storage.clear();
+          },
+          async usedQuota() {
+            return 0;
+          },
         },
         timeline: { currentFrame: 0, goToFrame() {}, play() {}, pause() {} },
         on() {},
