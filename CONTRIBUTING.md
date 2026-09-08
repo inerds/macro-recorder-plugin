@@ -33,7 +33,7 @@ Run every check below before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
-pnpm test          # vitest run (768 tests, 34 files)
+pnpm test          # vitest run (855 tests, 36 files)
 pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
@@ -89,6 +89,15 @@ without Creator.
 
 [`docs/architecture.md`](docs/architecture.md) explains why these boundaries
 exist. Read it before you move anything across one.
+
+## Add a macro fixture
+
+When you change the shape a macro is SAVED in, add a fixture to
+`engine/testing/macros/`. Never edit or delete an older one: a user's storage
+still holds that shape, and the fixture is the only test that it still loads.
+`engine/corpus.test.ts` and `sandbox/corpus.replay.test.ts` run the whole
+corpus on every `pnpm test`. See
+[`docs/contributing/macro-corpus.md`](docs/contributing/macro-corpus.md).
 
 ## Bump ENGINE_REV
 

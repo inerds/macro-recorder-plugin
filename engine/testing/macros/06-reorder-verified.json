@@ -1,0 +1,91 @@
+{
+  "_corpus": {
+    "era": "reorder-verified",
+    "introduced": "eafc287 (2026-08-26), first shipped in v0.6.0",
+    "note": "Rev .52 adds `layers` to `reorder-layers`: the recorded layers in their new order, so a replay verifies the identities before it permutes anything. The fixture also carries a fresh `add-layer` and a `remove-layer`."
+  },
+  "id": "corpus-reorder-verified",
+  "name": "Shuffle, badge, prune",
+  "createdAt": 1755870000000,
+  "steps": [
+    {
+      "id": "rv-1",
+      "kind": "layer",
+      "label": "Layers \u00b7 reordered",
+      "payload": {
+        "op": "reorder-layers",
+        "order": [2, 0, 1],
+        "layers": [
+          {
+            "id": "demo-caption",
+            "name": "Old Caption",
+            "priorName": "Caption"
+          },
+          {
+            "id": "demo-hero",
+            "name": "Hero Square"
+          },
+          {
+            "id": "demo-orbit",
+            "name": "Orbit Dot"
+          }
+        ]
+      }
+    },
+    {
+      "id": "rv-2",
+      "kind": "layer",
+      "label": "Layer \u00b7 added Badge",
+      "payload": {
+        "op": "add-layer",
+        "spec": {
+          "nodeId": "corpus-badge",
+          "nodeType": "SHAPE_LAYER",
+          "nodeName": "Badge",
+          "props": {
+            "position": {
+              "animated": false,
+              "static": {
+                "x": 900,
+                "y": 120
+              }
+            },
+            "opacity": {
+              "animated": false,
+              "static": 100
+            }
+          },
+          "plain": {},
+          "fills": [
+            {
+              "kind": "solid",
+              "color": {
+                "animated": false,
+                "static": {
+                  "r": 255,
+                  "g": 186,
+                  "b": 73
+                }
+              }
+            }
+          ],
+          "strokes": [],
+          "masks": [],
+          "shapes": []
+        }
+      }
+    },
+    {
+      "id": "rv-3",
+      "kind": "layer",
+      "label": "Layer \u00b7 removed Orbit Dot",
+      "payload": {
+        "op": "remove-layer",
+        "layer": {
+          "id": "demo-orbit",
+          "name": "Orbit Dot"
+        }
+      }
+    }
+  ]
+}

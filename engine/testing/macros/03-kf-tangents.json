@@ -1,0 +1,124 @@
+{
+  "_corpus": {
+    "era": "kf-tangents",
+    "introduced": "dc365ae (2026-08-22), first shipped in v0.6.0",
+    "note": "`KfSnap` gains `inTangent` and `outTangent` \u2014 the motion-path handles on a position keyframe. Creator discards them, so a replay reports one note per handle it could not write (docs/limitations.md)."
+  },
+  "id": "corpus-kf-tangents",
+  "name": "Motion path \u00b7 arc and settle",
+  "createdAt": 1755840000000,
+  "source": {
+    "nodeId": "demo-hero",
+    "nodeName": "Hero Square"
+  },
+  "steps": [
+    {
+      "id": "kt-1",
+      "kind": "keyframe",
+      "label": "Keyframes \u00b7 position, 2 added",
+      "payload": {
+        "op": "keyframes",
+        "path": ["position"],
+        "added": [
+          {
+            "frame": 0,
+            "value": {
+              "x": 540,
+              "y": 80
+            },
+            "easing": {
+              "type": "CUBIC_BEZIER",
+              "x1": 0.25,
+              "y1": 0.1,
+              "x2": 0.25,
+              "y2": 1
+            },
+            "inTangent": {
+              "x": 0,
+              "y": 0
+            },
+            "outTangent": {
+              "x": 40,
+              "y": 0
+            }
+          },
+          {
+            "frame": 24,
+            "value": {
+              "x": 540,
+              "y": 560
+            },
+            "inTangent": {
+              "x": -40,
+              "y": 0
+            },
+            "outTangent": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "removed": [],
+        "changed": [],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "kt-2",
+      "kind": "keyframe",
+      "label": "Keyframes \u00b7 position, 1 moved",
+      "payload": {
+        "op": "keyframes",
+        "path": ["position"],
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "before": {
+              "frame": 24,
+              "value": {
+                "x": 540,
+                "y": 560
+              }
+            },
+            "after": {
+              "frame": 30,
+              "value": {
+                "x": 540,
+                "y": 560
+              }
+            }
+          }
+        ],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "kt-3",
+      "kind": "transform",
+      "label": "Transform \u00b7 scale (x: 100, y: 100) \u2192 (x: 118, y: 118)",
+      "payload": {
+        "op": "set-static",
+        "path": ["scale"],
+        "before": {
+          "x": 100,
+          "y": 100
+        },
+        "after": {
+          "x": 118,
+          "y": 118
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    }
+  ]
+}

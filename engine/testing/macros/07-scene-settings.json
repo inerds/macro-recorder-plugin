@@ -1,0 +1,127 @@
+{
+  "_corpus": {
+    "era": "scene-settings",
+    "introduced": "356b5aa (2026-09-06), first shipped in v0.7.0",
+    "note": "The `set-scene` op records a scene-level setting \u2014 name, size, background, framerate, or duration. It is absolute by construction, and it applies once per replay, never once per selected layer."
+  },
+  "id": "corpus-scene-settings",
+  "name": "Nest, break, rename the scene",
+  "createdAt": 1755880000000,
+  "steps": [
+    {
+      "id": "ss-1",
+      "kind": "layer",
+      "label": "Scene \u00b7 name \"Main Scene\" \u2192 \"Corpus Scene\"",
+      "payload": {
+        "op": "set-scene",
+        "key": "name",
+        "before": "Main Scene",
+        "after": "Corpus Scene"
+      }
+    },
+    {
+      "id": "ss-2",
+      "kind": "layer",
+      "label": "Scene \u00b7 framerate 30 \u2192 60",
+      "payload": {
+        "op": "set-scene",
+        "key": "framerate",
+        "before": 30,
+        "after": 60
+      }
+    },
+    {
+      "id": "ss-3",
+      "kind": "layer",
+      "label": "Layers \u00b7 nested into Hero Group",
+      "payload": {
+        "op": "nest-layers",
+        "layers": [
+          {
+            "id": "demo-hero",
+            "name": "Hero Square"
+          },
+          {
+            "id": "demo-orbit",
+            "name": "Orbit Dot"
+          }
+        ],
+        "spec": {
+          "nodeId": "corpus-nest",
+          "nodeType": "SCENE_LAYER",
+          "nodeName": "Hero Group",
+          "props": {
+            "position": {
+              "animated": false,
+              "static": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "opacity": {
+              "animated": false,
+              "static": 100
+            }
+          },
+          "plain": {},
+          "fills": [],
+          "strokes": [],
+          "masks": [],
+          "shapes": []
+        }
+      }
+    },
+    {
+      "id": "ss-4",
+      "kind": "layer",
+      "label": "Hero Group \u00b7 broken into its layers",
+      "payload": {
+        "op": "break-scene",
+        "layer": {
+          "id": "corpus-nest",
+          "name": "Hero Group"
+        },
+        "fallback": [
+          {
+            "nodeId": "demo-hero",
+            "nodeType": "CONTAINER",
+            "nodeName": "Hero Square",
+            "props": {
+              "position": {
+                "animated": false,
+                "static": {
+                  "x": 540,
+                  "y": 560
+                }
+              }
+            },
+            "plain": {},
+            "fills": [],
+            "strokes": [],
+            "masks": [],
+            "shapes": []
+          },
+          {
+            "nodeId": "demo-orbit",
+            "nodeType": "CONTAINER",
+            "nodeName": "Orbit Dot",
+            "props": {
+              "position": {
+                "animated": false,
+                "static": {
+                  "x": 820,
+                  "y": 300
+                }
+              }
+            },
+            "plain": {},
+            "fills": [],
+            "strokes": [],
+            "masks": [],
+            "shapes": []
+          }
+        ]
+      }
+    }
+  ]
+}

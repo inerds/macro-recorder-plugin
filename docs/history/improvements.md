@@ -12,6 +12,15 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-08 — Macro-corpus compatibility test
+
+| Issue | Fix |
+|---|---|
+| **Nothing tested that an OLDER saved macro still loads.** A macro outlives the code that recorded it — Creator holds it in `clientStorage`, and a user holds the JSON they exported — and the 2026-09-07 session changed the step shape three times, each time hand-checked. One of those changes blanked the panel on a macro whose `apply` was a string. | `engine/testing/macros/*.json` holds ten fixtures, one per era of the saved shape, from the v1 export that `add-fill` still names to the shape `buildStep` writes today. `engine/corpus.test.ts` runs validation, import, labels, the review-sheet editor, Simplify, and parameter pinning over every one; `sandbox/corpus.replay.test.ts` replays each through the real orchestrator against the fake scene, with a per-era assertion on what the scene ends up holding. The eras are read off `git log`, and each fixture names the commit and the release that introduced it. |
+| A shape change could be hidden by editing the newest fixture. | The newest fixture is asserted to equal what `buildStep` produces today, so a change to the payload union, to `kindOf`, or to `labelOf` fails until a NEW fixture is added. `engine/corpus.test.ts` also lists every `op` in the union and fails until a fixture carries each one. `docs/contributing/macro-corpus.md` carries the rule — add a fixture, never edit or delete one — and `CLAUDE.md` rule 6 states it. |
+| The demo replay suite owned the only harness that drives a macro through playback, inside a test file nothing else could import. | `sandbox/testing/replay.ts` holds `stubCreator`, `runSteps`, and `endReplay`; `sandbox/demoMacros.replay.test.ts` and `sandbox/corpus.replay.test.ts` share it, so both suites drive the same sequence the RPC server does. |
+| The fixtures are JSON, and neither TypeScript project could import one. | `resolveJsonModule` is on in `tsconfig.ui.json` and `tsconfig.sandbox.json`. The `engine/` sources still reference no Node API, so the corpus loader (`engine/testing/corpus.ts`) imports the fixtures as modules rather than reading files. |
+
 ## 2026-09-08 — Docs wiki
 
 | Issue | Fix |

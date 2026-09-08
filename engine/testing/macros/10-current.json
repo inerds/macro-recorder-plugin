@@ -1,0 +1,156 @@
+{
+  "_corpus": {
+    "era": "current",
+    "introduced": "e3acded (2026-09-07), first shipped in v0.8.0",
+    "note": "The shape `buildStep` writes today. `engine/corpus.test.ts` asserts every step here still equals what `buildStep` produces, so a change to the payload union, to `kindOf`, or to `labelOf` forces a NEW fixture rather than an edit to this one. The first step carries the exact-values formula the Option-Record modifier stamps."
+  },
+  "id": "corpus-current",
+  "name": "Current shape",
+  "createdAt": 1757300000000,
+  "source": {
+    "nodeId": "demo-hero",
+    "nodeName": "Hero Square"
+  },
+  "steps": [
+    {
+      "id": "cur-1",
+      "kind": "transform",
+      "label": "Hero Square · Transform · position (x: 100, y: 100) → (x: 640, y: 480)",
+      "payload": {
+        "op": "set-static",
+        "path": ["position"],
+        "before": {
+          "x": 100,
+          "y": 100
+        },
+        "after": {
+          "x": 640,
+          "y": 480
+        },
+        "apply": {
+          "x": {
+            "scale": 0,
+            "offset": 640
+          },
+          "y": {
+            "scale": 0,
+            "offset": 480
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "cur-2",
+      "kind": "transform",
+      "label": "Hero Square · Transform · rotation −6",
+      "payload": {
+        "op": "set-static",
+        "path": ["rotation"],
+        "before": 0,
+        "after": -6,
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "cur-3",
+      "kind": "transform",
+      "label": "Hero Square · Transform · opacity 100 → 55",
+      "payload": {
+        "op": "set-static",
+        "path": ["opacity"],
+        "before": 100,
+        "after": 55,
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "cur-4",
+      "kind": "keyframe",
+      "label": "Hero Square · Keyframes · scale (+2)",
+      "payload": {
+        "op": "keyframes",
+        "path": ["scale"],
+        "added": [
+          {
+            "frame": 0,
+            "value": {
+              "x": 100,
+              "y": 100
+            }
+          },
+          {
+            "frame": 18,
+            "value": {
+              "x": 130,
+              "y": 130
+            }
+          }
+        ],
+        "removed": [],
+        "changed": [],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "cur-5",
+      "kind": "layer",
+      "label": "Hero Square · Layer · locked on",
+      "payload": {
+        "op": "set-plain",
+        "path": ["locked"],
+        "before": false,
+        "after": true,
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "cur-6",
+      "kind": "fill",
+      "label": "Hero Square · Add fill #209496",
+      "payload": {
+        "op": "add-paint",
+        "path": ["fills", 2],
+        "spec": {
+          "kind": "solid",
+          "color": {
+            "animated": false,
+            "static": {
+              "r": 32,
+              "g": 148,
+              "b": 150
+            }
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    }
+  ],
+  "params": [
+    {
+      "stepId": "cur-1",
+      "label": "Place at"
+    }
+  ],
+  "playOptions": {
+    "atPlayhead": true
+  }
+}

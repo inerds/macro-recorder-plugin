@@ -1,0 +1,66 @@
+{
+  "_corpus": {
+    "era": "play-options",
+    "introduced": "d5807da (2026-08-25), first shipped in v0.6.0",
+    "note": "`Macro.playOptions` is saved with the macro: apply at the playhead, stagger, and repeat. `reorder-layers` still carries `order` alone, so a replay reorders by position and says it could not verify the layers."
+  },
+  "id": "corpus-play-options",
+  "name": "Storyboard shuffle",
+  "createdAt": 1755860000000,
+  "source": {
+    "nodeId": "demo-hero",
+    "nodeName": "Hero Square"
+  },
+  "playOptions": {
+    "atPlayhead": true,
+    "staggerFrames": 5,
+    "repeat": 2
+  },
+  "steps": [
+    {
+      "id": "po-1",
+      "kind": "transform",
+      "label": "Transform \u00b7 position (540, 560) \u2192 (300, 420)",
+      "payload": {
+        "op": "set-static",
+        "path": ["position"],
+        "before": {
+          "x": 540,
+          "y": 560
+        },
+        "after": {
+          "x": 300,
+          "y": 420
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "po-2",
+      "kind": "transform",
+      "label": "Transform \u00b7 opacity 100 \u2192 40",
+      "payload": {
+        "op": "set-static",
+        "path": ["opacity"],
+        "before": 100,
+        "after": 40,
+        "layer": {
+          "id": "demo-orbit",
+          "name": "Orbit Dot"
+        }
+      }
+    },
+    {
+      "id": "po-3",
+      "kind": "layer",
+      "label": "Layers \u00b7 reordered",
+      "payload": {
+        "op": "reorder-layers",
+        "order": [2, 0, 1]
+      }
+    }
+  ]
+}

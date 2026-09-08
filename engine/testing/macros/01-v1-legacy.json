@@ -1,0 +1,68 @@
+{
+  "_corpus": {
+    "era": "v1-legacy",
+    "introduced": "before 0a0061c (2026-08-22) \u2014 the v1 exports engine v3 still reads",
+    "note": "The v1 export shape, which predates this repository. A `mode` field on the macro, the `add-fill` op, no `layer` on a payload, no `source`, no `params`, and no `playOptions`. The last step carries a payload that is not a StepPayload: `MacroStep.payload` is typed `unknown` (engine/macro.ts), so a store can hand one back, and playback reports it rather than crashing.",
+    "replay": {
+      "failures": ["this step can't be replayed (unrecognized format)"]
+    }
+  },
+  "id": "corpus-v1-legacy",
+  "name": "v1 \u00b7 recolor and nudge",
+  "createdAt": 1755820000000,
+  "mode": "smart",
+  "steps": [
+    {
+      "id": "v1-1",
+      "kind": "transform",
+      "label": "Transform \u00b7 position (540, 560) \u2192 (600, 560)",
+      "payload": {
+        "op": "set-static",
+        "path": ["position"],
+        "before": {
+          "x": 540,
+          "y": 560
+        },
+        "after": {
+          "x": 600,
+          "y": 560
+        }
+      }
+    },
+    {
+      "id": "v1-2",
+      "kind": "fill",
+      "label": "Fill \u00b7 added #EC4F35",
+      "payload": {
+        "op": "add-fill",
+        "spec": {
+          "kind": "solid",
+          "color": {
+            "animated": false,
+            "static": {
+              "r": 236,
+              "g": 79,
+              "b": 53
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "v1-3",
+      "kind": "other",
+      "label": "Reordered layers \u2014 not replayable",
+      "payload": {
+        "op": "not-replayable",
+        "description": "Reordered layers"
+      },
+      "replayable": false
+    },
+    {
+      "id": "v1-4",
+      "kind": "other",
+      "label": "Mock step",
+      "payload": {}
+    }
+  ]
+}

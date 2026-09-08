@@ -24,15 +24,6 @@ to remember by hand. A pre-commit hook, wired through
 commit that touches `sandbox/` or `engine/` without also touching
 `ENGINE_REV` in the same diff. Size: S.
 
-## Macro-corpus compatibility test
-
-The 2026-09-07 session changed the step payload shape more than once (formula
-steps, exact-value steps, selection scope), each time by hand-checking that
-older macros still load. A fixture directory,
-`engine/testing/macros/*.json`, would hold one fixture per payload shape a
-macro has ever been saved with, and a test would run labels, editing,
-simplify, and playback over every fixture on every change. Size: M.
-
 ## Trace index: `traces/index.jsonl` and `pnpm traces:stale`
 
 Triage this session read `traces/.processed` by hand to find what was new,
