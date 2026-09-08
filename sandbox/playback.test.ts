@@ -431,8 +431,12 @@ describe("layer resolution across renames", () => {
     const ids = makeIds();
     const scene = makeSceneRoot(ids);
     const text = scene.addLayer(makeNode("Text 1", {}, ids));
+    const other = scene.addLayer(makeNode("Rectangle 1", {}, ids));
     stubCreator(scene, []);
 
+    // Two referenced layers, so the macro is a scene rebuild with nothing
+    // selected — a solo-layer macro would refuse with `no-selection`. Only
+    // step 0 runs; the second step is here to choose the mode.
     playbackBegin({
       steps: [
         step({
@@ -441,6 +445,13 @@ describe("layer resolution across renames", () => {
           before: true,
           after: false,
           layer: { id: "REC", name: "Text 1 (source text)", priorName: "Text 1" },
+        }),
+        step({
+          op: "set-plain",
+          path: ["visible"],
+          before: true,
+          after: false,
+          layer: { id: String(other.id), name: "Rectangle 1" },
         }),
       ] as Any,
     });
@@ -1586,8 +1597,11 @@ describe("debug probes on a set-plain scalar path (probe() assumes an Animatable
     // PLAIN_PROPS comment: "never animatable, diffed by value").
     const caption = scene.addLayer(makeNode("Caption", {}, ids));
     caption.text = "hello";
+    const other = scene.addLayer(makeNode("Rectangle 1", {}, ids));
     stubCreator(scene, []);
 
+    // A second referenced layer makes this a scene rebuild, so it runs with
+    // nothing selected; only step 0 is played.
     playbackBegin({
       steps: [
         step({
@@ -1596,6 +1610,13 @@ describe("debug probes on a set-plain scalar path (probe() assumes an Animatable
           before: "hello",
           after: "world",
           layer: { id: "REC", name: "Caption", priorName: "Caption" },
+        }),
+        step({
+          op: "set-plain",
+          path: ["visible"],
+          before: true,
+          after: false,
+          layer: { id: String(other.id), name: "Rectangle 1" },
         }),
       ] as Any,
       debug: true,
@@ -2255,77 +2276,57 @@ describe("a SKIPPED absolute step does not re-anchor the target", () => {
 });
 
 describe(
-  "a solo-layer macro replayed with nothing selected (rev 2026-09-07.8, " +
+  "a solo-layer macro replayed with nothing selected (rev 2026-09-08.2, " +
     "traces 2026-09-08T02-19-34-375 / 02-19-41-998)",
   () => {
-    it(
-      "applies in targets mode to the recorded layer (found by sourceNodeId), with " +
-        "relative math so replaying it twice moves the layer twice " +
-        "(BUG: chooseMode takes scene mode whenever a layer is referenced and the " +
-        "selection is empty, then writes `after` verbatim — a layer already sitting " +
-        "at the recorded end value does not move at all)",
-      () => {
-        const ids = makeIds();
-        const scene = makeSceneRoot(ids);
-        // The layer sits at the RECORDED END STATE, exactly as it does right
-        // after recording a single set-static position step.
-        const ellipse = scene.addLayer(
-          makeNode("Ellipse 1", { props: { position: { x: 87.5, y: 45 } } }, ids),
-        );
-        stubCreator(scene, []);
+    it("refuses with no-selection, even when the macro carries its sourceNodeId", () => {
+      const ids = makeIds();
+      const scene = makeSceneRoot(ids);
+      // The layer sits at the RECORDED END STATE, exactly as it does right
+      // after recording a single set-static position step.
+      const ellipse = scene.addLayer(
+        makeNode("Ellipse 1", { props: { position: { x: 87.5, y: 45 } } }, ids),
+      );
+      stubCreator(scene, []);
 
-        const steps = [
-          step({
-            op: "set-static",
-            path: ["position"],
-            before: { x: 42.5, y: 45 },
-            after: { x: 87.5, y: 45 },
-            layer: { id: String(ellipse.id), name: "Ellipse 1" },
-          }),
-        ];
+      const steps = [
+        step({
+          op: "set-static",
+          path: ["position"],
+          before: { x: 42.5, y: 45 },
+          after: { x: 87.5, y: 45 },
+          layer: { id: String(ellipse.id), name: "Ellipse 1" },
+        }),
+      ];
 
-        const begin = playbackBegin({ steps: steps as Any, sourceNodeId: String(ellipse.id) });
-        expect(begin.targetCount).toBe(1);
+      expect(() =>
+        playbackBegin({ steps: steps as Any, sourceNodeId: String(ellipse.id) }),
+      ).toThrow("no-selection");
+      // The recorded layer is a hidden target: nothing is written to it.
+      expect(ellipse.position.staticValue).toEqual({ x: 87.5, y: 45 });
+    });
 
-        const r0 = playbackStep({ index: 0 });
-        expect(r0.failures).toEqual([]);
-        // additive class: baseline (87.5) + (after 87.5 − origin 42.5) = 132.5
-        expect(ellipse.position.staticValue).toEqual({ x: 132.5, y: 45 });
+    it("refuses with no-selection when the steps name their layer and no source is saved", () => {
+      const ids = makeIds();
+      const scene = makeSceneRoot(ids);
+      const ellipse = scene.addLayer(
+        makeNode("Ellipse 1", { props: { position: { x: 87.5, y: 45 } } }, ids),
+      );
+      stubCreator(scene, []);
 
-        playbackEnd();
-        playbackBegin({ steps: steps as Any, sourceNodeId: String(ellipse.id) });
-        expect(playbackStep({ index: 0 }).failures).toEqual([]);
-        // Playing it again moves the layer again, from where it now sits.
-        expect(ellipse.position.staticValue).toEqual({ x: 177.5, y: 45 });
-      },
-    );
+      const steps = [
+        step({
+          op: "set-static",
+          path: ["position"],
+          before: { x: 42.5, y: 45 },
+          after: { x: 87.5, y: 45 },
+          layer: { id: String(ellipse.id), name: "Ellipse 1" },
+        }),
+      ];
 
-    it(
-      "applies in targets mode to the recorded layer found by the referenced layer id " +
-        "alone, when sourceNodeId is omitted (same BUG as above)",
-      () => {
-        const ids = makeIds();
-        const scene = makeSceneRoot(ids);
-        const ellipse = scene.addLayer(
-          makeNode("Ellipse 1", { props: { position: { x: 87.5, y: 45 } } }, ids),
-        );
-        stubCreator(scene, []);
-
-        const steps = [
-          step({
-            op: "set-static",
-            path: ["position"],
-            before: { x: 42.5, y: 45 },
-            after: { x: 87.5, y: 45 },
-            layer: { id: String(ellipse.id), name: "Ellipse 1" },
-          }),
-        ];
-
-        playbackBegin({ steps: steps as Any });
-        expect(playbackStep({ index: 0 }).failures).toEqual([]);
-        expect(ellipse.position.staticValue).toEqual({ x: 132.5, y: 45 });
-      },
-    );
+      expect(() => playbackBegin({ steps: steps as Any })).toThrow("no-selection");
+      expect(ellipse.position.staticValue).toEqual({ x: 87.5, y: 45 });
+    });
   },
 );
 

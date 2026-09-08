@@ -39,20 +39,13 @@ export class MockPlaybackGateway implements PlaybackGateway {
     // as the RPC gateway does). A constructor override still wins.
     const stepMs = this.stepMs ?? paceDelayMs(steps.length);
 
-    const sleep = (ms: number) =>
-      new Promise<void>((resolve) => setTimeout(resolve, ms));
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
     async function execute() {
       if (scenario === "no-selection") {
-        onEvent({
-          kind: "step-failed",
-          stepIndex: 0,
-          message: "Select a layer first",
-        });
-        // A pre-run failure can only be stopped.
-        await new Promise<"continue" | "stop">((resolve) => {
-          pendingFailure = resolve;
-        });
+        // The macro needs a layer selected: the panel asks for one and rests,
+        // exactly as the RPC gateway reports `no-selection`.
+        onEvent({ kind: "needs-selection" });
         return;
       }
 

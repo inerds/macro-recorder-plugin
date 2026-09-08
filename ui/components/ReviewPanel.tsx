@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { EditableValue } from "../../engine/editing";
 import type { MacroParam } from "../../engine/macro";
 import type { ScopeReport } from "../../engine/protocol";
-import { sharedLayerName } from "../../engine/labels";
 import { describePlaybackMode, playbackModeHint } from "../../engine/playbackMode";
 import type { MacroStep } from "../types";
 import { ConfirmInline } from "./ConfirmInline";
@@ -60,15 +59,11 @@ export function ReviewPanel({
   // Discarding a recording can't be undone, so a full list asks first.
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
-  // The recorded layer used to ride the list header as an inline "on <layer>"
-  // that truncated first and hardest. It belongs in the sentence that already
-  // explains the replay — there it is prose, and prose wraps.
+  // The scope line below names the recorded layer, so this line says only
+  // what a replay does with it: a solo-layer macro applies to the layers you
+  // select, and needs a selection.
   const mode = describePlaybackMode({ steps });
-  const layer = sharedLayerName(steps);
-  const modeHint =
-    mode.mode === "targets" && layer
-      ? `Applies to selected layers, or to ${layer} if none is selected`
-      : playbackModeHint(mode);
+  const modeHint = playbackModeHint(mode);
 
   // What was watched comes before what the list will do on replay: it is the
   // one line that explains why a step the user expected is not in the list.

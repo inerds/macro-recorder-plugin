@@ -309,11 +309,10 @@ Four rules cover the rest:
   200 characters is refused too.
 - The box takes no references to other properties, layers, or scenes.
 
-With nothing selected, a macro recorded on one layer plays onto that layer
-as if you had selected it: the verbs and formulas apply to its current
-values, so playing it twice moves it twice. A macro that touched several
-layers rebuilds the recorded result instead, and there the formulas do not
-apply.
+A macro recorded on one layer needs a layer selected to play. With nothing
+selected the panel asks you to select one. A macro that touched several
+layers, or that built layers, rebuilds the recorded result and needs no
+selection; there the formulas do not apply.
 
 ---
 
@@ -325,12 +324,11 @@ the macro recorded.
 **Macros replay onto layers.** Select the layer, not a shape inside it. A
 shape in the selection is skipped, and the plugin says so once: *2 selected
 shapes skipped — macros replay onto layers*. With no layer left in the
-selection, you get the usual *Select a layer first*.
+selection, the panel asks you to select one.
 
-**Macros that touched one layer** apply to **every selected layer**. With
-nothing selected, they apply to the layer they were recorded on, if it still
-exists, with the same rules — so a nudge nudges again, and a step that would
-change nothing says so. The values adapt per target:
+**Macros that touched one layer** apply to **every selected layer**, and need
+one: with nothing selected the panel says *Select a layer to play this macro
+on*. The values adapt per target:
 
 - each step on the layer's own position, rotation, skew, skew axis, or scale
   applies the formula in its box (see §5). The default shifts each target
@@ -405,7 +403,8 @@ Three things can interrupt it:
 
 - **A step fails** (for example, "Step 3 failed — couldn't find fill 2 to
   remove"): the row pauses with **Continue** / **Stop**.
-- **Nothing to play on** ("Select a layer first"): click **Dismiss**.
+- **Select a layer to play this macro on**: the macro was recorded on one
+  layer and plays onto the layers you select. Select one and play again.
 - **You change your mind**: click **Stop** in the progress row.
 
 Anything the plugin deliberately does *not* apply — a value the layer did not
@@ -532,8 +531,8 @@ Three of these actions have more to them:
 - Expand: the open card's footer keeps **Play**, the play options, and the ⋮
   menu, so nothing needs collapsing first. Hover Play for the macro's duration
   ("Duration 30 frames"), and hover the **Steps (N)** heading for what the
-  macro will touch — *Applies to selected layers, or the recorded one*, or
-  *Rebuilds the scene — finds 2 layers by name*.
+  macro will touch — *Applies to selected layers*, or *Rebuilds the scene —
+  finds 2 layers by name*.
 
 A macro travels as plain JSON. Steps, disabled flags, and parameters ride
 along, so you can share macros between people and projects: paste the text
@@ -551,7 +550,7 @@ which is why sharing is copy and paste.
 - **Leave the review sheet merged** if you dragged controls. The macro stays
   readable, and the replay is faster.
 - **Select before you play.** One-layer macros apply to every selected layer.
-  With nothing selected, they fall back to the original layer.
+  With nothing selected, the panel asks you to select one.
 - **Read the notes toast.** "4 steps adapted or skipped — fills not found on
   this layer" is the macro telling you that the layer's structure differs. A
   run that only adapted says "adjusted" instead, and skipped nothing.

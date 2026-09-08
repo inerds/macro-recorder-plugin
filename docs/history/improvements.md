@@ -12,11 +12,11 @@ findings belong in the failure taxonomy.
 
 ---
 
-## 2026-09-08 — Play on the recorded layer (ENGINE_REV `2026-09-08.1`)
+## 2026-09-08 — A solo-layer macro needs a selection (ENGINE_REV `2026-09-08.2`)
 
 | Issue | Fix |
 |---|---|
-| **A macro recorded on one layer, played with the scene selected, reported success and changed nothing.** `chooseMode` sent a layer-bound macro with an empty selection to scene mode, which writes the recorded end values verbatim onto the recorded layer; right after recording the layer already holds them. Traces `2026-09-08T02-19-34-375` and `02-19-41-998`: identical before/after probes, `failures: []`, `notes: []`. | With nothing selected, a macro with one pre-existing referenced layer, no created layers, and no structural ops now takes targets mode on that layer, found by `sourceNodeId` or by its own step ref (`findLayerByRef`, cache-free so it works before the session exists). Regression tests in `sandbox/playback.test.ts`. |
+| **A macro recorded on one layer, played with the scene selected, reported success and changed nothing.** `chooseMode` sent a layer-bound macro with an empty selection to scene mode, which writes the recorded end values verbatim onto the recorded layer; right after recording the layer already holds them. Traces `2026-09-08T02-19-34-375` and `02-19-41-998`: identical before/after probes, `failures: []`, `notes: []`. | A macro that touched at most one pre-existing layer now needs a layer selected: `playbackBegin` throws `no-selection`, the gateway reports it as the `needs-selection` step result rather than a step-0 failure, and the panel rests and asks — *Select a layer to play this macro on.* Playing it onto the recorded layer was tried first and reverted (user decision 2026-09-08): that target is hidden. Regression tests in `sandbox/playback.test.ts`. |
 | A scene-mode `set-static` that wrote a value the layer already held reported plain success. | The applier reads the live value first and adds the `info` note `already at this value — nothing changed`, then writes anyway. |
 | A value typed as `150` in Creator's properties panel recorded as `150.5`. | Not a plugin bug: the host API reported `150.5` (the panel edits the bounding box; the API's position is the transform origin). Filed in `docs/limitations.md` with trace `2026-09-08T02-24-47-365`. |
 

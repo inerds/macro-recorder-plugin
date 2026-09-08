@@ -121,20 +121,7 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
     if (!createdIds.has(id)) preExisting.add(id);
   }
 
-  // A retargetable macro applies to the selection — and, with nothing
-  // selected, to the one layer it was recorded on, with the same relative
-  // math. It used to fall to scene mode in that case, which writes the
-  // recorded END values verbatim: right after recording the layer already
-  // sits there, so the run "succeeded" and nothing moved (traces
-  // 2026-09-08T02-19-34 and 02-19-41). A macro that creates layers keeps
-  // the rebuild path when nothing is selected — cloning the source again
-  // is not what "play it on its layer" means.
-  const recordedLayerOnly = selectionCount === 0 && preExisting.size === 1 && createdIds.size === 0;
-  if (
-    !unretargetableSceneOps &&
-    preExisting.size <= 1 &&
-    (selectionCount > 0 || recordedLayerOnly)
-  ) {
+  if (!unretargetableSceneOps && preExisting.size <= 1 && selectionCount > 0) {
     const analysis: StepAnalysis = { mode: "targets" };
     const first = [...preExisting][0];
     if (first !== undefined) analysis.sourceRoleId = first;
@@ -144,9 +131,18 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
     return { mode: "scene" };
   }
   if (selectionCount > 0) return { mode: "targets" };
-  // Nothing selected and nothing layer-bound: a settings-only macro is still
-  // a scene rebuild, and must not fail the targets path's no-selection gate.
-  return referenced.size > 0 || sceneSettings ? { mode: "scene" } : { mode: "targets" };
+  // Nothing selected, and the macro touched at most one layer: it stays in
+  // targets mode with no target, so `playbackBegin` refuses with
+  // `no-selection` and the panel asks for a selection. A solo-layer macro is
+  // never played on the layer it was recorded on: that target is hidden —
+  // exactly what the recording scope removes on the recording side — and the
+  // user decided (2026-09-08) to ask instead of guessing. The earlier
+  // scene-mode fallback "succeeded" invisibly, writing the recorded END
+  // values onto a layer that already held them (traces 2026-09-08T02-19-34
+  // and 02-19-41: identical before/after probes, no failures, no notes).
+  // A settings-only macro is the exception: it binds to no layer, so it is a
+  // scene rebuild and must not meet the no-selection gate.
+  return referenced.size === 0 && sceneSettings ? { mode: "scene" } : { mode: "targets" };
 }
 
 /**
@@ -429,42 +425,9 @@ function sceneLayers(): AnyProxy[] {
   return Array.isArray(layers) ? [...layers] : [];
 }
 
-function findNodeById(id: string): AnyProxy | undefined {
-  const stack: AnyProxy[] = sceneLayers();
-  while (stack.length > 0) {
-    const node = stack.pop();
-    try {
-      if (String(node.id) === id) return node;
-    } catch {
-      // unreadable node — keep looking
-    }
-    try {
-      const shapes = node.shapes;
-      if (Array.isArray(shapes)) stack.push(...shapes);
-    } catch {
-      // leaf
-    }
-  }
-  return undefined;
-}
-
-/** id -> name -> miss, caching hits (including replay-created layers). */
-/** The live layer a retargetable macro was recorded on, by the ref its steps carry. */
-function recordedLayer(steps: MacroStep[], id: string | undefined): AnyProxy | undefined {
-  if (id === undefined) return undefined;
-  for (const step of steps) {
-    const payload = payloadOf(step);
-    const ref = payload ? layerRefOf(payload) : undefined;
-    if (ref && ref.id === id) return findLayerByRef(ref);
-  }
-  return findNodeById(id);
-}
-
 /**
  * The live top-level layer a ref names: by recorded id, then by name, then
- * by the name it had before a rename. No session, no cache — `playbackBegin`
- * calls this before a session exists, to find the recorded layer when
- * nothing is selected.
+ * by the name it had before a rename. No session, no cache.
  */
 function findLayerByRef(ref: LayerRef): AnyProxy | undefined {
   for (const layer of sceneLayers()) {
@@ -479,6 +442,7 @@ function findLayerByRef(ref: LayerRef): AnyProxy | undefined {
   return undefined;
 }
 
+/** id -> name -> miss, caching hits (including replay-created layers). */
 function resolveLayer(ref: LayerRef): AnyProxy | undefined {
   const playback = session.playback!;
   const cached = playback.layerByRecordedId.get(ref.id);
@@ -1209,6 +1173,8 @@ function isLayerNode(node: AnyProxy): boolean {
 
 export function playbackBegin(params: {
   steps: MacroStep[];
+  /** The layer the macro was recorded from. Provenance only: a replay
+   *  targets the selection, never the recorded layer. */
   sourceNodeId?: string;
   atPlayhead?: boolean;
   staggerFrames?: number;
@@ -1291,18 +1257,11 @@ export function playbackBegin(params: {
     return { total: params.steps.length, targetCount: 1, ...frameOffsetResult };
   }
 
-  let targets = selection;
-  if (targets.length === 0) {
-    // Nothing selected: the layer the macro was recorded on, found by the
-    // saved source id first, then by the layer ref its steps carry (id, then
-    // name — a macro saved before the source pointed at the layer, or one
-    // whose source id died in a re-import, still finds its layer).
-    const source =
-      (params.sourceNodeId ? findNodeById(params.sourceNodeId) : undefined) ??
-      recordedLayer(params.steps, analysis.sourceRoleId);
-    if (!source) throw new Error(RPC_ERRORS.noSelection);
-    targets = [source];
-  }
+  // Targets mode plays onto the selection, and only onto the selection: a
+  // macro recorded on one layer needs a layer selected. The panel turns this
+  // into a toast that asks for one (user decision 2026-09-08).
+  const targets = selection;
+  if (targets.length === 0) throw new Error(RPC_ERRORS.noSelection);
 
   const tracked = relativePaths(params.steps);
   const origins: Record<string, Json> = {};

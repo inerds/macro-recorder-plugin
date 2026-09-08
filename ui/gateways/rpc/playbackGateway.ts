@@ -113,10 +113,16 @@ export class RpcPlaybackGateway implements PlaybackGateway {
       } catch (error) {
         if (cancelled) return false;
         const raw = error instanceof Error ? error.message : String(error);
-        const message = raw === RPC_ERRORS.noSelection ? "Select a layer first" : raw;
+        if (raw === RPC_ERRORS.noSelection) {
+          // The macro needs a layer selected. Nothing ran and nothing broke,
+          // so there is no decision to wait for: the panel rests and asks.
+          onEvent({ kind: "needs-selection" });
+          void trace.flush(`playback-${macro.name}`);
+          return false;
+        }
         // Pre-run/hard failure: surface as a step-0 failure (the UI offers
         // only "OK" for step 0 before progress) and wait for dismissal.
-        onEvent({ kind: "step-failed", stepIndex: offset, message });
+        onEvent({ kind: "step-failed", stepIndex: offset, message: raw });
         // Same rule as mid-run failures: evidence lands before the wait.
         void trace.flush(`playback-${macro.name}`);
         await awaitDecision();

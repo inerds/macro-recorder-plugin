@@ -6,11 +6,10 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
-- Playing a macro recorded on one layer with nothing selected now plays it
-  on that layer the same way a selection would: a recorded nudge nudges it
-  again, and a formula applies to its current values. It used to restore the
-  recorded end values, which right after recording changed nothing and said
-  nothing. A scene rebuild that writes a value the layer already holds now
+- A macro recorded on one layer now needs a layer selected to play. With
+  nothing selected the panel says so instead of restoring the recorded values
+  onto the recorded layer, which right after recording changed nothing and
+  said nothing. A scene rebuild that writes a value a layer already holds now
   says "already at this value — nothing changed".
 
 ## 0.8.1 — 2026-09-08
