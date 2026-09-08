@@ -240,11 +240,17 @@ export async function launchProbe({ baseUrl, artifactDir = DEFAULT_ARTIFACT_DIR 
     return true;
   };
 
-  const setViewport = (width, height) =>
+  // Scale 2 keeps the panel suite's screenshots and measurements crisp. The
+  // harness suite asks for scale 1: on GitHub's ubuntu runners the emulated
+  // scale is not applied to the sandboxed frame's input path, so a real click
+  // at page (176, 164) arrived in the frame at (71, 65) — the page coordinate
+  // halved, less the frame's offset (CI run 34209972414, 2026-09-08). At
+  // scale 1 there is nothing to halve.
+  const setViewport = (width, height, { scale = 2 } = {}) =>
     send("Emulation.setDeviceMetricsOverride", {
       width,
       height,
-      deviceScaleFactor: 2,
+      deviceScaleFactor: scale,
       mobile: false,
     });
 
@@ -514,14 +520,14 @@ export async function launchProbe({ baseUrl, artifactDir = DEFAULT_ARTIFACT_DIR 
     );
     // A real click through the page target is the honest one: Chrome routes
     // it down to the frame and every pointer handler fires. It is not a
-    // reliable one. On GitHub's ubuntu runners the first click after a
-    // `Page.captureScreenshot` never reached the out-of-process frame (CI
-    // run 34209023555, 2026-09-08: Stop and Discard both missed, both right
-    // after a screenshot), while the same click landed every time on macOS.
-    // So the frame reports whether the click arrived, and a click that does
-    // not is dispatched inside the frame instead — with the modifier the
-    // real one would have carried, because Alt on Record is what the
-    // exact-values scenario is about.
+    // reliable one. On GitHub's ubuntu runners a real click arrived in the
+    // out-of-process frame at the wrong point whenever the viewport was
+    // emulated at scale 2 (CI runs 34209023555 and 34209972414, 2026-09-08),
+    // while the same click landed every time on macOS. So the frame reports
+    // where the click arrived, and a click that misses its element is
+    // dispatched inside the frame instead — with the modifier the real one
+    // would have carried, because Alt on Record is what the exact-values
+    // scenario is about.
     await evaluateInPanel(
       `(() => { window.__probeClick = null;
         document.addEventListener("click", (event) => {
