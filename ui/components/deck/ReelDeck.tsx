@@ -313,7 +313,7 @@ function Roller({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
       <circle r={ROLLER_R + 3} fill="url(#reel-shadow)" />
-      <circle r={ROLLER_R} fill="url(#hub-metal)" stroke="#0A0908" strokeWidth="0.8" />
+      <circle r={ROLLER_R} fill="url(#host-hub)" stroke="#0A0908" strokeWidth="0.8" />
       <circle
         r={ROLLER_R - 1.1}
         fill="none"
@@ -322,7 +322,7 @@ function Roller({ x, y }: { x: number; y: number }) {
         strokeWidth="0.6"
       />
       <circle r="5.2" fill="#1A1816" stroke="#FFFFFF" strokeOpacity="0.25" strokeWidth="0.5" />
-      <circle r="2.2" fill="url(#hub-metal)" stroke="#0A0908" strokeWidth="0.5" />
+      <circle r="2.2" fill="url(#host-hub)" stroke="#0A0908" strokeWidth="0.5" />
       <circle r="0.6" cx="-0.5" cy="-0.6" fill="#FFFFFF" fillOpacity="0.6" />
     </g>
   );
@@ -351,7 +351,7 @@ function Nameplate() {
         width={w}
         height={h}
         rx="3"
-        fill="url(#plate-metal)"
+        fill="url(#host-plate)"
         stroke="#0A0908"
         strokeWidth="0.8"
       />
@@ -468,6 +468,63 @@ export function ReelDeck({ state, stageRef, interactive = false }: ReelDeckProps
             <stop offset="55%" stopColor="#C2BEB7" />
             <stop offset="100%" stopColor="#9C9891" />
           </linearGradient>
+          {/* Creator's own colour on the fittings (user decision, 2026-09-08):
+              the nameplate and the two guide rollers wear the plate metal and
+              the hub metal mixed 40% toward the host's interface background —
+              chrome that reflects the app around it, not a sticker in the
+              app's colour. `--host-frame-bg` is what the theme relay paints on
+              the gutter; the fallback is the same dark the gutter falls back
+              to, so standalone dev and a silent host look as they always did.
+              Mixed, not solid: Creator's light theme pushes a near-white
+              background, and a solid fill would read as a white label on the
+              black deck. `stop-color` takes `color-mix()` and `var()` as a
+              CSS property, which is why these are styles, not attributes. */}
+          <linearGradient id="host-plate" x1="0" y1="0" x2="0" y2="1">
+            <stop
+              offset="0%"
+              style={{
+                stopColor:
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #E2DFDA)",
+              }}
+            />
+            <stop
+              offset="55%"
+              style={{
+                stopColor:
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #C2BEB7)",
+              }}
+            />
+            <stop
+              offset="100%"
+              style={{
+                stopColor:
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #9C9891)",
+              }}
+            />
+          </linearGradient>
+          <radialGradient id="host-hub" cx="38%" cy="28%" r="82%">
+            <stop
+              offset="0%"
+              style={{
+                stopColor:
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #EEECE8)",
+              }}
+            />
+            <stop
+              offset="45%"
+              style={{
+                stopColor:
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #BDB9B2)",
+              }}
+            />
+            <stop
+              offset="100%"
+              style={{
+                stopColor:
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #77736C)",
+              }}
+            />
+          </radialGradient>
           <CutMask side="left" />
           <CutMask side="right" />
         </defs>

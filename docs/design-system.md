@@ -27,8 +27,19 @@ load-bearing:
   it in a render would repaint the panel on every render.
 - It must override *every* key `theme.css` defines (`--chart-*` and
   `--sidebar-*` included) or an unset one falls back to library teal.
-- Creator's interface theme touches exactly ONE pixel surface: the
-  `.host-frame` gutter. The relay is the official ThemeProvider sync
+- Creator's interface theme touches FOUR pixel surfaces, and all four wear
+  the same variable: the `.host-frame` gutter paints `--host-frame-bg`
+  outright, and on the deck the nameplate and the two guide rollers wear
+  their metal gradients mixed 40% toward it (`#host-plate`, `#host-hub` in
+  `ReelDeck.tsx`, user decision 2026-09-08) — chrome that reflects the app
+  around it. Mixed, never solid: the light theme pushes a near-white
+  background, and a solid fill would read as a white sticker on the black
+  deck. The mix lives on `<stop style="stop-color: color-mix(…var(…)…)">`,
+  because `stop-color` accepts `color-mix()` and `var()` as a CSS property
+  and not as an attribute; the probe `host-tint` reads the computed stop
+  colour under a dark and a light host and expects them to differ. The
+  reels, hubs, and everything else keep the skin's own metal. The relay is
+  the official ThemeProvider sync
   pattern (ui-library docs): `sandbox/theme.ts` reads `creator.ui.theme` and
   subscribes to `change:theme` (both typed in 1.0.1 but absent from our live
   introspection, so both stay feature-detected — runtime-api.md item 10),
