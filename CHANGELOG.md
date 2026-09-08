@@ -6,6 +6,8 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+## 0.8.2 — 2026-09-08
+
 - The user guide is now published as a GitHub wiki page, mirrored from
   `docs/user-guide.md` on every push to main.
 

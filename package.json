@@ -1,7 +1,7 @@
 {
   "name": "macro-recorder",
   "private": true,
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "A LottieFiles Creator plugin that records editing steps and replays them as macros.",
   "license": "MIT",
   "type": "module",
