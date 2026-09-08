@@ -936,12 +936,24 @@ export function applyStep(
             : payload.after;
         return outcomeOf(notes);
       }
-      prop.staticValue = computeTarget(
+      const value = computeTarget(
         context.baselines[key],
         origin,
         payload.after,
         payloadClass(payload),
       );
+      // A scene rebuild writes the recorded value verbatim; when the layer
+      // already holds it the write is real but invisible, and a run made only
+      // of such writes used to read as a plain success (traces
+      // 2026-09-08T02-19-34 and 02-19-41). Say so, then write anyway: the
+      // host may normalise what it holds.
+      if (context.mode === "scene") {
+        const current = readBaseline(target, payload.path);
+        if (current !== undefined && jsonEqual(current, value)) {
+          notes.info("already at this value — nothing changed");
+        }
+      }
+      prop.staticValue = value;
       return outcomeOf(notes);
     }
 

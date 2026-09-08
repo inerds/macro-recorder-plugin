@@ -11,7 +11,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-09-07.8";
+export const ENGINE_REV = "2026-09-08.1";
 
 /**
  * What a note says about its step. `skip` means the step did not fully apply;

@@ -475,8 +475,10 @@ check(
 );
 sendToPlugin({ t: "req", id: 36, method: "playback.end", params: {} });
 
-// 13. The same step with NOTHING selected is a scene rebuild: it binds to its
-//     own recorded layer and writes the recording verbatim, formula ignored.
+// 13. The same step with NOTHING selected plays on its own recorded layer in
+//     targets mode (rev 2026-09-08.1): the formula applies to the live value,
+//     {310,20} → {320,5}. It used to be a scene rebuild writing the recorded
+//     {999,888} verbatim, which right after recording changed nothing.
 vm.unwrapResult(
   vm.evalCode(`
     globalThis.__fakeNodes[1].position.staticValue = { x: 310, y: 20 };
@@ -494,12 +496,12 @@ const rebuiltHandle = vm.unwrapResult(
 const rebuilt = vm.dump(rebuiltHandle);
 rebuiltHandle.dispose();
 check(
-  "scene mode ignores the formula and writes the recorded value verbatim",
+  "nothing selected plays a solo-layer macro on its recorded layer, formula and all",
   posted.length === 1 &&
     posted[0]?.ok === true &&
     posted[0]?.result?.failures?.length === 0 &&
-    rebuilt?.x === 999 &&
-    rebuilt?.y === 888,
+    rebuilt?.x === 320 &&
+    rebuilt?.y === 5,
   JSON.stringify({ begin: sceneBegin, rebuilt, res: posted[0]?.result ?? null }),
 );
 sendToPlugin({ t: "req", id: 39, method: "playback.end", params: {} });

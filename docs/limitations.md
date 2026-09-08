@@ -439,3 +439,26 @@ nodes, shapes, and scenes (an `{id, type}` stub on the host probed on
 animatables; `createTrimPath` and `trimPaths`; and scene-level `export`,
 `createTextLayer`, and `createImageLayer`. 0.0.2 substantially undersold the
 real API. 1.0.1 types all of those members except `toJSON()` and `export()`.
+
+## Properties-panel values and API positions differ by the shape's own offset — host convention
+
+**What does not work:** typing `150` into the X field of Creator's properties
+panel can record as `position.x 150.5`. The recorder is not rounding or
+adding anything: it stores the value the host API reports.
+
+**Why (evidence):** trace `2026-09-08T02-24-47-365_record.json` (rev
+`2026-09-07.8`). The raw `step-recorded` snapshot for "Ellipse 2"
+(`yJ4U-6BILj`) reads `props.position.static.x: 150.5` after the edit, and
+`132.5` before it, while the panel showed whole numbers both times. The
+panel edits the layer's bounding box; the API's `position` is the transform
+origin, and for this ellipse the two differ by half a pixel of shape
+geometry. The same commit rounded the untouched Y from `118.36922…` to
+`118.37`, which is the panel writing every field back at two decimals.
+
+**What the user sees:** a recorded step that reads `→ 150.5` for a value
+typed as `150`. Replay is unaffected: the step writes the API value the
+host itself produced, so the layer lands where the panel put it.
+
+**Path to lift:** none needed in the plugin. A recorder that showed the
+panel's number would have to know each shape's geometry offset, which the
+API does not expose. Read recorded transform values as API values.

@@ -309,9 +309,11 @@ Four rules cover the rest:
   200 characters is refused too.
 - The box takes no references to other properties, layers, or scenes.
 
-With nothing selected, a macro recorded on one layer rebuilds the recorded
-result on that layer, and the formulas do not apply. Formulas matter when you
-play the macro onto selected layers.
+With nothing selected, a macro recorded on one layer plays onto that layer
+as if you had selected it: the verbs and formulas apply to its current
+values, so playing it twice moves it twice. A macro that touched several
+layers rebuilds the recorded result instead, and there the formulas do not
+apply.
 
 ---
 
@@ -327,7 +329,8 @@ selection, you get the usual *Select a layer first*.
 
 **Macros that touched one layer** apply to **every selected layer**. With
 nothing selected, they apply to the layer they were recorded on, if it still
-exists. The values adapt per target:
+exists, with the same rules — so a nudge nudges again, and a step that would
+change nothing says so. The values adapt per target:
 
 - each step on the layer's own position, rotation, skew, skew axis, or scale
   applies the formula in its box (see §5). The default shifts each target

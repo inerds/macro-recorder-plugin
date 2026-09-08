@@ -184,6 +184,19 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   in `sandbox/playback.ts#applySceneSetting`, never per target. Both fields
   are optional: a snapshot recorded before this rev carries no `settings`, and
   `diffSceneSettings` emits nothing when either side lacks the key.
+- **Nothing selected plays a solo-layer macro on its recorded layer (rev
+  2026-09-08.1).** `chooseMode` sends a macro with one pre-existing
+  referenced layer, no created layers, and no structural ops to TARGETS mode
+  even with an empty selection; `playbackBegin` then finds that layer by the
+  saved `sourceNodeId`, else by the ref its steps carry (`findLayerByRef`:
+  id, name, prior name — cache-free, because no session exists yet). It used
+  to fall to scene mode, which writes the recorded END values verbatim: right
+  after recording the layer already sits there, so two traces
+  (2026-09-08T02-19-34, 02-19-41) show a "successful" run with identical
+  before/after probes and no note. Scene mode keeps the rebuild for
+  multi-layer and structural macros, and its verbatim `set-static` write now
+  reports `already at this value — nothing changed` (an `info` note) when the
+  layer already holds the value, then writes anyway.
 - **Recording scope (rev 2026-09-07.2)**: `record.start` decides ONCE what
   the recording watches, from `creator.selection.nodes`. Layers selected →
   `{kind: "layers", ids}`; a selected shape resolves to its owning top-level
@@ -214,7 +227,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   tick's result carries the grown `scope`, so the chip and the review hint
   name what is watched now. A single-layer scope also saves that layer, not
   the scene, as the macro's `source`; replay does not depend on it (a
-  layer-bound macro with nothing selected takes scene mode and resolves by
+  layer-bound macro that touched SEVERAL layers with nothing selected takes scene mode and resolves by
   recorded id and name). The capture offer is withheld for a selected layer
   outside the scope, and `record.captureKeyframes` refuses one.
 - **Scope readout before Record**: the sandbox has no timers, so the panel
@@ -542,7 +555,7 @@ to test the no-`localStorage` / no-`randomUUID` paths.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-09-07.8)
+## Status and open threads (as of engine rev 2026-09-08.1)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two

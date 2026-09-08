@@ -121,7 +121,20 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
     if (!createdIds.has(id)) preExisting.add(id);
   }
 
-  if (!unretargetableSceneOps && preExisting.size <= 1 && selectionCount > 0) {
+  // A retargetable macro applies to the selection — and, with nothing
+  // selected, to the one layer it was recorded on, with the same relative
+  // math. It used to fall to scene mode in that case, which writes the
+  // recorded END values verbatim: right after recording the layer already
+  // sits there, so the run "succeeded" and nothing moved (traces
+  // 2026-09-08T02-19-34 and 02-19-41). A macro that creates layers keeps
+  // the rebuild path when nothing is selected — cloning the source again
+  // is not what "play it on its layer" means.
+  const recordedLayerOnly = selectionCount === 0 && preExisting.size === 1 && createdIds.size === 0;
+  if (
+    !unretargetableSceneOps &&
+    preExisting.size <= 1 &&
+    (selectionCount > 0 || recordedLayerOnly)
+  ) {
     const analysis: StepAnalysis = { mode: "targets" };
     const first = [...preExisting][0];
     if (first !== undefined) analysis.sourceRoleId = first;
@@ -436,26 +449,41 @@ function findNodeById(id: string): AnyProxy | undefined {
 }
 
 /** id -> name -> miss, caching hits (including replay-created layers). */
+/** The live layer a retargetable macro was recorded on, by the ref its steps carry. */
+function recordedLayer(steps: MacroStep[], id: string | undefined): AnyProxy | undefined {
+  if (id === undefined) return undefined;
+  for (const step of steps) {
+    const payload = payloadOf(step);
+    const ref = payload ? layerRefOf(payload) : undefined;
+    if (ref && ref.id === id) return findLayerByRef(ref);
+  }
+  return findNodeById(id);
+}
+
+/**
+ * The live top-level layer a ref names: by recorded id, then by name, then
+ * by the name it had before a rename. No session, no cache — `playbackBegin`
+ * calls this before a session exists, to find the recorded layer when
+ * nothing is selected.
+ */
+function findLayerByRef(ref: LayerRef): AnyProxy | undefined {
+  for (const layer of sceneLayers()) {
+    if (tryRead(() => String(layer.id)) === ref.id) return layer;
+  }
+  for (const name of [ref.name, ref.priorName]) {
+    if (!name) continue;
+    for (const layer of sceneLayers()) {
+      if (tryRead(() => layer.name) === name) return layer;
+    }
+  }
+  return undefined;
+}
+
 function resolveLayer(ref: LayerRef): AnyProxy | undefined {
   const playback = session.playback!;
   const cached = playback.layerByRecordedId.get(ref.id);
   if (cached) return cached;
-  let found: AnyProxy | undefined;
-  for (const layer of sceneLayers()) {
-    if (tryRead(() => String(layer.id)) === ref.id) {
-      found = layer;
-      break;
-    }
-  }
-  for (const name of [ref.name, ref.priorName]) {
-    if (found || !name) continue;
-    for (const layer of sceneLayers()) {
-      if (tryRead(() => layer.name) === name) {
-        found = layer;
-        break;
-      }
-    }
-  }
+  const found = findLayerByRef(ref);
   if (found) playback.layerByRecordedId.set(ref.id, found);
   return found;
 }
@@ -1265,8 +1293,13 @@ export function playbackBegin(params: {
 
   let targets = selection;
   if (targets.length === 0) {
-    // Legacy fallback: the originally recorded layer, if it still exists.
-    const source = params.sourceNodeId ? findNodeById(params.sourceNodeId) : undefined;
+    // Nothing selected: the layer the macro was recorded on, found by the
+    // saved source id first, then by the layer ref its steps carry (id, then
+    // name — a macro saved before the source pointed at the layer, or one
+    // whose source id died in a re-import, still finds its layer).
+    const source =
+      (params.sourceNodeId ? findNodeById(params.sourceNodeId) : undefined) ??
+      recordedLayer(params.steps, analysis.sourceRoleId);
     if (!source) throw new Error(RPC_ERRORS.noSelection);
     targets = [source];
   }

@@ -33,7 +33,7 @@ Run every check below before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
-pnpm test          # vitest run (734 tests, 33 files)
+pnpm test          # vitest run (737 tests, 33 files)
 pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM

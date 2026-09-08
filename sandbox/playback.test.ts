@@ -2076,7 +2076,11 @@ describe("relativePaths honours the per-step class", () => {
     const source = scene.addLayer(
       makeNode("star 6", { props: { position: { x: 310, y: 20 } } }, ids),
     );
-    // Nothing selected, and the step names its own layer: a scene rebuild.
+    const other = scene.addLayer(makeNode("star 7", { props: { position: { x: 5, y: 5 } } }, ids));
+    // Nothing selected and TWO recorded layers: a scene rebuild. (One
+    // recorded layer with nothing selected now replays onto that layer in
+    // targets mode, formula and all — see "a solo-layer macro replayed with
+    // nothing selected".)
     stubCreator(scene, []);
 
     const steps = [
@@ -2087,6 +2091,13 @@ describe("relativePaths honours the per-step class", () => {
         after: { x: 160, y: 50 },
         apply: { x: { scale: 1, offset: 10 }, y: { scale: 0, offset: 5 } },
         layer: { id: String(source.id), name: "star 6" },
+      }),
+      step({
+        op: "set-static",
+        path: ["position"],
+        before: { x: 5, y: 5 },
+        after: { x: 6, y: 6 },
+        layer: { id: String(other.id), name: "star 7" },
       }),
     ];
 
@@ -2242,3 +2253,142 @@ describe("a SKIPPED absolute step does not re-anchor the target", () => {
     expect(animated.position.getValueAt(60)).toEqual({ x: 540, y: 500 });
   });
 });
+
+describe(
+  "a solo-layer macro replayed with nothing selected (rev 2026-09-07.8, " +
+    "traces 2026-09-08T02-19-34-375 / 02-19-41-998)",
+  () => {
+    it(
+      "applies in targets mode to the recorded layer (found by sourceNodeId), with " +
+        "relative math so replaying it twice moves the layer twice " +
+        "(BUG: chooseMode takes scene mode whenever a layer is referenced and the " +
+        "selection is empty, then writes `after` verbatim — a layer already sitting " +
+        "at the recorded end value does not move at all)",
+      () => {
+        const ids = makeIds();
+        const scene = makeSceneRoot(ids);
+        // The layer sits at the RECORDED END STATE, exactly as it does right
+        // after recording a single set-static position step.
+        const ellipse = scene.addLayer(
+          makeNode("Ellipse 1", { props: { position: { x: 87.5, y: 45 } } }, ids),
+        );
+        stubCreator(scene, []);
+
+        const steps = [
+          step({
+            op: "set-static",
+            path: ["position"],
+            before: { x: 42.5, y: 45 },
+            after: { x: 87.5, y: 45 },
+            layer: { id: String(ellipse.id), name: "Ellipse 1" },
+          }),
+        ];
+
+        const begin = playbackBegin({ steps: steps as Any, sourceNodeId: String(ellipse.id) });
+        expect(begin.targetCount).toBe(1);
+
+        const r0 = playbackStep({ index: 0 });
+        expect(r0.failures).toEqual([]);
+        // additive class: baseline (87.5) + (after 87.5 − origin 42.5) = 132.5
+        expect(ellipse.position.staticValue).toEqual({ x: 132.5, y: 45 });
+
+        playbackEnd();
+        playbackBegin({ steps: steps as Any, sourceNodeId: String(ellipse.id) });
+        expect(playbackStep({ index: 0 }).failures).toEqual([]);
+        // Playing it again moves the layer again, from where it now sits.
+        expect(ellipse.position.staticValue).toEqual({ x: 177.5, y: 45 });
+      },
+    );
+
+    it(
+      "applies in targets mode to the recorded layer found by the referenced layer id " +
+        "alone, when sourceNodeId is omitted (same BUG as above)",
+      () => {
+        const ids = makeIds();
+        const scene = makeSceneRoot(ids);
+        const ellipse = scene.addLayer(
+          makeNode("Ellipse 1", { props: { position: { x: 87.5, y: 45 } } }, ids),
+        );
+        stubCreator(scene, []);
+
+        const steps = [
+          step({
+            op: "set-static",
+            path: ["position"],
+            before: { x: 42.5, y: 45 },
+            after: { x: 87.5, y: 45 },
+            layer: { id: String(ellipse.id), name: "Ellipse 1" },
+          }),
+        ];
+
+        playbackBegin({ steps: steps as Any });
+        expect(playbackStep({ index: 0 }).failures).toEqual([]);
+        expect(ellipse.position.staticValue).toEqual({ x: 132.5, y: 45 });
+      },
+    );
+  },
+);
+
+describe(
+  "verbatim scene-mode write when the live value already matches the recording " +
+    "(rev 2026-09-07.8, trace 2026-09-08T02-19-34-375)",
+  () => {
+    it(
+      "reports an info note 'already at this value — nothing changed' on that target " +
+        "instead of silently reporting success with no notes " +
+        "(BUG: applyStep's scene-mode set-static write has no such check today)",
+      () => {
+        const ids = makeIds();
+        const scene = makeSceneRoot(ids);
+        // Two pre-existing layers referenced by name+id forces scene mode
+        // (chooseMode: preExisting.size > 1) regardless of selection.
+        const layerA = scene.addLayer(
+          makeNode("Layer A", { props: { position: { x: 100, y: 50 } } }, ids),
+        );
+        const layerB = scene.addLayer(
+          makeNode("Layer B", { props: { position: { x: 10, y: 10 } } }, ids),
+        );
+        stubCreator(scene, []);
+
+        const steps = [
+          step({
+            op: "set-static",
+            path: ["position"],
+            before: { x: 0, y: 0 },
+            after: { x: 100, y: 50 },
+            layer: { id: String(layerA.id), name: "Layer A" },
+          }),
+          step({
+            op: "set-static",
+            path: ["position"],
+            before: { x: 10, y: 10 },
+            after: { x: 200, y: 20 },
+            layer: { id: String(layerB.id), name: "Layer B" },
+          }),
+        ];
+
+        playbackBegin({ steps: steps as Any });
+
+        const r0 = playbackStep({ index: 0 });
+        expect(r0.failures).toEqual([]);
+        // Layer A was already at the recorded `after` before this step ran.
+        expect(r0.notes ?? []).toContainEqual({
+          target: "Layer A",
+          message: "already at this value — nothing changed",
+          kind: "info",
+        });
+
+        const r1 = playbackStep({ index: 1 });
+        expect(r1.failures).toEqual([]);
+        // Layer B was NOT already at its recorded `after` — no such note, and
+        // the value actually changed.
+        expect(
+          (r1.notes ?? []).some(
+            (note: Any) => note.message === "already at this value — nothing changed",
+          ),
+        ).toBe(false);
+        expect(layerB.position.staticValue).toEqual({ x: 200, y: 20 });
+      },
+    );
+  },
+);
