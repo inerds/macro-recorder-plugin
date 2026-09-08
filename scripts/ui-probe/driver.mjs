@@ -512,14 +512,47 @@ export async function launchProbe({ baseUrl, artifactDir = DEFAULT_ARTIFACT_DIR 
         const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
         return !!(top && (el === top || el.contains(top))); })()`,
     );
-    if (reachable) {
-      await click(rect.x + rect.w / 2, rect.y + rect.h / 2, options);
-      return rect;
-    }
+    // A real click through the page target is the honest one: Chrome routes
+    // it down to the frame and every pointer handler fires. It is not a
+    // reliable one. On GitHub's ubuntu runners the first click after a
+    // `Page.captureScreenshot` never reached the out-of-process frame (CI
+    // run 34209023555, 2026-09-08: Stop and Discard both missed, both right
+    // after a screenshot), while the same click landed every time on macOS.
+    // So the frame reports whether the click arrived, and a click that does
+    // not is dispatched inside the frame instead — with the modifier the
+    // real one would have carried, because Alt on Record is what the
+    // exact-values scenario is about.
     await evaluateInPanel(
-      `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (el) el.click(); })()`,
+      `(() => { window.__probeClicked = false;
+        document.addEventListener("click", () => { window.__probeClicked = true; }, { capture: true, once: true }); })()`,
     );
-    await sleep(180);
+    let landed = false;
+    // `UI_PROBE_SYNTHETIC_CLICKS=1` skips the real click, so the fallback
+    // can be proven on a machine where the real click never misses.
+    if (reachable && !process.env.UI_PROBE_SYNTHETIC_CLICKS) {
+      await click(rect.x + rect.w / 2, rect.y + rect.h / 2, options);
+      landed = await waitForInPanel(`window.__probeClicked === true`, { timeout: 600 }).then(
+        () => true,
+        () => false,
+      );
+    }
+    if (!landed) {
+      if (process.env.UI_PROBE_VERBOSE) {
+        console.log(
+          `# clickInPanel: ${process.env.UI_PROBE_SYNTHETIC_CLICKS ? "synthetic clicks forced" : reachable ? "the click did not reach the frame" : "not reachable by pointer"}; dispatching in the frame: ${selector}`,
+        );
+      }
+      await evaluateInPanel(
+        `(() => { const el = document.querySelector(${JSON.stringify(selector)});
+          if (!el) return;
+          const init = { bubbles: true, cancelable: true, composed: true, altKey: ${options?.alt ? "true" : "false"} };
+          for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
+            el.dispatchEvent(type.startsWith("pointer") ? new PointerEvent(type, { ...init, pointerId: 1, isPrimary: true }) : new MouseEvent(type, init));
+          }
+          el.dispatchEvent(new MouseEvent("click", init)); })()`,
+      );
+      await sleep(180);
+    }
     return rect;
   };
 

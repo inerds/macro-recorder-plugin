@@ -25,7 +25,10 @@ UI_PROBE_URL=http://localhost:5173/ pnpm test:ui # probe a dev server you alread
 CHROME=/path/to/chrome pnpm test:ui              # a Chrome somewhere else
 ```
 
-`UI_PROBE_URL` and `CHROME` work for both commands. Output is one
+`UI_PROBE_URL` and `CHROME` work for both commands. `UI_PROBE_SYNTHETIC_CLICKS=1`
+makes the harness suite dispatch every panel click inside the frame instead
+of through the page, the fallback it takes on its own when a real click does
+not arrive. Output is one
 `PASS`/`FAIL name — detail` line per assertion, like
 `scripts/quickjs-smoke.mjs`. A command exits 1 if any line fails.
 Screenshots land in `artifacts/ui/` and `artifacts/harness/` (both
