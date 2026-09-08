@@ -552,13 +552,24 @@ stable: changing it abandons every macro saved under the old one.
 
 ## Local harnesses
 
-`dev/harness/host-harness.html` fakes the Creator host — a fake `creator` global with
-fake scene nodes, the **real compiled `plugin.js`**, and the real UI iframe — so
-the full record→diff→playback loop runs in a plain browser. Because it loads the
-compiled bundle, `pnpm build` after any `sandbox/` or `engine/` change or you are
-testing stale code. Drive it from the console via `window.harness`.
+`dev/harness/host-harness.html` fakes the Creator host — a fake `creator` global
+with the fake scene from `engine/testing/fakeScene.ts`, the **real `plugin.js`**,
+and the real UI iframe — so the full record→diff→playback loop runs in a plain
+browser. The dev server compiles and serves `plugin.js` on request through
+`@lottiefiles/vite-plugin-creator`, so the page always runs the source you just
+edited and needs no build step. Drive it from the console via `window.harness`.
 `dev/harness/sandbox-test.html` is narrower: it reproduces the opaque-origin sandbox
 to test the no-`localStorage` / no-`randomUUID` paths.
+
+`pnpm test:harness` drives the host harness in headless Chrome, and is the only
+standing check that runs record and playback together. It shares its driver with
+`pnpm test:ui` (`scripts/ui-probe/`) and reaches the panel through the sandboxed
+iframe's own DevTools target, because Chrome isolates a sandboxed frame into its
+own process. Each scenario reloads the page, so every one starts from the same
+fake scene: it selects a layer, records an edit made through the fake proxies,
+saves the macro, replays it onto other layers, and then asks the fake scene what
+the values became. The layer the recording did not touch is asserted too — a
+replay that writes too widely is as much a failure as one that writes nothing.
 
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.

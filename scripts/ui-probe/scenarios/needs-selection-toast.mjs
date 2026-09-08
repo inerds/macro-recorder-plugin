@@ -72,7 +72,7 @@ export default async function needsSelectionToast(probe) {
       dismiss: [...document.querySelectorAll('button')].some((b) => /^dismiss$/i.test(b.textContent.trim())),
       // A run in progress or a pre-run failure renders one of these.
       playing: !!document.querySelector('[data-testid="playback-progress"], [data-testid="playback-error"], [data-testid="playback-stop-button"]'),
-      playEnabled: (() => { const b = document.querySelector('[data-testid="play-button"]'); return !!b && !b.disabled; })(),
+      playEnabled: (() => { const b = document.querySelector('[data-testid="play-button"]'); return !!b && !b.disabled && b.getAttribute("aria-disabled") !== "true"; })(),
     }))()`,
   );
   check(

@@ -37,6 +37,7 @@ pnpm test          # vitest run (768 tests, 34 files)
 pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
+pnpm test:harness  # records and replays through the host harness in headless Chrome
 pnpm build         # production bundle → dist/
 ```
 
@@ -54,6 +55,14 @@ cannot be made there — it needs a line in `scripts/ui-probe/`, which explains
 how to add one. It starts its own Vite server, needs Chrome (`$CHROME`, the
 macOS app, or `google-chrome-stable` on `PATH`), and writes a screenshot per
 scenario to `artifacts/ui/`.
+
+`pnpm test:harness` is the only check that runs record and playback together.
+It drives `dev/harness/host-harness.html` in the same headless Chrome: the
+real sandbox bundle, the real panel, and the shared fake scene as the host. A
+change to the recorder, the applier, or the RPC contract that no unit test
+catches shows up here as a value the fake scene did not reach. It shares the
+driver and the Chrome lookup with `pnpm test:ui`, and writes its screenshots
+to `artifacts/harness/`.
 
 The CI workflow in `.github/workflows/ci.yml` runs the same checks on every
 push and pull request.

@@ -152,9 +152,11 @@ every sandbox-side change; the handshake compares revisions and logs a loud
 ### Host harness (full loop, no Creator)
 
 `http://localhost:5173/host-harness.html` emulates the host: a fake `creator`
-global, fake scene nodes, the real compiled `plugin.js`, and the real panel
-iframe. Run `pnpm build` first — the harness loads the compiled bundle. Drive
-the fake scene from the console through `window.harness`.
+global, fake scene nodes, the plugin bundle, and the real panel iframe. The
+dev server compiles and serves `plugin.js` on request, so `pnpm dev` alone is
+enough — there is no build step to remember. Drive the fake scene from the
+console through `window.harness`. `pnpm test:harness` drives the same page
+without you (see [`scripts/ui-probe/README.md`](scripts/ui-probe/README.md)).
 `dev/harness/sandbox-test.html` reproduces Creator's opaque-origin iframe (no
 `localStorage`, no `crypto.randomUUID`) for the fallback paths.
 
@@ -164,6 +166,7 @@ the fake scene from the console through `window.harness`.
 pnpm test          # vitest: engine logic, reducer, demo-macro replay (768 tests, 34 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
+pnpm test:harness  # records and replays through the host harness in headless Chrome
 pnpm type-check    # tsc -b across all three project references
 pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.html)
 ```
@@ -176,7 +179,14 @@ real bundle with zero pumps and asserts the RPC contract holds.
 `test:ui` exists because the unit tests run in Node with no DOM. It opens the
 panel in headless Chrome over the DevTools protocol and asks the page what
 paints on top, what a box measures, and what a key does under a modifier —
-the questions that caught a menu buried behind the deck. See
+the questions that caught a menu buried behind the deck.
+
+`test:harness` exists because the other checks each see one half of the
+plugin. It drives the host harness in the same headless Chrome: the real
+sandbox bundle, the real panel, and the fake scene as the host. It records an
+edit, saves the macro, replays it onto other layers, and asks the fake scene
+what the values became. It is the only check that runs record and playback
+together. Both suites share one driver — see
 [`scripts/ui-probe/README.md`](scripts/ui-probe/README.md).
 
 ## Repository layout

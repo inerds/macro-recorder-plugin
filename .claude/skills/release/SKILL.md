@@ -30,7 +30,7 @@ skip a failing check to reach the end.
    name that file to the user and edit it before you continue.
 7. Run the full check suite, in order, and stop at the first failure:
    `pnpm type-check && pnpm test && pnpm test:quickjs && pnpm test:ui &&
-   pnpm lint:docs && pnpm bundle`.
+   pnpm test:harness && pnpm lint:docs && pnpm bundle`.
 8. Commit the version bump and the changelog edit together as `Release
    X.Y.Z`, with no body, ending in the attribution trailer this session uses
    (`Co-Authored-By` and `Claude-Session` lines — match the shape of recent
