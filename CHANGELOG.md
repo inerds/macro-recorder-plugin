@@ -6,6 +6,10 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- The deck's nameplate and its two guide rollers now take a tint from
+  Creator's own interface colour, so the fittings reflect the app around
+  them: slate in the dark theme, bright chrome in the light one.
+
 - The deck has one transport key, and it toggles. It reads **Record** at
   rest, and **Stop** while you record — press it again to end the recording.
   The separate Stop key on the deck is gone; the recording screen keeps its

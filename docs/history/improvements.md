@@ -12,6 +12,12 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-08 — Host colour on the fittings
+
+| Issue | Fix |
+|---|---|
+| Creator's theme reached one surface, the gutter around the panel; the deck ignored the app it sits in. | The nameplate wears its metal mixed 40% toward `--host-frame-bg` and the two guide rollers 25% (`#host-plate`, `#host-hub` gradients in `ReelDeck.tsx`, `stop-color` via `color-mix()` and `var()`), with the gutter's dark as the fallback. Probe `host-tint` proves the computed stop colour follows a dark and a light host. |
+
 ## 2026-09-08 — One Record key
 
 | Issue | Fix |
