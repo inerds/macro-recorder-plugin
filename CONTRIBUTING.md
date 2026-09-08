@@ -33,7 +33,7 @@ Run every check below before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
-pnpm test          # vitest run (763 tests, 34 files)
+pnpm test          # vitest run (768 tests, 34 files)
 pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
@@ -118,22 +118,26 @@ terminology table.
 
 ## Documentation wiki
 
-The [project wiki](https://github.com/inerds/macro-recorder-plugin/wiki) is a
-generated, read-only mirror of `docs/`. Edit the Markdown here — an edit made
-in the wiki is overwritten by the next push to main.
+The user guide is published on the
+[project wiki](https://github.com/inerds/macro-recorder-plugin/wiki). The wiki
+is a generated, read-only mirror of `docs/user-guide.md`, and the other
+documents stay in `docs/` (user decision, 2026-09-08). Edit the Markdown here
+— an edit made in the wiki is overwritten by the next push to main.
 `.github/workflows/wiki.yml` runs `pnpm wiki:check` and rebuilds the wiki on
-every push to main that touches a mirrored document. Run `pnpm wiki:check`
-yourself before you open a pull request that adds a document link:
+every push to main that touches a document. Run `pnpm wiki:check` yourself
+before you open a pull request that adds a link to the guide:
 
 ```bash
 pnpm wiki:check    # build the mirror into a temp dir and verify every link
 pnpm wiki:build    # build the mirror into artifacts/wiki to read it
 ```
 
-`scripts/wiki-sync.mjs` holds the page list, and `scripts/wiki-links.mjs`
-rewrites each link: a link to a mirrored document becomes a wiki page link,
-and a link to any other path in the repository becomes an absolute
-github.com URL. A link the rewriter cannot classify fails the check.
+`scripts/wiki-sync.mjs` builds the three files the wiki holds: `Home.md` (the
+guide), `_Sidebar.md` (its sections), and `_Footer.md`.
+`scripts/wiki-links.mjs` rewrites each link — a link to the guide becomes a
+wiki page link, and a link to any other path in the repository becomes an
+absolute github.com URL, because the wiki cannot reach the repository tree. A
+link the rewriter cannot classify fails the check.
 
 ## Automation not yet built
 
