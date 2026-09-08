@@ -1,8 +1,11 @@
 name: Wiki
 
-# The GitHub wiki is a read-only mirror of `docs/`. This workflow regenerates
-# it from the documents in this repository on every push to main, so nobody
-# edits the wiki by hand: an edit there is overwritten by the next push.
+# The GitHub wiki is a read-only mirror of the user guide. This workflow
+# regenerates it from `docs/user-guide.md` on every push to main, so nobody
+# edits the wiki by hand: an edit there is overwritten by the next push. The
+# paths below stay wide because `pnpm wiki:check` reads the whole repository to
+# verify the guide's links, and because a page the mirror no longer generates
+# is deleted on the next run.
 #
 # The wiki is a separate git repository, `<repo>.wiki.git`, and GitHub creates
 # it only when a person saves a page for the first time. A push to a wiki that

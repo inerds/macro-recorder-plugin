@@ -7,9 +7,12 @@
  *
  * Three kinds of link exist in these documents:
  *
- *   - A link to a document the wiki mirrors becomes a wiki page link.
+ *   - A link to a document the wiki mirrors becomes a wiki page link. The
+ *     wiki mirrors one document, the user guide, so this is the guide itself.
  *   - A link to any other path in the repository becomes an absolute
- *     github.com URL, because the wiki cannot reach the repository tree.
+ *     github.com URL, because the wiki cannot reach the repository tree. The
+ *     other documents stay in `docs/`, so a link to one of them takes this
+ *     form.
  *   - An external link stays as it is.
  */
 
@@ -17,33 +20,15 @@ export const REPO = "inerds/macro-recorder-plugin";
 export const BRANCH = "main";
 
 /**
- * The mirrored pages, in sidebar order. `source` is the path in the
- * repository, `page` the wiki page name. `docs/history/**` and
- * `docs/releases/**` are absent on purpose: they are engineering history, not
- * reader documentation, so a link to them turns into a repository URL.
+ * The mirrored pages. The wiki carries the user guide and nothing else (user
+ * decision, 2026-09-08): every other document stays in `docs/`, where a link
+ * to it reaches the repository. The guide is the wiki's `Home`, so the reader
+ * lands on it.
  */
-export const PAGES = [
-  { source: "docs/user-guide.md", page: "User-Guide" },
-  { source: "docs/runtime-api.md", page: "Runtime-API" },
-  { source: "docs/limitations.md", page: "Limitations" },
-  { source: "docs/architecture.md", page: "Architecture" },
-  { source: "docs/design-system.md", page: "Design-System" },
-  { source: "docs/contributing/writing-style.md", page: "Contributing-Writing-Style" },
-  { source: "docs/contributing/triage.md", page: "Contributing-Triage" },
-  { source: "docs/contributing/engine-rev.md", page: "Contributing-Engine-Rev" },
-  { source: "docs/contributing/backlog.md", page: "Contributing-Backlog" },
-  { source: "CONTRIBUTING.md", page: "Contributing" },
-  { source: "CHANGELOG.md", page: "Changelog" },
-];
+export const PAGES = [{ source: "docs/user-guide.md", page: "Home" }];
 
-/**
- * Every path that resolves to a wiki page. `README.md` is here but not in
- * `PAGES`: the wiki's `Home` is generated from it, not copied from it.
- */
-export const LINK_PAGES = new Map([
-  ...PAGES.map(({ source, page }) => [source, page]),
-  ["README.md", "Home"],
-]);
+/** Every repository path that resolves to a wiki page. */
+export const LINK_PAGES = new Map(PAGES.map(({ source, page }) => [source, page]));
 
 const LINK_RE = /(!?)\[((?:[^\][]|\[[^\][]*\])*)\]\(\s*<?([^)<>\s]+)>?(\s+"[^"]*")?\s*\)/g;
 const URL_RE = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i;
@@ -158,4 +143,29 @@ export function rewriteLinks(text, options = {}) {
   });
 
   return { text: lines.join("\n"), counts, unclassified };
+}
+
+/** Markdown links, code ticks, and emphasis removed: the words as rendered. */
+export function plainText(text) {
+  return text
+    .replace(/!?\[((?:[^\][]|\[[^\][]*\])*)\]\([^)]*\)/g, "$1")
+    .replace(/`+/g, "")
+    .replace(/\*\*?([^*]+)\*\*?/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * A heading's anchor, in the form GitHub gives it: the rendered words,
+ * lowercased, with every punctuation mark and symbol dropped — `-` and `_`
+ * stay — and each remaining space written as a hyphen. Letters, numbers, and
+ * marks stay, so "3½. Simplify" anchors as "3½-simplify" and an em dash
+ * leaves the two hyphens its spaces make.
+ */
+export function slug(heading) {
+  return plainText(heading)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, "")
+    .trim()
+    .replace(/\s/g, "-");
 }

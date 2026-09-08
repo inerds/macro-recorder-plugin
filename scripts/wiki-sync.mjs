@@ -3,21 +3,22 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LINK_PAGES, PAGES, rewriteLinks } from "./wiki-links.mjs";
+import { BRANCH, PAGES, REPO, rewriteLinks, slug, plainText } from "./wiki-links.mjs";
 
 /**
- * Builds the GitHub wiki tree from the documents in this repository. The wiki
- * is a read-only mirror: `.github/workflows/wiki.yml` regenerates it on every
- * push to main, so the Markdown stays here and nobody edits the wiki by hand.
- * Usage:
+ * Builds the GitHub wiki from the user guide. The wiki is a read-only mirror
+ * of `docs/user-guide.md`: `.github/workflows/wiki.yml` regenerates it on
+ * every push to main, so the Markdown stays here and nobody edits the wiki by
+ * hand. Every other document stays in `docs/` (user decision, 2026-09-08), so
+ * a link out of the guide becomes a link into the repository. Usage:
  *
  *   node scripts/wiki-sync.mjs                 # build into artifacts/wiki
  *   node scripts/wiki-sync.mjs --out wiki-out  # build somewhere else
  *   node scripts/wiki-sync.mjs --check         # build into a temp dir and verify
  *   node scripts/wiki-sync.mjs --quiet         # print the result line only
  *
- * The page set and the link rewriter live in `scripts/wiki-links.mjs`, which
- * the unit tests drive directly.
+ * The page set, the link rewriter, and the anchor form live in
+ * `scripts/wiki-links.mjs`, which the unit tests drive directly.
  */
 const root = resolve(fileURLToPath(import.meta.url), "..", "..");
 
@@ -70,63 +71,11 @@ const sha = git("rev-parse", "--short", "HEAD");
 const date = git("log", "-1", "--format=%cs");
 
 // ---------------------------------------------------------------------------
-// Text helpers: the title and the one-line description of each page.
+// The build. One source document, one page.
 // ---------------------------------------------------------------------------
 
-function read(path) {
-  return readFileSync(resolve(root, path), "utf8");
-}
-
-/** The paragraphs of a document, with its H1 and any fenced blocks left out. */
-function paragraphs(text) {
-  return text
-    .replace(/^#\s+.*$/m, "")
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean);
-}
-
-function title(text, path) {
-  const heading = text.match(/^#\s+(.+)$/m);
-  if (!heading) fail(`${path} has no H1`);
-  return heading[1].trim();
-}
-
-/** Markdown emphasis and links removed, whitespace collapsed. Code stays. */
-function plain(text) {
-  return text
-    .replace(/!?\[([^\][]*)\]\([^)]*\)/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * The first sentence of `text`. A period counts as the end of a sentence only
- * when a space and a capital letter, or the end of the text, follow it, so
- * `engine/protocol.ts` and `1.0.1` do not cut a sentence short.
- */
-function firstSentence(text) {
-  for (let i = 0; i < text.length; i += 1) {
-    if (text[i] !== ".") continue;
-    const next = text[i + 1];
-    if (next === undefined) return text;
-    if (next !== " ") continue;
-    const after = text.slice(i + 2).trim();
-    if (!after || /^[A-Z(“"]/.test(after)) return text.slice(0, i + 1);
-  }
-  return text.replace(/:$/, "");
-}
-
-function description(text, path) {
-  const first = paragraphs(text)[0];
-  if (!first) fail(`${path} has no paragraph under its H1`);
-  return firstSentence(plain(first));
-}
-
-// ---------------------------------------------------------------------------
-// The build.
-// ---------------------------------------------------------------------------
+const [guide] = PAGES;
+const source = `https://github.com/${REPO}/blob/${BRANCH}/${guide.source}`;
 
 const counts = { wiki: 0, repo: 0, external: 0, anchor: 0, unclassified: 0 };
 
@@ -139,91 +88,104 @@ function rewrite(text, from) {
   return result.text;
 }
 
-/** The intro of `Home.md`: the first two paragraphs of the README. */
-function homeIntro() {
-  const readme = read("README.md");
-  const blocks = paragraphs(readme);
-  const at = blocks.findIndex((block) => block.startsWith("Macro Recorder records the edits"));
-  if (at === -1) fail('README.md has no paragraph that starts "Macro Recorder records the edits"');
-  return rewrite(blocks.slice(at, at + 2).join("\n\n"), "README.md");
+/** The lines of `text` that are not inside a fenced code block. */
+function proseLines(text) {
+  const out = [];
+  let fence = null;
+  for (const line of text.split("\n")) {
+    const fenced = line.match(/^\s*(```+|~~~+)/);
+    if (fence) {
+      if (fenced && line.trim().startsWith(fence)) fence = null;
+      continue;
+    }
+    if (fenced) {
+      fence = fenced[1];
+      continue;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * The page: the guide, with one line under its own H1 that says where the
+ * source is. The H1 stays — the guide reads as a document, not as a wiki page
+ * that lost its title.
+ */
+function page(text) {
+  const note =
+    "_This page mirrors `docs/user-guide.md` in the repository; edit there, not here._" +
+    ` [\`${guide.source}\` on ${BRANCH}](${source})`;
+  const lines = text.split("\n");
+  const h1 = lines.findIndex((line) => line.startsWith("# "));
+  if (h1 === -1) fail(`${guide.source} has no H1`);
+  lines.splice(h1 + 1, 0, "", note);
+  return `${lines.join("\n").replace(/\n+$/, "")}\n`;
+}
+
+/** The guide's `##` sections, as the sidebar and the check both read them. */
+function sections(text) {
+  return proseLines(text)
+    .filter((line) => /^##\s+\S/.test(line))
+    .map((line) => {
+      const heading = line.replace(/^##\s+/, "").trim();
+      return { title: plainText(heading), anchor: slug(heading) };
+    });
 }
 
 function build(out) {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
 
-  const pages = PAGES.map(({ source, page }) => {
-    const text = read(source);
-    return {
-      source,
-      page,
-      title: title(text, source),
-      description: description(text, source),
-      // The page keeps its own H1: the wiki shows a page name, not a title.
-      body: rewrite(text, source),
-    };
-  });
+  const text = rewrite(readFileSync(resolve(root, guide.source), "utf8"), guide.source);
+  const body = page(text);
+  writeFileSync(join(out, `${guide.page}.md`), body);
 
-  for (const page of pages) writeFileSync(join(out, `${page.page}.md`), page.body);
-
-  const list = pages.map((page) => `- [${page.title}](${page.page}) — ${page.description}`);
-  const home = [
-    "# Macro Recorder",
-    "",
-    homeIntro(),
-    "",
-    "This wiki mirrors the `docs/` folder of the repository; edit there, not here.",
-    "",
-    "## Pages",
-    "",
-    ...list,
-    "",
-  ].join("\n");
-  writeFileSync(join(out, "Home.md"), home);
-
+  const list = sections(body);
+  if (!list.length) fail(`${guide.source} has no "##" section`);
   const sidebar = [
-    "### Macro Recorder",
+    "### User guide",
     "",
-    "- [Home](Home)",
-    ...pages.map((page) => `- [${page.title}](${page.page})`),
+    ...list.map((section) => `- [${section.title}](#${section.anchor})`),
     "",
   ].join("\n");
   writeFileSync(join(out, "_Sidebar.md"), sidebar);
 
   writeFileSync(join(out, "_Footer.md"), `Mirrored from \`docs/\` at ${sha} · ${date}\n`);
 
-  return pages;
+  return { body, sections: list };
 }
 
 // ---------------------------------------------------------------------------
-// --check: every link the wiki carries has to land on a page the wiki holds.
+// --check: every link the wiki carries has to land somewhere the wiki holds.
 // ---------------------------------------------------------------------------
 
 const OUT_LINK_RE = /(!?)\[(?:[^\][]|\[[^\][]*\])*\]\(\s*([^)\s]+)[^)]*\)/g;
 
-function checkOutput(out, pages) {
-  const names = new Set([...pages.map((page) => page.page), "Home"]);
+function checkOutput(out, built) {
+  const names = new Set(PAGES.map((each) => each.page));
+  const anchors = new Set(built.sections.map((section) => section.anchor));
+  // Every heading the page carries, so a link to a "###" heading passes too.
+  for (const line of proseLines(built.body)) {
+    if (/^#{1,6}\s+\S/.test(line)) anchors.add(slug(line.replace(/^#+\s+/, "")));
+  }
+
   for (const name of [...names, "_Sidebar", "_Footer"]) {
-    const path = join(out, `${name}.md`);
-    const text = readFileSync(path, "utf8");
-    let fence = null;
-    text.split("\n").forEach((line, index) => {
-      const fenced = line.match(/^\s*(```+|~~~+)/);
-      if (fence) {
-        if (fenced && line.trim().startsWith(fence)) fence = null;
-        return;
-      }
-      if (fenced) {
-        fence = fenced[1];
-        return;
-      }
+    const text = readFileSync(join(out, `${name}.md`), "utf8");
+    proseLines(text).forEach((line, index) => {
       for (const hit of line.matchAll(OUT_LINK_RE)) {
         const target = hit[2];
         if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(target)) continue;
-        if (target.startsWith("#")) continue;
-        const page = target.split("#")[0];
-        if (names.has(page)) continue;
-        report(`${name}.md:${index + 1}`, `the link to "${target}" names no wiki page`);
+        const [path, anchor] = target.startsWith("#")
+          ? ["", target.slice(1)]
+          : [target.split("#")[0], target.split("#")[1] ?? ""];
+        if (path && !names.has(path)) {
+          report(`${name}.md:${index + 1}`, `the link to "${target}" names no wiki page`);
+          continue;
+        }
+        if (!path && !anchors.has(anchor)) {
+          report(`${name}.md:${index + 1}`, `the link to "${target}" names no heading on Home`);
+        }
       }
     });
   }
@@ -235,15 +197,16 @@ const out = check
   ? mkdtempSync(join(tmpdir(), "wiki-sync-"))
   : resolve(root, outArg ?? "artifacts/wiki");
 
-const pages = build(out);
-if (check) checkOutput(out, pages);
+const built = build(out);
+if (check) checkOutput(out, built);
 
 const where = check ? "a temporary directory" : outArg ? out : "artifacts/wiki";
 if (!quiet || errors.length) {
   for (const line of errors) console.log(line);
   console.log(
-    `wiki-sync: ${pages.length + 3} pages → ${where}, links: ${counts.wiki} wiki, ` +
-      `${counts.repo} repo, ${counts.external} external, ${counts.anchor} anchor`,
+    `wiki-sync: ${PAGES.length + 2} pages, ${built.sections.length} sections → ${where}, ` +
+      `links: ${counts.wiki} wiki, ${counts.repo} repo, ${counts.external} external, ` +
+      `${counts.anchor} anchor`,
   );
   console.log(
     errors.length

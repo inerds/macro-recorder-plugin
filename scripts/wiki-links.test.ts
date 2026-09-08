@@ -2,21 +2,27 @@ import { describe, expect, it } from "vitest";
 // The rewriter is plain ESM so `scripts/wiki-sync.mjs` can run it with no build
 // step. This file is outside the three TypeScript projects for the same reason;
 // `vitest.config.ts` includes it through the `scripts/**` glob.
-import { LINK_PAGES, PAGES, classifyTarget, rewriteLinks } from "./wiki-links.mjs";
+import { LINK_PAGES, PAGES, classifyTarget, rewriteLinks, slug } from "./wiki-links.mjs";
 
 const BLOB = "https://github.com/inerds/macro-recorder-plugin/blob/main";
 const TREE = "https://github.com/inerds/macro-recorder-plugin/tree/main";
 
 /** The repository, as far as these tests are concerned. */
 const files = new Set([
+  "README.md",
+  "CONTRIBUTING.md",
+  "CHANGELOG.md",
+  "docs/architecture.md",
+  "docs/limitations.md",
+  "docs/runtime-api.md",
+  "docs/history/improvements.md",
+  "docs/images/deck.png",
+  "docs/releases/",
   "engine/scope.ts",
   "sandbox/applier.ts",
   "sandbox/plugin.ts",
   "scripts/ui-probe/README.md",
   ".claude/agents/macro-triage.md",
-  "docs/history/improvements.md",
-  "docs/releases/",
-  "docs/images/deck.png",
 ]);
 const all = (path: string) => files.has(path);
 
@@ -25,95 +31,83 @@ function href(target: string, from: string, exists = all) {
 }
 
 describe("the page set", () => {
-  it("maps README.md to Home, which is generated and not copied", () => {
-    expect(LINK_PAGES.get("README.md")).toBe("Home");
-    expect(PAGES.some((page: { source: string }) => page.source === "README.md")).toBe(false);
+  it("mirrors the user guide, and nothing else", () => {
+    expect(PAGES).toEqual([{ source: "docs/user-guide.md", page: "Home" }]);
   });
 
-  it("leaves the engineering history out of the mirror", () => {
-    expect(LINK_PAGES.has("docs/history/improvements.md")).toBe(false);
-    expect(LINK_PAGES.has("docs/releases/v0.6.0.md")).toBe(false);
+  it("keeps every other document out of the wiki", () => {
+    for (const path of ["README.md", "CONTRIBUTING.md", "CHANGELOG.md", "docs/limitations.md"]) {
+      expect(LINK_PAGES.has(path)).toBe(false);
+    }
   });
 });
 
-describe("links to a mirrored document", () => {
+describe("links to the user guide", () => {
   it("rewrites a docs/ path from the repository root", () => {
-    expect(href("docs/user-guide.md", "README.md")).toMatchObject({
-      kind: "wiki",
-      href: "User-Guide",
-    });
+    expect(href("docs/user-guide.md", "README.md")).toMatchObject({ kind: "wiki", href: "Home" });
   });
 
   it("rewrites a sibling path", () => {
-    expect(href("runtime-api.md", "docs/architecture.md")).toMatchObject({
+    expect(href("user-guide.md", "docs/architecture.md")).toMatchObject({
       kind: "wiki",
-      href: "Runtime-API",
+      href: "Home",
     });
   });
 
-  it("rewrites an explicit ./ path", () => {
-    expect(href("./limitations.md", "docs/architecture.md")).toMatchObject({
+  it("rewrites an explicit ./ path and a path that goes up a directory", () => {
+    expect(href("./user-guide.md", "docs/architecture.md")).toMatchObject({
       kind: "wiki",
-      href: "Limitations",
+      href: "Home",
+    });
+    expect(href("../user-guide.md", "docs/contributing/triage.md")).toMatchObject({
+      kind: "wiki",
+      href: "Home",
     });
   });
 
-  it("rewrites a path that goes up a directory", () => {
-    expect(href("../design-system.md", "docs/contributing/triage.md")).toMatchObject({
+  it("keeps the anchor in GitHub's slug form", () => {
+    expect(href("docs/user-guide.md#5-edit-a-steps-value", "README.md")).toMatchObject({
       kind: "wiki",
-      href: "Design-System",
+      href: "Home#5-edit-a-steps-value",
+    });
+  });
+});
+
+describe("links to a document the wiki does not mirror", () => {
+  it("rewrites a sibling document to an absolute blob URL", () => {
+    expect(href("runtime-api.md", "docs/user-guide.md")).toMatchObject({
+      kind: "repo",
+      href: `${BLOB}/docs/runtime-api.md`,
+    });
+  });
+
+  it("keeps the anchor on that document", () => {
+    expect(href("limitations.md#rounded-corners", "docs/user-guide.md")).toMatchObject({
+      kind: "repo",
+      href: `${BLOB}/docs/limitations.md#rounded-corners`,
+    });
+  });
+
+  it("rewrites the root documents, README.md included", () => {
+    expect(href("../README.md", "docs/user-guide.md")).toMatchObject({
+      kind: "repo",
+      href: `${BLOB}/README.md`,
+    });
+    expect(href("../CONTRIBUTING.md", "docs/user-guide.md")).toMatchObject({
+      kind: "repo",
+      href: `${BLOB}/CONTRIBUTING.md`,
+    });
+    expect(href("CHANGELOG.md", "README.md")).toMatchObject({
+      kind: "repo",
+      href: `${BLOB}/CHANGELOG.md`,
     });
   });
 
   it("rewrites a path into a subdirectory", () => {
-    expect(href("contributing/engine-rev.md", "docs/architecture.md")).toMatchObject({
-      kind: "wiki",
-      href: "Contributing-Engine-Rev",
-    });
-    expect(href("../contributing/backlog.md", "docs/contributing/triage.md")).toMatchObject({
-      kind: "wiki",
-      href: "Contributing-Backlog",
-    });
-    expect(href("docs/contributing/writing-style.md", "CONTRIBUTING.md")).toMatchObject({
-      kind: "wiki",
-      href: "Contributing-Writing-Style",
-    });
-  });
-
-  it("rewrites the root documents", () => {
-    expect(href("README.md", "CONTRIBUTING.md")).toMatchObject({ kind: "wiki", href: "Home" });
-    expect(href("../README.md", "docs/architecture.md")).toMatchObject({
-      kind: "wiki",
-      href: "Home",
-    });
-    expect(href("CONTRIBUTING.md", "README.md")).toMatchObject({
-      kind: "wiki",
-      href: "Contributing",
-    });
-    expect(href("CHANGELOG.md", "README.md")).toMatchObject({ kind: "wiki", href: "Changelog" });
-  });
-
-  it("keeps the anchor in GitHub's slug form", () => {
-    expect(href("docs/limitations.md#no-job-pump", "README.md")).toMatchObject({
-      kind: "wiki",
-      href: "Limitations#no-job-pump",
-    });
-    expect(href("../runtime-api.md#creatorui", "docs/contributing/triage.md")).toMatchObject({
-      kind: "wiki",
-      href: "Runtime-API#creatorui",
-    });
-  });
-});
-
-describe("links to any other path in the repository", () => {
-  it("rewrites a source path to an absolute blob URL", () => {
-    expect(href("engine/scope.ts", "docs/architecture.md")).toMatchObject({
+    expect(href("docs/architecture.md", "CONTRIBUTING.md")).toMatchObject({
       kind: "repo",
-      href: `${BLOB}/engine/scope.ts`,
+      href: `${BLOB}/docs/architecture.md`,
     });
-  });
-
-  it("rewrites a Markdown file the wiki does not mirror", () => {
     expect(href("../history/improvements.md", "docs/contributing/triage.md")).toMatchObject({
       kind: "repo",
       href: `${BLOB}/docs/history/improvements.md`,
@@ -121,6 +115,15 @@ describe("links to any other path in the repository", () => {
     expect(href(".claude/agents/macro-triage.md", "CONTRIBUTING.md")).toMatchObject({
       kind: "repo",
       href: `${BLOB}/.claude/agents/macro-triage.md`,
+    });
+  });
+});
+
+describe("links to code", () => {
+  it("rewrites a source path to an absolute blob URL", () => {
+    expect(href("engine/scope.ts", "docs/user-guide.md")).toMatchObject({
+      kind: "repo",
+      href: `${BLOB}/engine/scope.ts`,
     });
   });
 
@@ -149,71 +152,81 @@ describe("links to any other path in the repository", () => {
 describe("links the rewriter leaves alone", () => {
   it("keeps an external link", () => {
     const target = "https://creator.lottiefiles.com";
-    expect(href(target, "README.md")).toMatchObject({ kind: "external", href: target });
-    expect(href("mailto:hello@example.com", "README.md")).toMatchObject({ kind: "external" });
+    expect(href(target, "docs/user-guide.md")).toMatchObject({ kind: "external", href: target });
+    expect(href("mailto:hello@example.com", "docs/user-guide.md")).toMatchObject({
+      kind: "external",
+    });
   });
 
   it("keeps a link to a heading in the same page", () => {
-    expect(href("#the-rule", "docs/contributing/engine-rev.md")).toMatchObject({ kind: "anchor" });
+    expect(href("#4-simplify", "docs/user-guide.md")).toMatchObject({ kind: "anchor" });
   });
 });
 
 describe("links the rewriter cannot classify", () => {
   it("reports a path that no longer exists", () => {
-    const gone = href("engine/gone.ts", "docs/architecture.md", () => false);
+    const gone = href("engine/gone.ts", "docs/user-guide.md", () => false);
     expect(gone.kind).toBe("unclassified");
     expect(gone.href).toBe("engine/gone.ts");
     expect(gone.why).toMatch(/no such path/);
   });
 
   it("reports a path that leaves the repository", () => {
-    const outside = href("../../elsewhere.md", "docs/architecture.md");
+    const outside = href("../../elsewhere.md", "docs/user-guide.md");
     expect(outside.kind).toBe("unclassified");
     expect(outside.why).toMatch(/outside the repository/);
   });
 });
 
-describe("rewriteLinks over a document", () => {
+describe("rewriteLinks over the guide", () => {
   const source = [
-    "# Architecture",
+    "# Macro Recorder — user guide",
     "",
-    "Read [`runtime-api.md`](runtime-api.md) and [the limits](limitations.md#roundness).",
-    "The proxy boundary lives in [`sandbox/applier.ts`](sandbox/applier.ts:42).",
+    "The limits are in [`limitations.md`](limitations.md#rounded-corners), and the",
+    "shape of the code is in [`architecture.md`](architecture.md).",
+    "Read [step 4](#4-simplify) first.",
+    "The proxy boundary lives in [`sandbox/applier.ts`](../sandbox/applier.ts:42).",
     "The host is [Creator](https://creator.lottiefiles.com).",
     "",
     "```md",
-    "[`user-guide.md`](user-guide.md)",
+    "[`runtime-api.md`](runtime-api.md)",
     "```",
     "",
-    "![the deck](docs/images/deck.png)",
+    "![the deck](images/deck.png)",
   ].join("\n");
 
-  const result = rewriteLinks(source, { from: "docs/architecture.md", exists: all });
+  const result = rewriteLinks(source, { from: "docs/user-guide.md", exists: all });
 
   it("counts each link by kind", () => {
     expect(result.counts).toMatchObject({
-      wiki: 2,
-      repo: 2,
+      wiki: 0,
+      repo: 4,
       external: 1,
-      anchor: 0,
+      anchor: 1,
       unclassified: 0,
     });
     expect(result.unclassified).toEqual([]);
   });
 
   it("keeps the page's own H1", () => {
-    expect(result.text.startsWith("# Architecture")).toBe(true);
+    expect(result.text.startsWith("# Macro Recorder — user guide")).toBe(true);
   });
 
   it("rewrites the links in the body and keeps the link text", () => {
-    expect(result.text).toContain("[`runtime-api.md`](Runtime-API)");
-    expect(result.text).toContain("[the limits](Limitations#roundness)");
+    expect(result.text).toContain(
+      `[\`limitations.md\`](${BLOB}/docs/limitations.md#rounded-corners)`,
+    );
+    expect(result.text).toContain(`[\`architecture.md\`](${BLOB}/docs/architecture.md)`);
     expect(result.text).toContain(`[\`sandbox/applier.ts\`](${BLOB}/sandbox/applier.ts#L42)`);
     expect(result.text).toContain("[Creator](https://creator.lottiefiles.com)");
   });
 
+  it("leaves a link to a heading on the same page alone", () => {
+    expect(result.text).toContain("[step 4](#4-simplify)");
+  });
+
   it("leaves a link inside a fenced block alone", () => {
-    expect(result.text).toContain("[`user-guide.md`](user-guide.md)");
+    expect(result.text).toContain("[`runtime-api.md`](runtime-api.md)");
   });
 
   it("points an image at the raw URL, which a blob page cannot serve", () => {
@@ -224,11 +237,38 @@ describe("rewriteLinks over a document", () => {
 
   it("reports the line of a link it cannot classify", () => {
     const broken = rewriteLinks("ok\n\nsee [gone](engine/gone.ts).\n", {
-      from: "docs/architecture.md",
+      from: "docs/user-guide.md",
       exists: () => false,
     });
     expect(broken.counts.unclassified).toBe(1);
     expect(broken.unclassified[0]).toMatchObject({ line: 3, target: "engine/gone.ts" });
     expect(broken.text).toContain("[gone](engine/gone.ts)");
+  });
+});
+
+describe("the section anchors the sidebar links to", () => {
+  it("writes a numbered heading the way GitHub does", () => {
+    expect(slug("1. Install and open")).toBe("1-install-and-open");
+    expect(slug("11. Known limits")).toBe("11-known-limits");
+  });
+
+  it("drops the punctuation and keeps a number that is not ASCII", () => {
+    expect(slug("5. Edit a step's value")).toBe("5-edit-a-steps-value");
+    expect(slug("8. Parameters (values the macro asks for on play)")).toBe(
+      "8-parameters-values-the-macro-asks-for-on-play",
+    );
+    expect(slug("3½. Turn existing animation into a macro")).toBe(
+      "3½-turn-existing-animation-into-a-macro",
+    );
+  });
+
+  it("leaves the two hyphens an em dash's spaces make", () => {
+    expect(slug("Macro Recorder — user guide")).toBe("macro-recorder--user-guide");
+  });
+
+  it("reads the rendered words, not the Markdown", () => {
+    expect(slug("Bump `ENGINE_REV` in the [protocol](engine/protocol.ts)")).toBe(
+      "bump-engine_rev-in-the-protocol",
+    );
   });
 });

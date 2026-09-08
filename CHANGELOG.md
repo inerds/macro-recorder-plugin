@@ -6,8 +6,8 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
-- The documentation is now published as a GitHub wiki. The wiki is a
-  read-only mirror of the `docs/` folder, and every push to main rebuilds it.
+- The user guide is now published as a GitHub wiki page, mirrored from
+  `docs/user-guide.md` on every push to main.
 
 - The deck's nameplate and its two guide rollers now take a tint from
   Creator's own interface colour, so the fittings reflect the app around
