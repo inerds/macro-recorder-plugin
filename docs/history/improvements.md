@@ -12,6 +12,12 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-08 — Docs wiki
+
+| Issue | Fix |
+|---|---|
+| The documentation was readable only as files in the repository. A reader who wanted the user guide had to open GitHub's file browser, and nothing published `docs/` as a browsable set. | `scripts/wiki-sync.mjs` builds a GitHub wiki from `docs/`, `README.md`, `CONTRIBUTING.md`, and `CHANGELOG.md`, and `.github/workflows/wiki.yml` regenerates it on every push to main. The wiki is read-only: the Markdown stays here (user decision, 2026-09-08). `scripts/wiki-links.mjs` rewrites each link — a mirrored document becomes a wiki page, any other repository path an absolute github.com URL — and `pnpm wiki:check` fails on a link it cannot classify. |
+
 ## 2026-09-08 — Host colour on the fittings
 
 | Issue | Fix |

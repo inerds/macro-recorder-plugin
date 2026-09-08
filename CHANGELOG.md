@@ -6,6 +6,9 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- The documentation is now published as a GitHub wiki. The wiki is a
+  read-only mirror of the `docs/` folder, and every push to main rebuilds it.
+
 - The deck's nameplate and its two guide rollers now take a tint from
   Creator's own interface colour, so the fittings reflect the app around
   them: slate in the dark theme, bright chrome in the light one.
