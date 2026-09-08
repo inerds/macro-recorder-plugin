@@ -1,0 +1,514 @@
+{
+  "_corpus": {
+    "era": "v3-launch",
+    "introduced": "0a0061c (2026-08-22), first shipped in v0.6.0",
+    "note": "Engine v3: whole-scene recording. Every payload carries `layer`, deep paths carry `shapeHint`, and the macro carries `source`. There is no `params`, no `playOptions`, no `disabled`, and no `apply`."
+  },
+  "id": "corpus-v3-launch",
+  "name": "v3 \u00b7 restyle the hero",
+  "createdAt": 1755830000000,
+  "source": {
+    "nodeId": "demo-hero",
+    "nodeName": "Hero Square"
+  },
+  "steps": [
+    {
+      "id": "v3-1",
+      "kind": "shape",
+      "label": "Rectangle \u00b7 size (width: 160, height: 160) \u2192 (width: 200, height: 120)",
+      "payload": {
+        "op": "set-static",
+        "path": ["shapes", 0, "size"],
+        "shapeHint": "RECTANGLE",
+        "before": {
+          "width": 160,
+          "height": 160
+        },
+        "after": {
+          "width": 200,
+          "height": 120
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-2",
+      "kind": "layer",
+      "label": "Layer \u00b7 timeline offset 0 \u2192 6",
+      "payload": {
+        "op": "set-plain",
+        "path": ["timelineOffset"],
+        "before": 0,
+        "after": 6,
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-3",
+      "kind": "fill",
+      "label": "Fill 2 \u00b7 removed",
+      "payload": {
+        "op": "remove-paint",
+        "path": ["fills", 1],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-4",
+      "kind": "fill",
+      "label": "Fill 1 \u00b7 replaced with #7834C6",
+      "payload": {
+        "op": "replace-paint",
+        "path": ["fills", 0],
+        "spec": {
+          "kind": "solid",
+          "color": {
+            "animated": false,
+            "static": {
+              "r": 120,
+              "g": 52,
+              "b": 198
+            }
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-5",
+      "kind": "fill",
+      "label": "Fill 2 \u00b7 added gradient",
+      "payload": {
+        "op": "add-paint",
+        "path": ["fills", 1],
+        "spec": {
+          "kind": "gradient",
+          "gradientType": "GRADIENT_LINEAR",
+          "start": {
+            "animated": false,
+            "static": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "end": {
+            "animated": false,
+            "static": {
+              "x": 160,
+              "y": 160
+            }
+          },
+          "stops": {
+            "animated": false,
+            "static": [
+              {
+                "color": {
+                  "r": 236,
+                  "g": 79,
+                  "b": 53
+                },
+                "offset": 0,
+                "opacity": 1
+              },
+              {
+                "color": {
+                  "r": 255,
+                  "g": 186,
+                  "b": 73
+                },
+                "offset": 0.5,
+                "opacity": 1
+              },
+              {
+                "color": {
+                  "r": 120,
+                  "g": 52,
+                  "b": 198
+                },
+                "offset": 1,
+                "opacity": 1
+              }
+            ]
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-6",
+      "kind": "stroke",
+      "label": "Stroke 1 \u00b7 added",
+      "payload": {
+        "op": "add-stroke",
+        "path": ["strokes", 0],
+        "spec": {
+          "width": 8,
+          "fill": {
+            "kind": "solid",
+            "color": {
+              "animated": false,
+              "static": {
+                "r": 32,
+                "g": 148,
+                "b": 150
+              }
+            }
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-7",
+      "kind": "mask",
+      "label": "Mask 1 \u00b7 added",
+      "payload": {
+        "op": "add-mask",
+        "path": ["masks", 0],
+        "spec": {
+          "mode": "add",
+          "pathData": {
+            "animated": false,
+            "static": {
+              "closed": true,
+              "points": [
+                {
+                  "vertex": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "vertex": {
+                    "x": 160,
+                    "y": 0
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "vertex": {
+                    "x": 160,
+                    "y": 160
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "vertex": {
+                    "x": 0,
+                    "y": 160
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              ]
+            }
+          },
+          "opacity": {
+            "animated": false,
+            "static": 80
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-8",
+      "kind": "mask",
+      "label": "Mask 2 \u00b7 added",
+      "payload": {
+        "op": "add-mask",
+        "path": ["masks", 1],
+        "spec": {
+          "mode": "subtract",
+          "pathData": {
+            "animated": false,
+            "static": {
+              "closed": true,
+              "points": [
+                {
+                  "vertex": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "vertex": {
+                    "x": 60,
+                    "y": 0
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "vertex": {
+                    "x": 60,
+                    "y": 60
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "vertex": {
+                    "x": 0,
+                    "y": 60
+                  },
+                  "inTan": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "outTan": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              ]
+            }
+          },
+          "opacity": {
+            "animated": false,
+            "static": 100
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-9",
+      "kind": "mask",
+      "label": "Mask 2 \u00b7 removed",
+      "payload": {
+        "op": "remove-mask",
+        "path": ["masks", 1],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-10",
+      "kind": "other",
+      "label": "Trim path 1 \u00b7 added",
+      "payload": {
+        "op": "add-trim",
+        "path": ["trimPaths", 0],
+        "spec": {
+          "start": {
+            "animated": false,
+            "static": 0
+          },
+          "end": {
+            "animated": false,
+            "static": 62
+          },
+          "offset": {
+            "animated": false,
+            "static": 0
+          },
+          "mode": "simultaneously"
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-11",
+      "kind": "other",
+      "label": "Trim path 2 \u00b7 added",
+      "payload": {
+        "op": "add-trim",
+        "path": ["trimPaths", 1],
+        "spec": {
+          "start": {
+            "animated": false,
+            "static": 10
+          },
+          "end": {
+            "animated": false,
+            "static": 90
+          },
+          "offset": {
+            "animated": false,
+            "static": 0
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-12",
+      "kind": "other",
+      "label": "Trim path 2 \u00b7 removed",
+      "payload": {
+        "op": "remove-trim",
+        "path": ["trimPaths", 1],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-13",
+      "kind": "shape",
+      "label": "Ellipse \u00b7 added",
+      "payload": {
+        "op": "add-shape",
+        "parentPath": [],
+        "spec": {
+          "nodeId": "corpus-dot",
+          "nodeType": "ELLIPSE",
+          "nodeName": "Dot",
+          "props": {
+            "size": {
+              "animated": false,
+              "static": {
+                "width": 40,
+                "height": 40
+              }
+            }
+          },
+          "plain": {},
+          "fills": [],
+          "strokes": [],
+          "masks": [],
+          "shapes": []
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-14",
+      "kind": "shape",
+      "label": "Shape 2 \u00b7 removed",
+      "payload": {
+        "op": "remove-shape",
+        "path": ["shapes", 1],
+        "shapeType": "ELLIPSE",
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-15",
+      "kind": "shape",
+      "label": "Shapes \u00b7 reordered",
+      "payload": {
+        "op": "reorder-shapes",
+        "path": [],
+        "order": [1, 0],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "v3-16",
+      "kind": "keyframe",
+      "label": "Keyframes \u00b7 opacity, 2 added",
+      "payload": {
+        "op": "keyframes",
+        "path": ["opacity"],
+        "added": [
+          {
+            "frame": 0,
+            "value": 0
+          },
+          {
+            "frame": 24,
+            "value": 100
+          }
+        ],
+        "removed": [],
+        "changed": [],
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "_corpus": {
+    "era": "params-disabled",
+    "introduced": "76ace54 (2026-08-22), first shipped in v0.6.0",
+    "note": "v3.1 adds `MacroStep.disabled` and `Macro.params`. A disabled step stays in the macro and never reaches the sandbox; a pinned step asks the user for its value before every replay."
+  },
+  "id": "corpus-params-disabled",
+  "name": "Parametric slide",
+  "createdAt": 1755850000000,
+  "source": {
+    "nodeId": "demo-hero",
+    "nodeName": "Hero Square"
+  },
+  "steps": [
+    {
+      "id": "pd-1",
+      "kind": "transform",
+      "label": "Transform \u00b7 position (540, 560) \u2192 (660, 560)",
+      "payload": {
+        "op": "set-static",
+        "path": ["position"],
+        "before": {
+          "x": 540,
+          "y": 560
+        },
+        "after": {
+          "x": 660,
+          "y": 560
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "pd-2",
+      "kind": "transform",
+      "label": "Transform \u00b7 rotation 0 \u2192 45",
+      "payload": {
+        "op": "set-static",
+        "path": ["rotation"],
+        "before": 0,
+        "after": 45,
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "id": "pd-3",
+      "kind": "transform",
+      "label": "Transform \u00b7 opacity 100 \u2192 30",
+      "payload": {
+        "op": "set-static",
+        "path": ["opacity"],
+        "before": 100,
+        "after": 30,
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    }
+  ],
+  "params": [
+    {
+      "stepId": "pd-1",
+      "label": "Slide"
+    },
+    {
+      "stepId": "pd-3",
+      "label": "Fade"
+    }
+  ]
+}

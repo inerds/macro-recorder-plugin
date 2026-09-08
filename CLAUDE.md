@@ -27,6 +27,9 @@ rationale lives in `docs/`.
   and the triage loop.
 - [`docs/contributing/engine-rev.md`](docs/contributing/engine-rev.md) — the
   `ENGINE_REV` rule and the stale-sandbox trap.
+- [`docs/contributing/macro-corpus.md`](docs/contributing/macro-corpus.md) —
+  the fixture corpus of every saved macro shape, and the rule for changing
+  one.
 - [`docs/runtime-api.md`](docs/runtime-api.md) — the host API's real runtime
   surface. The published typings, `@lottiefiles/creator-api-types` 1.0.1,
   still diverge from the runtime in the places this file lists.
@@ -44,7 +47,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (768 tests, 34 files, ~1s)
+pnpm test                      # vitest run (855 tests, 36 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 pnpm test:ui                   # headless Chrome: the panel alone, on mock gateways
@@ -104,6 +107,10 @@ the host. It builds nothing — the dev server compiles `plugin.js` on request
 5. **Update [`docs/user-guide.md`](docs/user-guide.md) when user-facing
    behaviour changes**, and add a `CHANGELOG.md` entry for anything a user
    sees.
+6. **Add a fixture to `engine/testing/macros/` when the saved macro shape
+   changes, and never edit or delete an older one** — a user's storage still
+   holds it. See
+   [`docs/contributing/macro-corpus.md`](docs/contributing/macro-corpus.md).
 
 ## Host skills
 

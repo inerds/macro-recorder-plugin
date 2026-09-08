@@ -163,7 +163,7 @@ without you (see [`scripts/ui-probe/README.md`](scripts/ui-probe/README.md)).
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (768 tests, 34 files)
+pnpm test          # vitest: engine logic, reducer, demo and corpus replay (855 tests, 36 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
 pnpm test:harness  # records and replays through the host harness in headless Chrome
@@ -175,6 +175,12 @@ pnpm build         # production bundle → dist/ (manifest.json, plugin.js, ui.h
 pumping the VM job queue. A pure VM promise chain never settles there, so code
 that passes in a browser can be dead in Creator. The smoke test drives the
 real bundle with zero pumps and asserts the RPC contract holds.
+
+`pnpm test` also replays the macro corpus — one saved macro per shape this
+plugin has ever written to storage or export — so a change to the step shape
+that an older macro cannot survive fails a test instead of blanking a panel
+(`engine/testing/macros/`, and see
+[`docs/contributing/macro-corpus.md`](docs/contributing/macro-corpus.md)).
 
 `test:ui` exists because the unit tests run in Node with no DOM. It opens the
 panel in headless Chrome over the DevTools protocol and asks the page what

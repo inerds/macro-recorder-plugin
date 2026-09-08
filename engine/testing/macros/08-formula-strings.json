@@ -1,0 +1,102 @@
+{
+  "_corpus": {
+    "era": "formula-strings",
+    "introduced": "the unreleased first cut of per-step formulas (2026-09-07)",
+    "note": "The first cut saved `apply` as the string \"exact\", \"add\", or \"multiply\". It never shipped, but it wrote macros into a dev store, and the formula build blanked the panel on one of them (docs/history/improvements.md, 2026-09-07). `explicitFormulaOf` (engine/operator.ts) converts each string to the formula it meant on a set-static step and drops it on a keyframes step."
+  },
+  "id": "corpus-formula-strings",
+  "name": "First-cut formulas",
+  "createdAt": 1757200000000,
+  "source": {
+    "nodeId": "demo-hero",
+    "nodeName": "Hero Square"
+  },
+  "steps": [
+    {
+      "id": "fs-1",
+      "kind": "transform",
+      "label": "Transform \u00b7 position (x: 100, y: 100) \u2192 (x: 640, y: 480)",
+      "payload": {
+        "op": "set-static",
+        "path": ["position"],
+        "before": {
+          "x": 100,
+          "y": 100
+        },
+        "after": {
+          "x": 640,
+          "y": 480
+        },
+        "apply": "exact",
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "fs-2",
+      "kind": "transform",
+      "label": "Transform \u00b7 rotation \u00d73",
+      "payload": {
+        "op": "set-static",
+        "path": ["rotation"],
+        "before": 5,
+        "after": 15,
+        "apply": "multiply",
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "fs-3",
+      "kind": "transform",
+      "label": "Transform \u00b7 scale +30, +30",
+      "payload": {
+        "op": "set-static",
+        "path": ["scale"],
+        "before": {
+          "x": 120,
+          "y": 120
+        },
+        "after": {
+          "x": 150,
+          "y": 150
+        },
+        "apply": "add",
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "fs-4",
+      "kind": "keyframe",
+      "label": "Keyframes \u00b7 opacity, 2 added",
+      "payload": {
+        "op": "keyframes",
+        "path": ["opacity"],
+        "added": [
+          {
+            "frame": 0,
+            "value": 0
+          },
+          {
+            "frame": 20,
+            "value": 100
+          }
+        ],
+        "removed": [],
+        "changed": [],
+        "apply": "add",
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    }
+  ]
+}

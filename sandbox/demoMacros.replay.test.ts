@@ -21,7 +21,7 @@ import { describePlaybackMode } from "../engine/playbackMode";
 import { makeFakeScene, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { enabledSteps } from "../ui/gateways/types";
 import { buildDemoMacros, DEMO_LAYERS } from "../ui/dev/demoMacros";
-import { playbackBegin, playbackEnd, playbackStep } from "./playback";
+import { endReplay, runSteps, stubCreator } from "./testing/replay";
 
 const macros = buildDemoMacros(1_700_000_000_000);
 
@@ -62,19 +62,7 @@ function makeDemoScene() {
   return { scene, hero, orbit, caption };
 }
 
-function stubCreator(scene: Any, selection: Any[]) {
-  (globalThis as Any).creator = {
-    activeScene: scene,
-    selection: { nodes: selection },
-    timeline: { currentFrame: 0 },
-    ui: { postMessage() {}, onMessage() {}, show() {} },
-  };
-}
-
-afterEach(() => {
-  playbackEnd();
-  delete (globalThis as Any).creator;
-});
+afterEach(endReplay);
 
 /** Runs every enabled step, returning the failures and notes it produced. */
 function replay(macro: (typeof macros)[number]) {
@@ -85,20 +73,11 @@ function replay(macro: (typeof macros)[number]) {
   const mode = describePlaybackMode(macro).mode;
   stubCreator(scene, mode === "targets" ? [hero] : []);
 
-  const begin = playbackBegin({
-    steps,
+  const { begin, failures, notes } = runSteps(steps, {
     ...(macro.source ? { sourceNodeId: macro.source.nodeId } : {}),
     ...(macro.playOptions?.staggerFrames ? { staggerFrames: macro.playOptions.staggerFrames } : {}),
     ...(macro.playOptions?.atPlayhead ? { atPlayhead: true } : {}),
   });
-
-  const failures: { target: string; message: string }[] = [];
-  const notes: string[] = [];
-  for (let index = 0; index < steps.length; index++) {
-    const result = playbackStep({ index });
-    failures.push(...result.failures);
-    for (const note of result.notes ?? []) notes.push(note.message);
-  }
   return { begin, failures, notes, scene, hero, orbit, caption, mode };
 }
 
@@ -144,9 +123,7 @@ describe("what each demo macro actually does", () => {
     expect(failures).toEqual([]);
     expect(hero.fills[0].type).toBe("GRADIENT_LINEAR");
     // the solid recolor that followed tinted every stop of what it converted
-    expect(
-      hero.fills[0].stops.staticValue.map((s: Any) => s.color),
-    ).toEqual([
+    expect(hero.fills[0].stops.staticValue.map((s: Any) => s.color)).toEqual([
       { r: 236, g: 79, b: 53 },
       { r: 236, g: 79, b: 53 },
       { r: 236, g: 79, b: 53 },

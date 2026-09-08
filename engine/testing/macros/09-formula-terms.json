@@ -1,0 +1,95 @@
+{
+  "_corpus": {
+    "era": "formula-terms",
+    "introduced": "a66bc4e (2026-09-07), first shipped in v0.8.0",
+    "note": "`apply` becomes a `StepFormula`: one `LinearTerm` for a scalar property, one term per component for a vector. A step that carries one replays as arithmetic on whatever the target holds."
+  },
+  "id": "corpus-formula-terms",
+  "name": "Per-step formulas",
+  "createdAt": 1757210000000,
+  "source": {
+    "nodeId": "demo-hero",
+    "nodeName": "Hero Square"
+  },
+  "steps": [
+    {
+      "id": "ft-1",
+      "kind": "transform",
+      "label": "Transform \u00b7 position x \u00d72, y \u221260",
+      "payload": {
+        "op": "set-static",
+        "path": ["position"],
+        "before": {
+          "x": 100,
+          "y": 100
+        },
+        "after": {
+          "x": 200,
+          "y": 40
+        },
+        "apply": {
+          "x": {
+            "scale": 2,
+            "offset": 0
+          },
+          "y": {
+            "scale": 1,
+            "offset": -60
+          }
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "ft-2",
+      "kind": "transform",
+      "label": "Transform \u00b7 rotation \u00d72",
+      "payload": {
+        "op": "set-static",
+        "path": ["rotation"],
+        "before": 5,
+        "after": 10,
+        "apply": {
+          "scale": 2,
+          "offset": 0
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    },
+    {
+      "id": "ft-3",
+      "kind": "keyframe",
+      "label": "Keyframes \u00b7 opacity, 2 added",
+      "payload": {
+        "op": "keyframes",
+        "path": ["opacity"],
+        "added": [
+          {
+            "frame": 0,
+            "value": 0
+          },
+          {
+            "frame": 20,
+            "value": 100
+          }
+        ],
+        "removed": [],
+        "changed": [],
+        "apply": {
+          "scale": 1,
+          "offset": 0
+        },
+        "layer": {
+          "id": "demo-hero",
+          "name": "Hero Square"
+        }
+      }
+    }
+  ]
+}
