@@ -523,18 +523,39 @@ export async function launchProbe({ baseUrl, artifactDir = DEFAULT_ARTIFACT_DIR 
     // real one would have carried, because Alt on Record is what the
     // exact-values scenario is about.
     await evaluateInPanel(
-      `(() => { window.__probeClicked = false;
-        document.addEventListener("click", () => { window.__probeClicked = true; }, { capture: true, once: true }); })()`,
+      `(() => { window.__probeClick = null;
+        document.addEventListener("click", (event) => {
+          const el = document.querySelector(${JSON.stringify(selector)});
+          const t = event.target;
+          window.__probeClick = {
+            inside: !!(el && t && (t === el || el.contains(t))),
+            x: event.clientX, y: event.clientY,
+            target: t && t.nodeType === 1 ? (t.tagName.toLowerCase() + (t.getAttribute("data-testid") ? "[" + t.getAttribute("data-testid") + "]" : "")) : String(t),
+          };
+        }, { capture: true, once: true }); })()`,
     );
     let landed = false;
     // `UI_PROBE_SYNTHETIC_CLICKS=1` skips the real click, so the fallback
     // can be proven on a machine where the real click never misses.
     if (reachable && !process.env.UI_PROBE_SYNTHETIC_CLICKS) {
       await click(rect.x + rect.w / 2, rect.y + rect.h / 2, options);
-      landed = await waitForInPanel(`window.__probeClicked === true`, { timeout: 600 }).then(
-        () => true,
-        () => false,
+      // "Landed" means the click event's target sits inside the element the
+      // click was for. A click that arrives in the frame at the wrong point
+      // fires the document listener too, and would otherwise count.
+      const arrived = await waitForInPanel(`window.__probeClick`, { timeout: 600 }).then(
+        (value) => value,
+        () => null,
       );
+      landed = !!arrived?.inside;
+      if (!landed) {
+        console.log(
+          `# clickInPanel: ${selector} aimed at frame-relative (${rect.x - rect.frame.x + rect.w / 2}, ${rect.y - rect.frame.y + rect.h / 2}), page (${rect.x + rect.w / 2}, ${rect.y + rect.h / 2}); ${
+            arrived
+              ? `the frame saw a click at (${arrived.x}, ${arrived.y}) on ${arrived.target}`
+              : "the frame saw no click"
+          }`,
+        );
+      }
     }
     if (!landed) {
       if (process.env.UI_PROBE_VERBOSE) {
