@@ -1,0 +1,17 @@
+#!/bin/sh
+# Runs the ENGINE_REV gate over the staged diff. See
+# docs/contributing/engine-rev.md ("The gate") and
+# scripts/engine-rev-gate.mjs for the rule.
+#
+# `pnpm install` wires this hook in through `git config core.hooksPath
+# .githooks` (the "prepare" script in package.json). It skips cleanly, rather
+# than blocking a commit, on a machine with no `node` on PATH.
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: node not found on PATH — skipping the ENGINE_REV gate."
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+node "$repo_root/scripts/engine-rev-gate.mjs" --staged
+exit $?

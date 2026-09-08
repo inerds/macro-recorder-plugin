@@ -27,13 +27,20 @@ Open that URL and size the viewport to about 320x560 for the standalone loop.
 `README.md` describes all three ways to run the plugin, including inside
 Creator and against the local host harness.
 
+`pnpm install` also points Git at `.githooks` (the `prepare` script runs
+`git config core.hooksPath .githooks`), which installs the `pre-commit` hook.
+The hook runs `scripts/engine-rev-gate.mjs --staged` and blocks a commit that
+touches `sandbox/` or `engine/` without also bumping `ENGINE_REV`. See
+[`docs/contributing/engine-rev.md`](docs/contributing/engine-rev.md) for the
+bypass and the matching CI check.
+
 ## Checks a change must pass
 
 Run every check below before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
-pnpm test          # vitest run (855 tests, 36 files)
+pnpm test          # vitest run (876 tests, 37 files)
 pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM

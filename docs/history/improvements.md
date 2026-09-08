@@ -12,6 +12,12 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-08 — ENGINE_REV gate
+
+| Issue | Fix |
+|---|---|
+| `ENGINE_REV` moved eight times in one day during the 2026-09-07 session (`2026-09-07.1` through `2026-09-07.8`), each bump a change a contributor had to remember by hand and never enforced. | `scripts/engine-rev-gate.mjs` fails a diff that touches `sandbox/` or `engine/` — excluding `*.test.ts` files and the `engine/testing/` and `sandbox/testing/` fixtures — without also adding an `ENGINE_REV` line in `engine/protocol.ts`. `.githooks/pre-commit` runs it over the staged diff, wired in by `pnpm install` through `git config core.hooksPath .githooks`; the `build-and-test` job in `.github/workflows/ci.yml` runs it over the pull request's range on `pull_request` events. `SKIP_ENGINE_REV=1 git commit …` bypasses the local hook for a change that provably does not alter sandbox behaviour; the CI step has no bypass. |
+
 ## 2026-09-08 — Macro-corpus compatibility test
 
 | Issue | Fix |

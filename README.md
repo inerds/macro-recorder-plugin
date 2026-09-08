@@ -163,7 +163,7 @@ without you (see [`scripts/ui-probe/README.md`](scripts/ui-probe/README.md)).
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo and corpus replay (855 tests, 36 files)
+pnpm test          # vitest: engine logic, reducer, demo and corpus replay (876 tests, 37 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
 pnpm test:harness  # records and replays through the host harness in headless Chrome

@@ -23,6 +23,8 @@
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
+    "lint:engine-rev": "node scripts/engine-rev-gate.mjs --staged",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "bundle": "pnpm build && node scripts/bundle.mjs",
