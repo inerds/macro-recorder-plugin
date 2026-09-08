@@ -469,8 +469,10 @@ export function ReelDeck({ state, stageRef, interactive = false }: ReelDeckProps
             <stop offset="100%" stopColor="#9C9891" />
           </linearGradient>
           {/* Creator's own colour on the fittings (user decision, 2026-09-08):
-              the nameplate and the two guide rollers wear the plate metal and
-              the hub metal mixed 40% toward the host's interface background —
+              the nameplate wears the plate metal mixed 40% toward the host's
+              interface background, and the two guide rollers the hub metal at
+              25% — a quieter echo, so the plate stays the fitting the eye lands
+              on (user ask, 2026-09-08) —
               chrome that reflects the app around it, not a sticker in the
               app's colour. `--host-frame-bg` is what the theme relay paints on
               the gutter; the fallback is the same dark the gutter falls back
@@ -507,21 +509,21 @@ export function ReelDeck({ state, stageRef, interactive = false }: ReelDeckProps
               offset="0%"
               style={{
                 stopColor:
-                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #EEECE8)",
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 25%, #EEECE8)",
               }}
             />
             <stop
               offset="45%"
               style={{
                 stopColor:
-                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #BDB9B2)",
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 25%, #BDB9B2)",
               }}
             />
             <stop
               offset="100%"
               style={{
                 stopColor:
-                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 40%, #77736C)",
+                  "color-mix(in srgb, var(--host-frame-bg, hsl(198 16.7% 11.8%)) 25%, #77736C)",
               }}
             />
           </radialGradient>

@@ -29,10 +29,11 @@ load-bearing:
   `--sidebar-*` included) or an unset one falls back to library teal.
 - Creator's interface theme touches FOUR pixel surfaces, and all four wear
   the same variable: the `.host-frame` gutter paints `--host-frame-bg`
-  outright, and on the deck the nameplate and the two guide rollers wear
-  their metal gradients mixed 40% toward it (`#host-plate`, `#host-hub` in
-  `ReelDeck.tsx`, user decision 2026-09-08) — chrome that reflects the app
-  around it. Mixed, never solid: the light theme pushes a near-white
+  outright, and on the deck the nameplate wears its metal gradient mixed
+  40% toward it and the two guide rollers 25% (`#host-plate`, `#host-hub`
+  in `ReelDeck.tsx`, user decision 2026-09-08; the rollers were 40% and
+  read as prominent as the plate, so they were turned down) — chrome that
+  reflects the app around it. Mixed, never solid: the light theme pushes a near-white
   background, and a solid fill would read as a white sticker on the black
   deck. The mix lives on `<stop style="stop-color: color-mix(…var(…)…)">`,
   because `stop-color` accepts `color-mix()` and `var()` as a CSS property
