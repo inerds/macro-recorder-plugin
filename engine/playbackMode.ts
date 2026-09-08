@@ -66,7 +66,7 @@ export function describePlaybackMode(macro: {
 /** One-line explanation of what a replay of this macro will touch. */
 export function playbackModeHint(description: PlaybackModeDescription): string {
   if (description.mode === "targets") {
-    return "Applies to selected layers, or the recorded one";
+    return "Applies to selected layers";
   }
   return description.layerCount === 1
     ? "Rebuilds the scene — finds 1 layer by name"

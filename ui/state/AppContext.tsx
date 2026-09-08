@@ -374,6 +374,15 @@ export function AppProvider({ gateways, children }: { gateways: Gateways; childr
             message: event.message,
           });
           break;
+        case "needs-selection":
+          // The macro is recorded on one layer and nothing is selected, so
+          // the run never started. It ends the way a stopped run ends — back
+          // to rest, no row left playing, no dialog to dismiss — and the ask
+          // replaces the stop notice in the same render.
+          playbackRunRef.current = null;
+          dispatch({ type: "PLAY_FAILURE_RESOLVED", action: "stop" });
+          notify("Select a layer to play this macro on.", "info");
+          break;
         case "done": {
           playbackRunRef.current = null;
           const notes = event.notes ?? [];

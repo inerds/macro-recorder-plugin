@@ -377,6 +377,32 @@ describe("playback flow", () => {
     expect(state.mode).toBe("idle");
     if (state.mode === "idle") expect(state.notice).toBeNull();
   });
+
+  it("a needs-selection event rests the panel and asks for a selection", () => {
+    // What `AppContext.handlePlaybackEvent` dispatches for the gateway's
+    // `needs-selection`: the stop path, then the ask. The macro never played,
+    // so no row is left playing, no failure is pending, and no flash fires.
+    const stopped = appReducer(playing, {
+      type: "PLAY_FAILURE_RESOLVED",
+      action: "stop",
+    });
+    const asked = appReducer(stopped, {
+      type: "NOTICE",
+      notice: {
+        id: "n-needs-selection",
+        message: "Select a layer to play this macro on.",
+        tone: "info",
+      },
+    });
+    expect(asked.mode).toBe("idle");
+    if (asked.mode === "idle") {
+      expect(asked.justPlayedId).toBeNull();
+      expect(asked.notice).toMatchObject({
+        message: "Select a layer to play this macro on.",
+        tone: "info",
+      });
+    }
+  });
 });
 
 describe("suggestMacroName", () => {

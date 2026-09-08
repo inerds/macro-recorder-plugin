@@ -1,4 +1,9 @@
-import { captureKeyframePayloads, countKeyframes, countSelectedMatches, type SelectedKf } from "../engine/capture";
+import {
+  captureKeyframePayloads,
+  countKeyframes,
+  countSelectedMatches,
+  type SelectedKf,
+} from "../engine/capture";
 import { diffScene } from "../engine/diff";
 import type { MacroStep } from "../engine/macro";
 import type { CaptureOffer, RecordDebug, ScopeReport } from "../engine/protocol";
@@ -142,14 +147,26 @@ function introspectRectangle(root: AnyProxy): Json {
   }
   if (!rect) return "no rectangle in scene";
   const probes: Record<string, Json> = {};
-  for (const key of ["roundness", "radius", "cornerRadius", "corners", "borderRadius", "modifiers", "effects"]) {
+  for (const key of [
+    "roundness",
+    "radius",
+    "cornerRadius",
+    "corners",
+    "borderRadius",
+    "modifiers",
+    "effects",
+  ]) {
     try {
       const value: AnyProxy = rect[key];
       probes[key] =
         value === undefined
           ? "undefined"
           : value !== null && typeof value === "object"
-            ? { surface: surfaceOf(value), staticValue: toJson(tryReadValue(() => value.staticValue)), value: toJson(tryReadValue(() => value.value)) }
+            ? {
+                surface: surfaceOf(value),
+                staticValue: toJson(tryReadValue(() => value.staticValue)),
+                value: toJson(tryReadValue(() => value.value)),
+              }
             : toJson(value);
     } catch (error) {
       probes[key] = `threw: ${error instanceof Error ? error.message : String(error)}`;
@@ -209,7 +226,9 @@ function introspectPaint(node: AnyProxy): Json {
       if (color) {
         const value = color.staticValue;
         out.colorStaticKeys =
-          value && typeof value === "object" ? Object.getOwnPropertyNames(value).sort() : String(value);
+          value && typeof value === "object"
+            ? Object.getOwnPropertyNames(value).sort()
+            : String(value);
         out.colorStatic = toJson(value);
         const colorNames = new Set<string>();
         let cobj: AnyProxy = color;
@@ -238,7 +257,15 @@ function introspectPaint(node: AnyProxy): Json {
         for (const name of Object.getOwnPropertyNames(cursor)) names.add(name);
         cursor = Object.getPrototypeOf(cursor);
       }
-      return [...names].filter((name) => !name.startsWith("__") && !/^(constructor|hasOwnProperty|isPrototypeOf|propertyIsEnumerable|toLocaleString|toString|valueOf)$/.test(name)).sort();
+      return [...names]
+        .filter(
+          (name) =>
+            !name.startsWith("__") &&
+            !/^(constructor|hasOwnProperty|isPrototypeOf|propertyIsEnumerable|toLocaleString|toString|valueOf)$/.test(
+              name,
+            ),
+        )
+        .sort();
     };
     out.nodeProps = protoNames(node);
     const shapes = node.shapes;
@@ -386,10 +413,9 @@ export function recordStart(params: { debug?: boolean }): {
   if (sceneName) result.nodeName = sceneName;
   // A single-layer scope names THAT layer as the macro's source: the saved
   // macro says what it was recorded from. Replay does not depend on it — a
-  // layer-bound macro played with nothing selected takes scene mode and
-  // resolves by recorded id and name; `sourceNodeId` is read only by the
-  // targets-mode legacy fallback (sandbox/playback.ts), which this now
-  // points at a layer instead of a scene.
+  // macro that touched several layers resolves each one by recorded id and
+  // name, and one that touched a single layer plays onto the selection and
+  // asks for one when nothing is selected (sandbox/playback.ts).
   const scoped = resolved.scope;
   if (scoped.kind === "layers" && scoped.ids.length === 1) {
     const only = scoped.ids[0];
@@ -731,10 +757,9 @@ export function recordTick(seq: number): {
  * tick; nothing can double-emit. (Capture is <=500ms stale; accepted.)
  * Capture touches no proxies, so the next tick's diff sees no change.
  */
-export function recordCaptureKeyframes(params: {
-  layerId: string;
-  scope: "all" | "selected";
-}): { steps: MacroStep[] } {
+export function recordCaptureKeyframes(params: { layerId: string; scope: "all" | "selected" }): {
+  steps: MacroStep[];
+} {
   const recording = session.recording;
   if (!recording) {
     throw new Error("not recording");

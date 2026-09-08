@@ -475,8 +475,12 @@ check(
 );
 sendToPlugin({ t: "req", id: 36, method: "playback.end", params: {} });
 
-// 13. The same step with NOTHING selected is a scene rebuild: it binds to its
-//     own recorded layer and writes the recording verbatim, formula ignored.
+// 13. The same step with NOTHING selected is refused (rev 2026-09-08.2): a
+//     macro recorded on one layer needs a layer selected, so `playback.begin`
+//     answers `no-selection` and the panel asks for one. It used to be a
+//     scene rebuild that wrote the recorded {999,888} verbatim, and then a
+//     targets-mode replay onto the recorded layer — both wrote to a layer the
+//     user could not see.
 vm.unwrapResult(
   vm.evalCode(`
     globalThis.__fakeNodes[1].position.staticValue = { x: 310, y: 20 };
@@ -485,24 +489,20 @@ vm.unwrapResult(
 ).dispose();
 posted.length = 0;
 sendToPlugin({ t: "req", id: 37, method: "playback.begin", params: { steps: formulaSteps } });
-const sceneBegin = posted[0]?.result;
-posted.length = 0;
-sendToPlugin({ t: "req", id: 38, method: "playback.step", params: { index: 0 } });
-const rebuiltHandle = vm.unwrapResult(
+const refusedHandle = vm.unwrapResult(
   vm.evalCode(`globalThis.__fakeNodes[1].position.staticValue`),
 );
-const rebuilt = vm.dump(rebuiltHandle);
-rebuiltHandle.dispose();
+const untouched = vm.dump(refusedHandle);
+refusedHandle.dispose();
 check(
-  "scene mode ignores the formula and writes the recorded value verbatim",
+  "nothing selected refuses a solo-layer macro with no-selection, and writes nothing",
   posted.length === 1 &&
-    posted[0]?.ok === true &&
-    posted[0]?.result?.failures?.length === 0 &&
-    rebuilt?.x === 999 &&
-    rebuilt?.y === 888,
-  JSON.stringify({ begin: sceneBegin, rebuilt, res: posted[0]?.result ?? null }),
+    posted[0]?.ok === false &&
+    posted[0]?.error === "no-selection" &&
+    untouched?.x === 310 &&
+    untouched?.y === 20,
+  JSON.stringify({ res: posted[0] ?? null, untouched }),
 );
-sendToPlugin({ t: "req", id: 39, method: "playback.end", params: {} });
 vm.unwrapResult(vm.evalCode(`delete globalThis.__fakeSelection;`)).dispose();
 
 onMessageCallback.dispose();

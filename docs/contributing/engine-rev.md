@@ -11,7 +11,7 @@ normal). The handshake compares revisions, stamps both into traces
 (`env.sandboxRev`/`uiRev`), and shows an in-panel banner on mismatch.
 
 The value is the date of the change, then a counter within that day. At the
-time of writing it is `2026-09-07.8`.
+time of writing it is `2026-09-08.2`.
 
 ## The trap
 

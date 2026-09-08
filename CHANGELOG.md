@@ -6,6 +6,12 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- A macro recorded on one layer now needs a layer selected to play. With
+  nothing selected the panel says so instead of restoring the recorded values
+  onto the recorded layer, which right after recording changed nothing and
+  said nothing. A scene rebuild that writes a value a layer already holds now
+  says "already at this value — nothing changed".
+
 ## 0.8.1 — 2026-09-08
 
 - Toolchain refresh: TypeScript 7, Vitest 5, lucide-react 1.40, and the

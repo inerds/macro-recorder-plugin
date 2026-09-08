@@ -153,11 +153,7 @@ describe("selection:keyframes event fallback", () => {
 
   async function setup() {
     const nextId = makeIds();
-    const layer = makeNode(
-      "Flower",
-      { props: { position: { x: 0, y: 0 } } },
-      nextId,
-    );
+    const layer = makeNode("Flower", { props: { position: { x: 0, y: 0 } } }, nextId);
     layer.position.addKeyframes([
       { frame: 0, value: { x: 0, y: 0 } },
       { frame: 30, value: { x: 9, y: 9 } },
@@ -228,9 +224,7 @@ describe("the recording is pinned to the scene it started in", () => {
     const tick1 = recordTick(1);
 
     // The edit in the PINNED scene is still recorded...
-    expect(
-      tick1.steps.some((s: Any) => s.payload?.op === "set-static"),
-    ).toBe(true);
+    expect(tick1.steps.some((s: Any) => s.payload?.op === "set-static")).toBe(true);
     // ...and the switch is reported, exactly once.
     const noted = tick1.steps.filter((s: Any) => s.payload?.op === "not-replayable");
     expect(noted).toHaveLength(1);
@@ -294,8 +288,8 @@ describe("recording scope", () => {
 
     const started = recordStart({});
     expect(started.scope).toEqual({ kind: "layers", layers: [{ id: a.id, name: "Layer A" }] });
-    // A single-layer scope names THAT layer as the macro's source, so a
-    // no-selection replay lands on the layer it was recorded from.
+    // A single-layer scope names THAT layer as the macro's source, so the
+    // saved macro says what it was recorded from.
     expect(started.nodeId).toBe(a.id);
     expect(started.nodeName).toBe("Layer A");
 

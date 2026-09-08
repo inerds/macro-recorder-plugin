@@ -131,9 +131,18 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
     return { mode: "scene" };
   }
   if (selectionCount > 0) return { mode: "targets" };
-  // Nothing selected and nothing layer-bound: a settings-only macro is still
-  // a scene rebuild, and must not fail the targets path's no-selection gate.
-  return referenced.size > 0 || sceneSettings ? { mode: "scene" } : { mode: "targets" };
+  // Nothing selected, and the macro touched at most one layer: it stays in
+  // targets mode with no target, so `playbackBegin` refuses with
+  // `no-selection` and the panel asks for a selection. A solo-layer macro is
+  // never played on the layer it was recorded on: that target is hidden —
+  // exactly what the recording scope removes on the recording side — and the
+  // user decided (2026-09-08) to ask instead of guessing. The earlier
+  // scene-mode fallback "succeeded" invisibly, writing the recorded END
+  // values onto a layer that already held them (traces 2026-09-08T02-19-34
+  // and 02-19-41: identical before/after probes, no failures, no notes).
+  // A settings-only macro is the exception: it binds to no layer, so it is a
+  // scene rebuild and must not meet the no-selection gate.
+  return referenced.size === 0 && sceneSettings ? { mode: "scene" } : { mode: "targets" };
 }
 
 /**
@@ -416,20 +425,18 @@ function sceneLayers(): AnyProxy[] {
   return Array.isArray(layers) ? [...layers] : [];
 }
 
-function findNodeById(id: string): AnyProxy | undefined {
-  const stack: AnyProxy[] = sceneLayers();
-  while (stack.length > 0) {
-    const node = stack.pop();
-    try {
-      if (String(node.id) === id) return node;
-    } catch {
-      // unreadable node — keep looking
-    }
-    try {
-      const shapes = node.shapes;
-      if (Array.isArray(shapes)) stack.push(...shapes);
-    } catch {
-      // leaf
+/**
+ * The live top-level layer a ref names: by recorded id, then by name, then
+ * by the name it had before a rename. No session, no cache.
+ */
+function findLayerByRef(ref: LayerRef): AnyProxy | undefined {
+  for (const layer of sceneLayers()) {
+    if (tryRead(() => String(layer.id)) === ref.id) return layer;
+  }
+  for (const name of [ref.name, ref.priorName]) {
+    if (!name) continue;
+    for (const layer of sceneLayers()) {
+      if (tryRead(() => layer.name) === name) return layer;
     }
   }
   return undefined;
@@ -440,22 +447,7 @@ function resolveLayer(ref: LayerRef): AnyProxy | undefined {
   const playback = session.playback!;
   const cached = playback.layerByRecordedId.get(ref.id);
   if (cached) return cached;
-  let found: AnyProxy | undefined;
-  for (const layer of sceneLayers()) {
-    if (tryRead(() => String(layer.id)) === ref.id) {
-      found = layer;
-      break;
-    }
-  }
-  for (const name of [ref.name, ref.priorName]) {
-    if (found || !name) continue;
-    for (const layer of sceneLayers()) {
-      if (tryRead(() => layer.name) === name) {
-        found = layer;
-        break;
-      }
-    }
-  }
+  const found = findLayerByRef(ref);
   if (found) playback.layerByRecordedId.set(ref.id, found);
   return found;
 }
@@ -1181,6 +1173,8 @@ function isLayerNode(node: AnyProxy): boolean {
 
 export function playbackBegin(params: {
   steps: MacroStep[];
+  /** The layer the macro was recorded from. Provenance only: a replay
+   *  targets the selection, never the recorded layer. */
   sourceNodeId?: string;
   atPlayhead?: boolean;
   staggerFrames?: number;
@@ -1263,13 +1257,11 @@ export function playbackBegin(params: {
     return { total: params.steps.length, targetCount: 1, ...frameOffsetResult };
   }
 
-  let targets = selection;
-  if (targets.length === 0) {
-    // Legacy fallback: the originally recorded layer, if it still exists.
-    const source = params.sourceNodeId ? findNodeById(params.sourceNodeId) : undefined;
-    if (!source) throw new Error(RPC_ERRORS.noSelection);
-    targets = [source];
-  }
+  // Targets mode plays onto the selection, and only onto the selection: a
+  // macro recorded on one layer needs a layer selected. The panel turns this
+  // into a toast that asks for one (user decision 2026-09-08).
+  const targets = selection;
+  if (targets.length === 0) throw new Error(RPC_ERRORS.noSelection);
 
   const tracked = relativePaths(params.steps);
   const origins: Record<string, Json> = {};
