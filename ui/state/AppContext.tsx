@@ -447,6 +447,9 @@ export function AppProvider({ gateways, children }: { gateways: Gateways; childr
               type: "RECORD_START",
               startedAt: Date.now(),
               ...(source?.scope ? { scope: source.scope } : {}),
+              ...(source?.scope?.kind === "scene" && source.nodeName
+                ? { sceneName: source.nodeName }
+                : {}),
               ...(options?.exact ? { exact: true } : {}),
             });
           })

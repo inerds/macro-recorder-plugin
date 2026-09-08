@@ -359,17 +359,21 @@ recording clock, the status lamp, and the state word.
   in the first, the one transport key in the middle, the LCD in the third.
   Equal outer tracks are what keep the key centred on the CHASSIS rather than
   on the space the readouts left over: at the 320px panel the row is 294px,
-  the key 66px, and each gutter ~109px against the ~73px the state word needs
+  the key 84px, and each gutter ~100px against the ~73px the state word needs
   at full tracking. At <=286px the word gives up tracking (never its 9px, and
   never letters — it is the reduced-motion state channel) to stay clear of
   the key.
-- **`.deck-toggle`'s width is fixed at 66px, and the two words share it.**
-  The key reads RECORD, then STOP, from the same element, so a fitted width
-  would shrink the key under the pointer that just pressed it. RECORD is the
-  wider legend: 46.6px of text at the cap's 10px/700 uppercase with 0.05em of
-  tracking, 60.6px of key with the cap's 7px of padding a side (measured
-  headlessly, 2026-09-08). The rest is headroom for the system faces this
-  machine does not have — the stack ends in Segoe UI and Roboto, both wider
+- **`.deck-toggle` is as wide as the nameplate above it — 84px — and the two
+  words share it.** The key sits under the riveted MACRO-REC plate, and the
+  two read as one column when their edges align (user decision, 2026-09-08):
+  the plate is 78 of the drawing's 272 units, the stage is 294px at the
+  320px panel, so 78 × 294 / 272 = 84.3px. The key reads RECORD, then STOP,
+  from the same element, so a fitted width would shrink the key under the
+  pointer that just pressed it. RECORD is the wider legend: 46.6px of text
+  at the cap's 10px/700 uppercase with 0.05em of tracking, 60.6px of key
+  with the cap's 7px of padding a side (measured headlessly, 2026-09-08).
+  The rest is headroom for the system faces this machine does not have —
+  the stack ends in Segoe UI and Roboto, both wider
   than the SF the measurement used. The clock and the step counter share ONE
   recessed pane (`.lcd`, with `.deck-clock` as a divided segment inside it)
   in the row's trailing track — the way a deck's counter window carries time
@@ -451,7 +455,9 @@ recording clock, the status lamp, and the state word.
   sits under `.deck-row` at a fixed 13px: one value span in the `.deck-word`
   idiom (9px uppercase silkscreen), `min-width: 0` so it ellipsises, centred
   under the key it belongs to. It is the NAME alone — `LAYER A` (or `LAYER A
-  + 2 MORE`, `WHOLE SCENE`), from the 1 Hz `selection.peek` poll, the same
+  + 2 MORE`, or the scene's own name — `MAIN SCENE` — when nothing is
+  selected, with `WHOLE SCENE` only for a host that gives no name), from the
+  1 Hz `selection.peek` poll, the same
   while idle and while recording. The `RECORDS ·` / `RECORDING ·` legend that
   used to lead it is gone (user decision, 2026-09-08): the key above it
   already says Record, so the legend said the word twice and pushed the name

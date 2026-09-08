@@ -92,6 +92,33 @@ export default async function recordToggle(probe) {
     `key ${idle.centre.toFixed(1)}, row ${centre?.toFixed(1)} (${Math.abs(idle.centre - (centre ?? 0)).toFixed(2)}px off)`,
   );
 
+  // The key is as wide as the riveted nameplate above it (user decision,
+  // 2026-09-08): the two read as one column when their edges line up.
+  const plate = await probe.evaluate(
+    `(() => {
+      const plate = document.querySelector('[data-part="nameplate"]');
+      const key = document.querySelector('[data-testid="record-button"]');
+      if (!plate || !key) return null;
+      const p = plate.getBoundingClientRect(), k = key.getBoundingClientRect();
+      return { plate: p.width, key: k.width, plateCentre: p.x + p.width / 2, keyCentre: k.x + k.width / 2 };
+    })()`,
+  );
+  check("the nameplate and the key are both on the deck", plate !== null);
+  if (plate) {
+    // The plate's shadow rect is 2 units wider than the plate; the key
+    // matches the plate itself, so allow the shadow's ±2px on either side.
+    check(
+      "the key is as wide as the nameplate above it",
+      Math.abs(plate.key - plate.plate) <= 3,
+      `key ${plate.key.toFixed(1)}px, plate ${plate.plate.toFixed(1)}px`,
+    );
+    check(
+      "the key sits directly under the nameplate",
+      Math.abs(plate.keyCentre - plate.plateCentre) <= 1,
+      `key centre ${plate.keyCentre.toFixed(1)}, plate centre ${plate.plateCentre.toFixed(1)}`,
+    );
+  }
+
   // The caption fills a second after the panel rests: it is the 1 Hz idle
   // selection poll's answer, not part of the first paint.
   await probe.waitFor(`(document.querySelector('.deck-scope-value')?.textContent ?? '') !== ''`, {
@@ -167,4 +194,37 @@ export default async function recordToggle(probe) {
     })()`,
   );
   check("it lands on the review sheet or back on the list", after !== "neither", after);
+  // Nothing selected: the caption names the SCENE, not "whole scene" (user
+  // decision, 2026-09-08). Mock mode: the "silent" recorder scenario peeks a
+  // whole-scene scope with the mock scene's name.
+  await probe.navigate();
+  await probe.openDevSettings();
+  await probe.evaluate(
+    `(() => {
+      const select = [...document.querySelectorAll('select')].find((el) =>
+        [...el.options].some((o) => o.value === 'silent'));
+      if (!select) return;
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      setter.call(select, 'silent');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`,
+  );
+  await probe.closeDevSettings();
+  const named = await probe
+    .waitFor(
+      `(() => { const v = document.querySelector('.deck-scope-value'); return !!v && /scene 1/i.test(v.textContent); })()`,
+      { what: "the scene-named caption", timeout: 4000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  const sceneCaption = await probe.evaluate(
+    `document.querySelector('.deck-scope-value')?.textContent?.trim() ?? null`,
+  );
+  check(
+    "with nothing selected the caption names the scene, not 'whole scene'",
+    named && !/whole scene/i.test(sceneCaption ?? ""),
+    JSON.stringify(sceneCaption),
+  );
 }

@@ -39,6 +39,15 @@ export function Deck() {
       : state.mode === "recording"
         ? state.scope
         : null;
+  // The scene's own name for a whole-scene caption (user decision,
+  // 2026-09-08): the idle peek carries it, and a recording keeps the one
+  // record.start reported.
+  const sceneName =
+    state.mode === "idle"
+      ? state.scopePreview?.sceneName
+      : state.mode === "recording"
+        ? state.sceneName
+        : undefined;
 
   // The reels can be spun by hand, but only while nothing else is turning
   // them: "idle" is the state whose word is "Ready", and "paused" holds the
@@ -57,6 +66,7 @@ export function Deck() {
         counterOverride={spinCounter}
         startedAt={state.mode === "recording" ? state.startedAt : null}
         scope={scope}
+        {...(sceneName ? { sceneName } : {})}
         scopePhase={
           state.mode === "idle" ? "idle" : state.mode === "recording" ? "recording" : null
         }

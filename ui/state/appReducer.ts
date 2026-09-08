@@ -165,6 +165,8 @@ export type AppState =
       /** What this recording watches, fixed at record start (null until the
        *  sandbox answers). See ScopeReport. */
       scope: ScopeReport | null;
+      /** The active scene's name, for a whole-scene session's caption. */
+      sceneName?: string;
       /** Running count of edits dropped as outside that scope (cumulative). */
       ignored: number;
       /**
@@ -220,7 +222,13 @@ export type AppState =
 
 export type AppEvent =
   | { type: "MACROS_LOADED"; macros: Macro[] }
-  | { type: "RECORD_START"; startedAt: number; scope?: ScopeReport; exact?: boolean }
+  | {
+      type: "RECORD_START";
+      startedAt: number;
+      scope?: ScopeReport;
+      sceneName?: string;
+      exact?: boolean;
+    }
   | { type: "RECORD_IGNORED_COUNT"; count: number }
   | { type: "RECORD_SCOPE"; scope: ScopeReport }
   /** The idle poll's answer. Ignored outside idle, and identity-stable when
@@ -331,6 +339,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         capturedAllLayerIds: [],
         notice: null,
         scope: event.scope ?? null,
+        ...(event.sceneName ? { sceneName: event.sceneName } : {}),
         ignored: 0,
         exact: event.exact === true,
       };

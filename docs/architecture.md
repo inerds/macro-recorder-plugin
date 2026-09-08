@@ -247,7 +247,8 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   failures continue, so a stale sandbox without the method is visible once
   and not hammered.
   The deck's `.deck-scope` line shows the name alone — `LAYER A` /
-  `WHOLE SCENE` — while idle and while recording (design-system.md). The
+  the scene's name (`MAIN SCENE`; `WHOLE SCENE` only when the host gives
+  none) — while idle and while recording (design-system.md). The
   older selection nudge (rev .48) is gone; the scope chip took its place
   under the discard confirm, and the capture offer stacks ABOVE the chip
   rather than replacing it — the chip's counter is the only report of a

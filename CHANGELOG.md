@@ -12,7 +12,8 @@ one row per fix — is `docs/history/improvements.md`.
   own Stop and Discard keys at the foot. A macro that plays is stopped from
   the row that plays it.
 - The caption under the key names what the recorder watches — *LAYER A*,
-  *WHOLE SCENE* — and no longer repeats the word *RECORDS* in front of it.
+  the scene's own name when nothing is selected — and no longer repeats the
+  word *RECORDS* in front of it. The key is as wide as the nameplate above it.
 - A macro recorded on one layer now needs a layer selected to play. With
   nothing selected the panel says so instead of restoring the recorded values
   onto the recorded layer, which right after recording changed nothing and

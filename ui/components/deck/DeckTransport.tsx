@@ -29,6 +29,8 @@ export interface DeckTransportProps {
    * keeps its height, so nothing below it moves when the answer arrives.
    */
   scope?: ScopeReport | null;
+  /** The active scene's name; a whole-scene caption shows it instead of "whole scene". */
+  sceneName?: string;
   scopePhase?: "idle" | "recording" | null;
   /** The reel stage, recessed into the chassis above the transport row. */
   stage: ReactNode;
@@ -67,6 +69,7 @@ export function DeckTransport({
   counterOverride = null,
   startedAt,
   scope = null,
+  sceneName,
   scopePhase = null,
   stage,
   toggleDisabled,
@@ -88,7 +91,8 @@ export function DeckTransport({
   const lamp = deckLamp(state);
   // Blank on every other screen: a review sheet and a running macro have no
   // scope to state, and a caption that keeps the last one would be a lie.
-  const readout = scope && scopePhase ? scopeCaption(scope, scopePhase, recordingExact) : null;
+  const readout =
+    scope && scopePhase ? scopeCaption(scope, scopePhase, recordingExact, sceneName) : null;
 
   return (
     <>
@@ -196,11 +200,20 @@ function scopeCaption(
   scope: ScopeReport,
   phase: "idle" | "recording",
   exact: boolean,
+  sceneName?: string,
 ): { value: string; label: string; title?: string } {
-  const value = scopeName(scope);
+  // A whole-scene caption names the scene, the way a layer caption names the
+  // layer (user decision, 2026-09-08); "whole scene" is the fallback for a
+  // host that gives no name.
+  const value = scope.kind === "scene" && sceneName ? sceneName : scopeName(scope);
   // "whole scene" is a noun phrase on the faceplate and a sentence to a
   // screen reader, which needs the article the caption has no room for.
-  const spoken = scope.kind === "scene" ? "the whole scene" : value;
+  const spoken =
+    scope.kind === "scene"
+      ? sceneName
+        ? `the whole scene ${sceneName}`
+        : "the whole scene"
+      : value;
   // The blue key is the only other place an exact recording says so on the
   // deck, and a colour says nothing out loud.
   const recording = exact ? `Recording ${spoken}, exact values` : `Recording ${spoken}`;
