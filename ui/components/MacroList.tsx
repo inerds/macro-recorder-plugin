@@ -174,7 +174,7 @@ export function MacroList({ playing }: MacroListProps) {
 
 /**
  * The empty rack's Record key — the panel's second Record entry point, and it
- * takes the same Option/Alt modifier the deck's REC key takes: a user who has
+ * takes the same Option/Alt modifier the deck's transport key takes: a user who has
  * never recorded is the one most likely to want a placement macro, and a
  * modifier that works on one key and not the other is a trap.
  *

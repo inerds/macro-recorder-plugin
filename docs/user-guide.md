@@ -31,18 +31,19 @@ carries no title, and the transport row under the reels is the readout:
 
 | On the deck | What it means |
 |---|---|
-| **Record** / **Stop** keys | Start and stop recording, from any screen. |
+| **Record** key | One key, and it toggles. It reads **Record** at rest, and **Stop** while you record. It works from every screen. |
 | **Status lamp** | Dark at rest, red while tape is moving (recording, rewind, playing), amber while a playback is paused and waits for your decision. |
 | **State word** | READY · RECORDING · REWIND · PLAYING · PAUSED · DONE. |
 | **Counter** | The steps captured while you record or review, and the step being applied during playback. |
 | **Clock** | Appears while you record, and shows minutes and seconds (m:ss). |
-| **Scope caption** | Under the transport row: *RECORDS · LAYER A* before you record, and *RECORDING · LAYER A* while you record. |
+| **Scope caption** | Under the key: the name of what the recorder watches, such as *LAYER A* or *WHOLE SCENE*. It says the same thing while you record. |
 | **The reels** | Spin while you record, rewind when you trigger a macro, run forward while it plays, and coast to a stop when it ends. When the deck is at rest you can spin them yourself: drag a reel and let go, and they coast like a platter while the counter runs with them. |
 
 The counter is the four-digit readout at the right of the transport row, and
 the clock shares that window while you record. The nameplate under the reels
-carries the plugin version. Record is dead while a
-recording, a review, or a playback is in progress. A highlight travels along
+carries the plugin version. The key is dead while a review or a playback is in
+progress: a recording starts from rest only. To stop a macro that plays, use
+the stop key on the row that plays it. A highlight travels along
 the tape, which leaves the left reel, runs around the bottom guide rollers and
 winds onto the right reel, and back the other way along the short run over
 the nameplate, so you can see which way it is going. The reels
@@ -69,9 +70,9 @@ engine as soon as the engine answers.
 ## 2. Record a macro
 
 1. Select the layer or layers you want to record, or select nothing to
-   record the whole scene. A selected shape counts as its layer. The deck's
-   readout shows what Record will watch: *RECORDS · LAYER A* or *RECORDS ·
-   WHOLE SCENE*. Then click **Record** on the deck.
+   record the whole scene. A selected shape counts as its layer. The caption
+   under the deck's key names what Record will watch: *LAYER A* or *WHOLE
+   SCENE*. Then click **Record** on the deck.
 2. Edit the animation as you normally would. The recorder records all of the
    following on the recorded layers:
    - transform changes (position, scale, rotation, skew, opacity) and any
@@ -90,9 +91,9 @@ engine as soon as the engine answers.
    twice a second, so a long drag shows up as a handful of steps. The review
    sheet merges them for you — see §4.
 4. Click **Stop**: the red key at the bottom of the recording screen, or the
-   same deck key you started from. Both do the same thing. If the recorder
-   recorded nothing, you return to the list. Otherwise the **review sheet**
-   opens.
+   same deck key you started from, which now reads **Stop**. Both do the same
+   thing. If the recorder recorded nothing, you return to the list. Otherwise
+   the **review sheet** opens.
 
 **Hold Option (macOS) or Alt (Windows) while you press Record to record
 exact values.** The Record key turns blue while you hold the modifier, and it

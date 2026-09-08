@@ -246,8 +246,8 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   the poll itself traces its FIRST failure and backs off to 16 s while the
   failures continue, so a stale sandbox without the method is visible once
   and not hammered.
-  The deck's `.deck-scope` line shows `RECORDS · LAYER A` / `WHOLE SCENE`
-  while idle and `RECORDING · …` while recording (design-system.md). The
+  The deck's `.deck-scope` line shows the name alone — `LAYER A` /
+  `WHOLE SCENE` — while idle and while recording (design-system.md). The
   older selection nudge (rev .48) is gone; the scope chip took its place
   under the discard confirm, and the capture offer stacks ABOVE the chip
   rather than replacing it — the chip's counter is the only report of a

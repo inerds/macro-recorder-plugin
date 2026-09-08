@@ -64,7 +64,7 @@ slot reference).
 - Replay is value-faithful and is not the culprit. Trace
   `2026-08-26T07-26-42-276_playback-Macro-43.json` shows the recorded RGB
   applied exactly (probe before ≠ after, `failures: []`, `notes: []`).
-- Applying the token *before* you press REC records nothing at all. Trace
+- Applying the token *before* you press Record records nothing at all. Trace
   `2026-08-26T07-26-13-866_record.json` shows every tick empty, and the fill
   already probed at the resolved value in `record.start`. This is consistent
   with a resolved-color-only surface.

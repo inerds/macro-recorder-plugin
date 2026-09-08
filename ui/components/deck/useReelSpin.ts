@@ -96,7 +96,7 @@ export function useReelSpin({ stageRef, enabled, onCounter }: ReelSpinOptions): 
     };
 
     /**
-     * Full reset, for when the deck takes the reels back (REC pressed
+     * Full reset, for when the deck takes the reels back (Record pressed
      * mid-coast) or the panel unmounts. The inline `rotate` has to go or the
      * CSS animation would start from wherever the spin stopped and the
      * keyframes' `from { rotate: 0deg }` would snap the reels.

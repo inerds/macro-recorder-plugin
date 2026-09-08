@@ -5,13 +5,7 @@
  * with a stopwatch, and putting them in app state would mean the reducer had
  * modes that mean nothing to the rest of the panel.
  */
-export type DeckState =
-  | "idle"
-  | "recording"
-  | "rewind"
-  | "playing"
-  | "paused"
-  | "done";
+export type DeckState = "idle" | "recording" | "rewind" | "playing" | "paused" | "done";
 
 /** The app modes the deck can see (mirrors AppState["mode"]). */
 export type DeckMode = "idle" | "recording" | "reviewing" | "configuring" | "playing";
@@ -37,11 +31,7 @@ export interface DeckFlags {
 export const REWIND_MS = 700;
 export const DONE_MS = 900;
 
-export function deriveDeckState(
-  input: DeckInput,
-  flags: DeckFlags,
-  now: number,
-): DeckState {
+export function deriveDeckState(input: DeckInput, flags: DeckFlags, now: number): DeckState {
   if (input.mode === "recording") return "recording";
   if (input.mode === "playing") {
     // A paused run is not a stopped one: amber, and the reels hold still.
@@ -102,4 +92,14 @@ export function deckLabel(state: DeckState): string {
     case "idle":
       return "Ready";
   }
+}
+
+/**
+ * The word on the transport key. The key is ONE toggle: at rest it starts a
+ * recording, and while a recording runs it is the way out of it. Every other
+ * state reads "Record" behind a dead key — the deck is busy, and a key that
+ * changed its word there would offer an action it does not have.
+ */
+export function deckToggleLabel(state: DeckState): "Record" | "Stop" {
+  return state === "recording" ? "Stop" : "Record";
 }

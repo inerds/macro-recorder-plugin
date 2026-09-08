@@ -62,7 +62,10 @@ export default async function reviewSimplified(probe) {
     `document.querySelectorAll('[data-testid="recording-view"] li').length >= 4`,
     { what: "four recorded steps", timeout: 12000 },
   );
-  await probe.clickOn('[data-testid="stop-button"]');
+  // The deck's key is a toggle: the same key that started this recording
+  // reads Stop while it runs. (The recording screen's own Stop key is
+  // `stop-recording-button`.)
+  await probe.clickOn('[data-testid="record-button"]');
 
   const present = await probe
     .waitFor(`!!document.querySelector(${JSON.stringify(BOX)})`, {

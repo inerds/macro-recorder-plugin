@@ -6,6 +6,13 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- The deck has one transport key, and it toggles. It reads **Record** at
+  rest, and **Stop** while you record — press it again to end the recording.
+  The separate Stop key on the deck is gone; the recording screen keeps its
+  own Stop and Discard keys at the foot. A macro that plays is stopped from
+  the row that plays it.
+- The caption under the key names what the recorder watches — *LAYER A*,
+  *WHOLE SCENE* — and no longer repeats the word *RECORDS* in front of it.
 - A macro recorded on one layer now needs a layer selected to play. With
   nothing selected the panel says so instead of restoring the recorded values
   onto the recorded layer, which right after recording changed nothing and

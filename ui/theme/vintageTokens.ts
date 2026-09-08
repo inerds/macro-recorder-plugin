@@ -54,7 +54,7 @@ export const VINTAGE_TOKENS: Record<string, string> = {
   "--input": "rgba(42, 38, 35, 0.24)",
   "--sidebar-border": "rgba(42, 38, 35, 0.24)",
   // Focus is ink, not red: a focus ring is a "you are here", never an action.
-  // Red on this panel means "this does something" (REC, Save, Delete), so a
+  // Red on this panel means "this does something" (Record, Save, Delete), so a
   // red ring on a merely-focused row reads as a state the row does not have.
   "--ring": "#2A2623",
   "--sidebar-ring": "#2A2623",

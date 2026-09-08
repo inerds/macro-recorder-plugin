@@ -243,8 +243,8 @@ recording clock, the status lamp, and the state word.
 - **The hero is ONE chassis, not a card holding a plate.** It has no title
   block (the panel's name is the sr-only `<h1>`) and no cream frame:
   `.deck-chassis` *is* the faceplate, with `.deck-window` bezelled into it and
-  the transport row — lamp + state word, RECORD, STOP, LCD counter — sitting
-  directly on it. Controls on a dark ground need the `.key-plate` /
+  the transport row — lamp + state word, the transport key, LCD counter —
+  sitting directly on it. Controls on a dark ground need the `.key-plate` /
   `.key-plate-red` variant (light keycap, dark bezel) rather than `.key`,
   which is cream-surface only. The recording clock shares the LCD pane with
   the counter (see `.deck-clock` below); the state word is the reduced-motion
@@ -355,20 +355,26 @@ recording clock, the status lamp, and the state word.
   nothing if the group is still connected (StrictMode's double-invoked mount
   cleanup), if the remembered element is gone, or if focus has already moved
   somewhere outside the prompt.
-- **The transport row is `1fr auto 1fr`.** Status legend in the first track,
-  key pair in the middle, recording clock in the third. Equal outer tracks
-  are what keep the keys centred on the CHASSIS rather than on the space the
-  readouts left over. It only fits because the `REC` legend shrank the pair
-  to ~122px, leaving ~84px per gutter against the ~73px the legend needs; at
-  <=286px the legend gives up tracking (never its 9px, and never letters — it
-  is the reduced-motion state channel) to stay clear of the keys.
-- `.deck-keys` is an auto-flow column grid with `grid-auto-columns: 1fr`, so
-  RECORD and STOP are exactly equal width whatever their labels say. The
-  clock and the step counter share ONE recessed pane (`.lcd`, with
-  `.deck-clock` as a divided segment inside it) in the row's trailing track —
-  the way a deck's counter window carries time and count together. Keep them
-  in one pane: two panes side by side read as two instruments, and the
-  trailing gutter is only ~84px wide at 300px.
+- **The transport row is three cells, `1fr auto 1fr`.** Lamp and state word
+  in the first, the one transport key in the middle, the LCD in the third.
+  Equal outer tracks are what keep the key centred on the CHASSIS rather than
+  on the space the readouts left over: at the 320px panel the row is 294px,
+  the key 66px, and each gutter ~109px against the ~73px the state word needs
+  at full tracking. At <=286px the word gives up tracking (never its 9px, and
+  never letters — it is the reduced-motion state channel) to stay clear of
+  the key.
+- **`.deck-toggle`'s width is fixed at 66px, and the two words share it.**
+  The key reads RECORD, then STOP, from the same element, so a fitted width
+  would shrink the key under the pointer that just pressed it. RECORD is the
+  wider legend: 46.6px of text at the cap's 10px/700 uppercase with 0.05em of
+  tracking, 60.6px of key with the cap's 7px of padding a side (measured
+  headlessly, 2026-09-08). The rest is headroom for the system faces this
+  machine does not have — the stack ends in Segoe UI and Roboto, both wider
+  than the SF the measurement used. The clock and the step counter share ONE
+  recessed pane (`.lcd`, with `.deck-clock` as a divided segment inside it)
+  in the row's trailing track — the way a deck's counter window carries time
+  and count together. Keep them in one pane: two panes side by side read as
+  two instruments.
 - **9px is the floor for every readout on the deck, at every size.** The
   collapsed panel took `.deck-clock` to 8px and the narrow panel took
   `.deck-word` to 8.5px — a lit digit behind the LCD's scanlines and the
@@ -380,14 +386,18 @@ recording clock, the status lamp, and the state word.
 - The faceplate's lower legend is the package version, which `vite.config.ts`
   injects as `__APP_VERSION__` (declared in `ui/vite-env.d.ts`), so it can
   never drift from what shipped.
-- **The Record key's visible legend is `REC`, its accessible name is
-  `Record`** (aria-label). Consequence for the headless driver: `walk.mjs`
-  finds the key by aria-label, but its FIRST assertion matches `/record/i`
-  against *textContent*, which now only the EmptyState's Record button
-  satisfies. That check therefore passes only while the macro list is empty —
-  true for every driver run, since it starts on a fresh profile. If that
-  assertion ever starts failing, the skin is not broken; the check is
-  asserting on visible text the skin deliberately abbreviated.
+- **The deck has ONE key, and it toggles** (user decision, 2026-09-08). It
+  reads Record at rest and Stop while a recording runs, and the word, the
+  `aria-label`, and what the press does all come from one state
+  (`deckToggleLabel` in `deckState.ts`), so the key can never say one thing
+  and do another. While recording it is LIVE — the dead-key rule covers
+  every OTHER busy state (review, playback), where the key reads Record
+  behind a `disabled`, because a recording is only reachable from rest. The
+  Option/Alt blue is read only while the key still offers a recording: blue
+  over a key that says Stop would promise exact values to a press that only
+  stops. The deck no longer stops a playback — the row that plays a macro
+  carries that Stop, and the deck's second key was the only thing that
+  offered it twice. Its `data-testid` stays `record-button` in both words.
 - **The chassis is full-bleed and square-cornered.** It renders as a direct
   child of `.panel-root` with no padded wrapper, so it meets the panel edges
   the way a faceplate meets its case; its corners are square; the rounding
@@ -432,22 +442,25 @@ recording clock, the status lamp, and the state word.
   the reels stop mid-turn.
 - The recording screen's bottom CTA is **Stop** (red key), with Discard as
   the outline secondary beside it — the same grammar as the review bar it
-  hands off to (user decision, 2026-08-24; this retired the earlier
-  "exactly one Stop" rule). Both Stops perform the same action; drivers that
-  match Stop by name must scope to the deck's `data-testid="stop-button"`
-  or the bar's `stop-recording-button`.
+  hands off to (user decision, 2026-08-24). It and the deck's key perform the
+  same action; a driver that matches Stop by name scopes to the bar's
+  `data-testid="stop-recording-button"` or to the deck's `record-button`,
+  which reads Stop while a recording runs.
 
 - **The scope caption is a real element, and it never moves.** `.deck-scope`
-  sits under `.deck-row` at a fixed 13px: a legend span and a value span,
-  both in the `.deck-word` idiom (9px uppercase silkscreen, the legend at
-  `opacity: .62` — no new ink), the value `min-width: 0` so it ellipsises
-  and the legend never does. It reads `RECORDS · LAYER A` (or `LAYER A + 2
-  MORE`, `WHOLE SCENE`) while idle, from the 1 Hz `selection.peek` poll, and
-  `RECORDING · …` while recording; it is blank in every other mode and while
+  sits under `.deck-row` at a fixed 13px: one value span in the `.deck-word`
+  idiom (9px uppercase silkscreen), `min-width: 0` so it ellipsises, centred
+  under the key it belongs to. It is the NAME alone — `LAYER A` (or `LAYER A
+  + 2 MORE`, `WHOLE SCENE`), from the 1 Hz `selection.peek` poll, the same
+  while idle and while recording. The `RECORDS ·` / `RECORDING ·` legend that
+  used to lead it is gone (user decision, 2026-09-08): the key above it
+  already says Record, so the legend said the word twice and pushed the name
+  off the middle of the chassis. It is blank in every other mode and while
   the host has not answered yet, so the list below never shifts. The
   fallback case carries a `title` with the full sentence, and an sr-only span
-  says "Record will watch Layer A". The caption stays when the hero
-  collapses: it is what Record is about to do, not furniture. On the
+  says "Record will watch Layer A" — or "Recording Layer A, exact values",
+  since the blue key says that in colour alone. The caption stays when the
+  hero collapses: it is what Record is about to do, not furniture. On the
   recording screen the same scope drives the chip that replaced the
   selection nudge (the discard confirm replaces both; the capture offer
   stacks above the chip, never in its place), and the chip is where the "N changes outside Layer A ignored"
