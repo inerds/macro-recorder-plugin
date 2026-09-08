@@ -37,7 +37,9 @@
     "preview": "vite preview",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "release:check": "node scripts/release-notes.mjs --unreleased"
+    "release:check": "node scripts/release-notes.mjs --unreleased",
+    "wiki:build": "node scripts/wiki-sync.mjs",
+    "wiki:check": "node scripts/wiki-sync.mjs --check"
   },
   "dependencies": {
     "@lottiefiles/creator-plugins-ui": "^0.2.2",

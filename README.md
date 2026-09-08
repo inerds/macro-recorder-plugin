@@ -9,6 +9,10 @@ It is published in the Creator Extensions marketplace:
 Install it from there to use it; read on to build it, run it without Creator,
 or use it as a reference.
 
+Read the docs on the
+[project wiki](https://github.com/inerds/macro-recorder-plugin/wiki), a
+read-only mirror of `docs/` that a push to main regenerates.
+
 This repository is also an open-source **reference for Creator plugin
 developers**. Beyond the product, it documents patterns that any Creator
 plugin needs:
@@ -156,7 +160,7 @@ the fake scene from the console through `window.harness`.
 ## Tests
 
 ```bash
-pnpm test          # vitest: engine logic, reducer, demo-macro replay (739 tests, 33 files)
+pnpm test          # vitest: engine logic, reducer, demo-macro replay (763 tests, 34 files)
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
 pnpm type-check    # tsc -b across all three project references

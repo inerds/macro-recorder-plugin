@@ -44,11 +44,13 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (739 tests, 33 files, ~1s)
+pnpm test                      # vitest run (763 tests, 34 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 pnpm bundle                    # release zip → release/macro-recorder-v<version>.zip
 pnpm bundle:dev                # dev build (dev strip on, "(dev)" manifest) → …-dev.zip
+pnpm wiki:check                # build the docs/ wiki mirror to a temp dir and verify its links
+pnpm wiki:build                # build the docs/ wiki mirror → artifacts/wiki/
 ```
 
 Single test file / single test:

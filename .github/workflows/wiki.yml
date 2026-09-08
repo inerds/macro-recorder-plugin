@@ -1,0 +1,75 @@
+name: Wiki
+
+# The GitHub wiki is a read-only mirror of `docs/`. This workflow regenerates
+# it from the documents in this repository on every push to main, so nobody
+# edits the wiki by hand: an edit there is overwritten by the next push.
+#
+# The wiki is a separate git repository, `<repo>.wiki.git`, and GitHub creates
+# it only when a person saves a page for the first time. A push to a wiki that
+# was never created fails, and no step here can create one. If the first run
+# fails on the clone, open the repository's Wiki tab, save any page, and run
+# this workflow again.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "CHANGELOG.md"
+      - "scripts/wiki-sync.mjs"
+      - "scripts/wiki-links.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to the packageManager version in package.json, like ci.yml.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm wiki:check
+      - run: pnpm wiki:build --out wiki-out
+
+      - name: Push the mirror to the wiki
+        env:
+          WIKI_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # The wiki's default branch is master. A wiki that holds only the
+          # placeholder Home page clones like any other repository; an empty
+          # one clones as an empty repository, and the first commit below
+          # starts its history.
+          git clone --depth 1 "$WIKI_URL" wiki
+
+          # Replace the contents. Every page the mirror no longer generates
+          # goes, the placeholder Home page included. Only .git survives.
+          find wiki -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp wiki-out/*.md wiki/
+
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "wiki: no change"
+            exit 0
+          fi
+          git commit -m "Sync docs from ${SOURCE_SHA}"
+          git push origin HEAD:master
