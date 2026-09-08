@@ -12,6 +12,14 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-08 — Trace index
+
+| Issue | Fix |
+|---|---|
+| **Nothing said what was in `traces/` without opening a bundle.** Triage read `traces/.processed` by hand against an `ls`, and a bundle carries full scene snapshots, so the one file that answered "is this trace worth reading" was the file nobody may read. A trace captured on an older sandbox revision reproduces bugs that are already fixed, and nothing flagged one. | `scripts/trace-server.ts` appends one JSON line per bundle to `traces/index.jsonl` as it writes it — `file`, `at`, `kind`, `label`, `sandboxRev`, `uiRev`, `bytes`, and the step and failure counts when the bundle carries them. The file is append-only; only `pnpm traces:index` rewrites it, to seed an index over bundles that predate it. |
+| The triage loop's first two steps were hand-run shell commands. | `pnpm traces:unprocessed` lists the indexed traces that `.processed` does not name, newest first, with kind, revision, and size; `pnpm traces:stale` groups the traces by the revision that captured them against `ENGINE_REV` and always exits 0, because it is a report and not a gate. `docs/contributing/triage.md` and `.claude/skills/triage-traces/SKILL.md` step 1 use both, and keep the `ls` as the fallback. |
+| A malformed bundle would have cost the whole index. | `rebuild()` in `scripts/trace-index.mjs` records `{ file, bytes, error }` for a file it cannot read or parse, and skips one over 64 MiB rather than loading it. `scripts/trace-index.test.ts` drives all of it over synthetic bundles in a temporary directory, so the tests need no captured trace; `TRACES_DIR` and `--dir` point the commands at one. |
+
 ## 2026-09-08 — Macro-corpus compatibility test
 
 | Issue | Fix |

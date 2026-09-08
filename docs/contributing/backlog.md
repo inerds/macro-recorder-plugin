@@ -14,15 +14,6 @@ to remember by hand. A pre-commit hook, wired through
 commit that touches `sandbox/` or `engine/` without also touching
 `ENGINE_REV` in the same diff. Size: S.
 
-## Trace index: `traces/index.jsonl` and `pnpm traces:stale`
-
-Triage this session read `traces/.processed` by hand to find what was new,
-and `docs/contributing/triage.md`'s workflow has no automated way to flag a
-trace whose `env.sandboxRev` no longer matches `ENGINE_REV`. `scripts/trace-server.ts`
-would append one line per captured trace to `traces/index.jsonl` (timestamp,
-kind, sandbox and UI revisions, byte size), and `pnpm traces:stale` would list
-entries whose revision predates the current `ENGINE_REV`. Size: S.
-
 ## Prettier clean-up, then `format:check` in CI
 
 `pnpm format:check` fails on 34 files today; `.github/workflows/ci.yml:20-24`

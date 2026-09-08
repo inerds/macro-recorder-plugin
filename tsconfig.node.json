@@ -6,6 +6,9 @@
     "module": "ESNext",
     "types": ["node"],
     "skipLibCheck": true,
+    // `scripts/trace-index.mjs` is plain ESM so the CLI and its tests run it
+    // with no build step; the trace server imports it, so tsc has to read it.
+    "allowJs": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",

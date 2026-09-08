@@ -2,6 +2,10 @@ import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 
+// Plain ESM, so `scripts/traces.mjs` and its tests can run it with no build
+// step. See scripts/trace-index.mjs.
+import { appendEntry, indexLineFor } from "./trace-index.mjs";
+
 const ENDPOINT = "/__macro-trace";
 const MAX_BYTES = 32 * 1024 * 1024;
 
@@ -118,6 +122,16 @@ export function traceServer(outDir = "traces"): Plugin {
             res.statusCode = 500;
             res.end("write failed");
             return;
+          }
+          // One index line per bundle, appended and never rewritten: the
+          // index is the small file triage can read, and a bundle is not.
+          // `pnpm traces:index` is the only writer that rebuilds it.
+          try {
+            appendEntry(dir, indexLineFor(bundle, { file, bytes: Buffer.byteLength(body) }));
+          } catch (error) {
+            server.config.logger.warn(
+              `[trace] index append failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
           const count = Array.isArray(bundle.events) ? bundle.events.length : 0;
           server.config.logger.info(`[trace] ${outDir}/${file} (${count} events)`);

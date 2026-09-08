@@ -39,6 +39,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "release:check": "node scripts/release-notes.mjs --unreleased",
+    "traces:index": "node scripts/traces.mjs index",
+    "traces:stale": "node scripts/traces.mjs stale",
+    "traces:unprocessed": "node scripts/traces.mjs unprocessed",
     "wiki:build": "node scripts/wiki-sync.mjs",
     "wiki:check": "node scripts/wiki-sync.mjs --check"
   },
