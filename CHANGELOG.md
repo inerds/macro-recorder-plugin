@@ -6,6 +6,11 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+## 0.8.1 — 2026-09-08
+
+- Toolchain refresh: TypeScript 7, Vitest 5, lucide-react 1.40, and the
+  current major versions of the GitHub Actions the CI and release workflows
+  use. No change to what the plugin does.
 - Macro Recorder is published in the Creator Extensions marketplace:
   [extensions.lottiefiles.com/plugin/inerds/macro-recorder](https://extensions.lottiefiles.com/plugin/inerds/macro-recorder).
 
