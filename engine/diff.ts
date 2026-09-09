@@ -14,7 +14,12 @@ import type {
 import { SCENE_SETTING_KEYS } from "./snapshot";
 import type { LayerRef, StepPayload } from "./steps";
 
-function diffStatic(path: Path, prev: AnimatableSnapshot, next: AnimatableSnapshot, out: StepPayload[]) {
+function diffStatic(
+  path: Path,
+  prev: AnimatableSnapshot,
+  next: AnimatableSnapshot,
+  out: StepPayload[],
+) {
   const before = prev.static ?? null;
   const after = next.static ?? null;
   if (!jsonEqual(before, after)) {
@@ -36,7 +41,12 @@ function kfEqual(a: KfSnap, b: KfSnap): boolean {
   return Math.abs(a.frame - b.frame) < 1e-6 && kfAttrsEqual(a, b);
 }
 
-function diffKeyframes(path: Path, prev: AnimatableSnapshot, next: AnimatableSnapshot, out: StepPayload[]) {
+function diffKeyframes(
+  path: Path,
+  prev: AnimatableSnapshot,
+  next: AnimatableSnapshot,
+  out: StepPayload[],
+) {
   const prevKfs = prev.keyframes ?? [];
   const nextKfs = next.keyframes ?? [];
   if (prevKfs.length === 0 && nextKfs.length === 0) return;
@@ -83,7 +93,12 @@ function diffKeyframes(path: Path, prev: AnimatableSnapshot, next: AnimatableSna
   }
 }
 
-function diffAnimatable(path: Path, prev: AnimatableSnapshot | undefined, next: AnimatableSnapshot | undefined, out: StepPayload[]) {
+function diffAnimatable(
+  path: Path,
+  prev: AnimatableSnapshot | undefined,
+  next: AnimatableSnapshot | undefined,
+  out: StepPayload[],
+) {
   if (!prev || !next) return; // property appeared/disappeared — structural noise, skip
   diffStatic(path, prev, next, out);
   diffKeyframes(path, prev, next, out);
@@ -112,7 +127,12 @@ function diffPaint(basePath: Path, prev: PaintSnapshot, next: PaintSnapshot, out
     diffAnimatable([...basePath, "start"], prev.start, next.start, out);
     diffAnimatable([...basePath, "end"], prev.end, next.end, out);
     diffAnimatable([...basePath, "highlightAngle"], prev.highlightAngle, next.highlightAngle, out);
-    diffAnimatable([...basePath, "highlightLength"], prev.highlightLength, next.highlightLength, out);
+    diffAnimatable(
+      [...basePath, "highlightLength"],
+      prev.highlightLength,
+      next.highlightLength,
+      out,
+    );
     diffAnimatable([...basePath, "opacity"], prev.opacity, next.opacity, out);
     return;
   }
@@ -122,7 +142,12 @@ function diffPaint(basePath: Path, prev: PaintSnapshot, next: PaintSnapshot, out
   }
 }
 
-function diffStroke(basePath: Path, prev: StrokeSnapshot, next: StrokeSnapshot, out: StepPayload[]) {
+function diffStroke(
+  basePath: Path,
+  prev: StrokeSnapshot,
+  next: StrokeSnapshot,
+  out: StepPayload[],
+) {
   diffAnimatable([...basePath, "width"], prev.width, next.width, out);
   diffPaint([...basePath, "fill"], prev.fill, next.fill, out);
 }
@@ -144,7 +169,12 @@ function diffTrim(basePath: Path, prev: TrimSnapshot, next: TrimSnapshot, out: S
   diffAnimatable([...basePath, "offset"], prev.offset, next.offset, out);
 }
 
-function diffPlain(basePath: Path, prev: Record<string, Json>, next: Record<string, Json>, out: StepPayload[]) {
+function diffPlain(
+  basePath: Path,
+  prev: Record<string, Json>,
+  next: Record<string, Json>,
+  out: StepPayload[],
+) {
   const names = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const name of names) {
     const before = prev[name] ?? null;
@@ -169,9 +199,7 @@ function diffNode(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, out: S
     // rectangle" on targets whose shape indices differ
     for (const payload of mine) {
       if (
-        (payload.op === "set-static" ||
-          payload.op === "keyframes" ||
-          payload.op === "set-plain") &&
+        (payload.op === "set-static" || payload.op === "keyframes" || payload.op === "set-plain") &&
         payload.shapeHint === undefined
       ) {
         payload.shapeHint = next.nodeType;
@@ -187,7 +215,12 @@ function diffNodeInner(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, o
     next.nodeName !== undefined &&
     prev.nodeName !== next.nodeName
   ) {
-    out.push({ op: "set-plain", path: [...basePath, "name"], before: prev.nodeName, after: next.nodeName });
+    out.push({
+      op: "set-plain",
+      path: [...basePath, "name"],
+      before: prev.nodeName,
+      after: next.nodeName,
+    });
   }
   const propNames = Object.keys(prev.props).filter((name) => name in next.props);
   for (const name of propNames) {
@@ -339,10 +372,14 @@ function positionDelta(source: NodeSnapshot, copy: NodeSnapshot): Json | undefin
   const a = source.props.position?.static;
   const b = copy.props.position?.static;
   if (
-    a === null || b === null ||
-    typeof a !== "object" || typeof b !== "object" ||
-    Array.isArray(a) || Array.isArray(b) ||
-    a === undefined || b === undefined
+    a === null ||
+    b === null ||
+    typeof a !== "object" ||
+    typeof b !== "object" ||
+    Array.isArray(a) ||
+    Array.isArray(b) ||
+    a === undefined ||
+    b === undefined
   ) {
     return undefined;
   }
@@ -452,15 +489,11 @@ export function diffScene(prev: SceneSnapshot, next: SceneSnapshot): StepPayload
   const addedPayloads = out.filter(
     (payload): payload is Extract<StepPayload, { op: "add-layer" }> => payload.op === "add-layer",
   );
-  const removedSceneInstances = removedLayers.filter((layer) =>
-    layer.nodeType.startsWith("SCENE"),
-  );
+  const removedSceneInstances = removedLayers.filter((layer) => layer.nodeType.startsWith("SCENE"));
   const addedSceneLayers = addedPayloads.filter(
     (payload) => !payload.cloneOf && payload.spec.nodeType.startsWith("SCENE"),
   );
-  const removedPlainLayers = removedLayers.filter(
-    (layer) => !layer.nodeType.startsWith("SCENE"),
-  );
+  const removedPlainLayers = removedLayers.filter((layer) => !layer.nodeType.startsWith("SCENE"));
   if (
     addedSceneLayers.length === 1 &&
     removedPlainLayers.length > 0 &&

@@ -178,8 +178,6 @@ describe("shimmerOffset", () => {
   });
 
   it("is linear, so a continuous drag never jumps the dashes", () => {
-    expect(shimmerOffset(80) - shimmerOffset(40)).toBeCloseTo(
-      shimmerOffset(40) - shimmerOffset(0),
-    );
+    expect(shimmerOffset(80) - shimmerOffset(40)).toBeCloseTo(shimmerOffset(40) - shimmerOffset(0));
   });
 });

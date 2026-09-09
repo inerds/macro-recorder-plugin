@@ -14,10 +14,7 @@ export interface DebugStripProps {
  * (mock gateways only). Rendered as a section inside DevSettings; store
  * seeding/clearing lives there so it also works inside Creator.
  */
-export function DebugStrip({
-  mockRecorder,
-  mockPlayback,
-}: DebugStripProps) {
+export function DebugStrip({ mockRecorder, mockPlayback }: DebugStripProps) {
   const [recScenario, setRecScenario] = useState<RecorderScenario>("burst");
   const [playScenario, setPlayScenario] = useState<PlaybackScenario>("pass");
 

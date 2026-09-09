@@ -14,7 +14,9 @@ import { fileURLToPath } from "node:url";
 const root = resolve(fileURLToPath(import.meta.url), "..", "..");
 const [version, ...rest] = process.argv.slice(2);
 if (!version) {
-  console.error("release-notes: usage: node scripts/release-notes.mjs <version> [--check-tag vX.Y.Z]");
+  console.error(
+    "release-notes: usage: node scripts/release-notes.mjs <version> [--check-tag vX.Y.Z]",
+  );
   process.exit(1);
 }
 
@@ -48,7 +50,9 @@ function printSection(label, changelog) {
   }
   const afterHeading = changelog.indexOf("\n", start) + 1;
   const next = changelog.slice(afterHeading).search(/^## /m);
-  const body = (next === -1 ? changelog.slice(afterHeading) : changelog.slice(afterHeading, afterHeading + next)).trim();
+  const body = (
+    next === -1 ? changelog.slice(afterHeading) : changelog.slice(afterHeading, afterHeading + next)
+  ).trim();
   if (!body) {
     console.error(`release-notes: the "## ${label}" block is empty`);
     process.exit(1);

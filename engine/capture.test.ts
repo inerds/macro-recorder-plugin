@@ -7,12 +7,7 @@ import {
   type SelectedKf,
 } from "./capture";
 import type { Json } from "./json";
-import type {
-  AnimatableSnapshot,
-  KfSnap,
-  NodeSnapshot,
-  PaintSnapshot,
-} from "./snapshot";
+import type { AnimatableSnapshot, KfSnap, NodeSnapshot, PaintSnapshot } from "./snapshot";
 
 /* fixtures — same conventions as diff.test.ts */
 
@@ -60,7 +55,10 @@ function makeNode(overrides: Partial<NodeSnapshot> = {}): NodeSnapshot {
 function richLayer(): NodeSnapshot {
   return makeNode({
     props: {
-      position: anim(undefined, [kf(0, { x: 0, y: 0 }, "id-a", "LINEAR"), kf(30, { x: 5, y: 5 }, "id-b")]),
+      position: anim(undefined, [
+        kf(0, { x: 0, y: 0 }, "id-a", "LINEAR"),
+        kf(30, { x: 5, y: 5 }, "id-b"),
+      ]),
       rotation: anim(0), // static — no keyframes, must be skipped
     },
     fills: [solid(anim(undefined, [kf(10, RED), kf(40, BLUE)]))],
@@ -218,9 +216,9 @@ describe("captureKeyframePayloads — scope all", () => {
         : null,
     ).toEqual(RED);
     // and the animation still rides its own keyframes op
-    expect(
-      payloads.some((p) => p.op === "keyframes" && p.path.join(".") === "fills.0.color"),
-    ).toBe(true);
+    expect(payloads.some((p) => p.op === "keyframes" && p.path.join(".") === "fills.0.color")).toBe(
+      true,
+    );
   });
 
   it("TEXT_LAYER singular fills stay component-captured (no replace-paint)", () => {
@@ -288,7 +286,10 @@ describe("captureKeyframePayloads — scope selected", () => {
 
   it("returns [] when nothing matches (caller maps to an error)", () => {
     expect(
-      captureKeyframePayloads(layer, { scope: "selected", selected: [{ frame: 999, value: null }] }),
+      captureKeyframePayloads(layer, {
+        scope: "selected",
+        selected: [{ frame: 999, value: null }],
+      }),
     ).toEqual([]);
   });
 });

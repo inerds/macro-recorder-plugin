@@ -12,6 +12,11 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-09-08 — Prettier clean-up
+
+| Issue | Fix |
+|---|---|
+| `pnpm format:check` failed on 27 files, so `.github/workflows/ci.yml` left the check out rather than run it against a dirty tree, and the tree could drift further with no gate to catch it. | `.prettierignore` now excludes `artifacts/`, `release/`, and `marketing/` alongside the existing `dist/`, `traces/`, and `*.md` rules, `pnpm format` reformatted the 25 flagged source files (reviewed hunk by hunk — all whitespace, no semantic change), and `pnpm format:check` runs in CI after `pnpm type-check`. |
 ## 2026-09-08 — ENGINE_REV gate
 
 | Issue | Fix |

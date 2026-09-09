@@ -40,6 +40,7 @@ Run every check below before you open a pull request:
 
 ```bash
 pnpm type-check    # tsc -b across all three project references
+pnpm format:check  # the tree is prettier-clean; this keeps it that way
 pnpm test          # vitest run (876 tests, 37 files)
 pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS

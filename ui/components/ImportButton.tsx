@@ -96,8 +96,7 @@ export function ImportButton({ onImport }: ImportButtonProps) {
         >
           <DialogTitle className="instrument">Import a macro</DialogTitle>
           <DialogDescription className="text-11 text-muted-foreground">
-            Paste the JSON that Copy JSON produced — from another project, or
-            from a teammate.
+            Paste the JSON that Copy JSON produced — from another project, or from a teammate.
           </DialogDescription>
           <label htmlFor={fieldId} className="sr-only">
             Macro JSON
@@ -128,12 +127,7 @@ export function ImportButton({ onImport }: ImportButtonProps) {
             </p>
           )}
           <div className="mt-2 flex justify-end gap-1.5 border-t border-border pt-3">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="press key key-outline"
-              onClick={close}
-            >
+            <Button size="sm" variant="ghost" className="press key key-outline" onClick={close}>
               Cancel
             </Button>
             <Button

@@ -16,9 +16,7 @@ function makeMacro(name = "Bounce"): Macro {
     id: crypto.randomUUID(),
     name,
     createdAt: Date.now(),
-    steps: [
-      { id: crypto.randomUUID(), kind: "fill", label: "Fill → red", payload: {} },
-    ],
+    steps: [{ id: crypto.randomUUID(), kind: "fill", label: "Fill → red", payload: {} }],
   };
 }
 
@@ -53,15 +51,11 @@ describe("LocalMacroStore", () => {
 
   it("rejects malformed JSON and wrong shapes", async () => {
     const store = new LocalMacroStore(memoryStorage());
-    await expect(store.importMacro("not json {")).rejects.toThrow(
-      "Not a valid JSON file",
-    );
-    await expect(store.importMacro('{"foo": 1}')).rejects.toThrow(
+    await expect(store.importMacro("not json {")).rejects.toThrow("Not a valid JSON file");
+    await expect(store.importMacro('{"foo": 1}')).rejects.toThrow("File is not a valid macro");
+    await expect(store.importMacro('{"name": "x", "steps": [{"kind": "nope"}]}')).rejects.toThrow(
       "File is not a valid macro",
     );
-    await expect(
-      store.importMacro('{"name": "x", "steps": [{"kind": "nope"}]}'),
-    ).rejects.toThrow("File is not a valid macro");
     expect(await store.list()).toEqual([]);
   });
 

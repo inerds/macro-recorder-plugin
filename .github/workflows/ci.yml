@@ -44,16 +44,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm type-check
+      - run: pnpm format:check
       - run: pnpm test
       - run: pnpm lint:docs
       - run: pnpm test:quickjs
       - run: pnpm build
 
-      # `pnpm format:check` is intentionally not run here: the existing
-      # codebase is not yet prettier-clean under prettier.config.mjs (a
-      # one-shot `pnpm format` was skipped because it would have touched
-      # too much of the tree). Add this step back once the tree has been
-      # formatted and committed.
+      # The tree is prettier-clean under prettier.config.mjs; format:check
+      # above keeps it that way.
 
   # The browser checks the node-only unit tests cannot make: what paints on
   # top, what a box measures, what a modifier does to a key — and the full

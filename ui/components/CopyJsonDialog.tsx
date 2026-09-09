@@ -79,8 +79,8 @@ export function CopyJsonDialog({
       >
         <DialogTitle className="instrument">Copy macro JSON</DialogTitle>
         <DialogDescription className="text-11 text-muted-foreground">
-          The clipboard is blocked here, so copy the text yourself. It is
-          already selected — paste it into Import on the other side.
+          The clipboard is blocked here, so copy the text yourself. It is already selected — paste
+          it into Import on the other side.
         </DialogDescription>
         <textarea
           ref={textareaRef}
@@ -94,17 +94,11 @@ export function CopyJsonDialog({
         />
         {blocked && (
           <p role="alert" className="text-11 text-[color:var(--ink-red-text)]">
-            Copying is blocked here too. Press ⌘C or Ctrl+C while the text is
-            selected.
+            Copying is blocked here too. Press ⌘C or Ctrl+C while the text is selected.
           </p>
         )}
         <div className="mt-2 flex justify-end gap-1.5 border-t border-border pt-3">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="press key key-outline"
-            onClick={onClose}
-          >
+          <Button size="sm" variant="ghost" className="press key key-outline" onClick={onClose}>
             Close
           </Button>
           <Button

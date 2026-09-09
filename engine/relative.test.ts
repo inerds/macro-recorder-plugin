@@ -4,13 +4,14 @@ import type { Json } from "./json";
 import { computeTarget } from "./relative";
 import { propClassOf } from "./snapshot";
 
-
 describe("computeTarget — absolute short-circuits", () => {
   it("returns `after` verbatim for the absolute prop class", () => {
     {
       const propClass = "absolute" as const;
       expect(computeTarget(10, 100, 150, propClass)).toBe(150);
-      expect(computeTarget({ x: 10, y: 20 }, { x: 100, y: 200 }, { x: 150, y: 260 }, propClass)).toEqual({
+      expect(
+        computeTarget({ x: 10, y: 20 }, { x: 100, y: 200 }, { x: 150, y: 260 }, propClass),
+      ).toEqual({
         x: 150,
         y: 260,
       });
@@ -107,24 +108,20 @@ describe("computeTarget — fallbacks", () => {
 
   it("passes non-numeric vector components through from `after`", () => {
     expect(
-      computeTarget(
-        { x: 10, y: 20 },
-        { x: 100, y: "a" },
-        { x: 150, y: "z" },
-        "additive",
-      ),
+      computeTarget({ x: 10, y: 20 }, { x: 100, y: "a" }, { x: 150, y: "z" }, "additive"),
     ).toEqual({ x: 60, y: "z" });
   });
 
   it("passes through components missing from origin or baseline", () => {
-    expect(
-      computeTarget({ x: 10 }, { x: 100 }, { x: 150, y: 7 }, "additive"),
-    ).toEqual({ x: 60, y: 7 });
+    expect(computeTarget({ x: 10 }, { x: 100 }, { x: 150, y: 7 }, "additive")).toEqual({
+      x: 60,
+      y: 7,
+    });
   });
 
   it("ignores baseline components that `after` does not carry", () => {
-    expect(
-      computeTarget({ x: 10, y: 99 }, { x: 100, y: 99 }, { x: 150 }, "additive"),
-    ).toEqual({ x: 60 });
+    expect(computeTarget({ x: 10, y: 99 }, { x: 100, y: 99 }, { x: 150 }, "additive")).toEqual({
+      x: 60,
+    });
   });
 });

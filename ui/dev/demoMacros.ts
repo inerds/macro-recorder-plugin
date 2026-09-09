@@ -150,7 +150,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
         layer: HERO,
       },
       // length-1 transform paths: scale is multiplicative, rotation additive
-      { op: "set-static", path: ["scale"], before: { x: 100, y: 100 }, after: { x: 118, y: 118 }, layer: HERO },
+      {
+        op: "set-static",
+        path: ["scale"],
+        before: { x: 100, y: 100 },
+        after: { x: 118, y: 118 },
+        layer: HERO,
+      },
       { op: "set-static", path: ["rotation"], before: 0, after: -6, layer: HERO },
     ],
   },
@@ -171,7 +177,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
         },
         layer: HERO,
       },
-      { op: "set-static", path: ["fills", 0, "stops"], before: WARM_STOPS, after: COOL_STOPS, layer: HERO },
+      {
+        op: "set-static",
+        path: ["fills", 0, "stops"],
+        before: WARM_STOPS,
+        after: COOL_STOPS,
+        layer: HERO,
+      },
       {
         op: "add-stroke",
         path: ["strokes", 0],
@@ -179,7 +191,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
         layer: HERO,
       },
       { op: "set-static", path: ["strokes", 0, "width"], before: 4, after: 8, layer: HERO },
-      { op: "set-static", path: ["strokes", 0, "fill", "color"], before: INK, after: VIOLET, layer: HERO },
+      {
+        op: "set-static",
+        path: ["strokes", 0, "fill", "color"],
+        before: INK,
+        after: VIOLET,
+        layer: HERO,
+      },
     ],
   },
   {
@@ -188,7 +206,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
     source: { nodeId: HERO.id, nodeName: HERO.name },
     steps: [
       // gradient stops onto a solid fill -> the fill CONVERTS to a gradient
-      { op: "set-static", path: ["fills", 0, "stops"], before: WARM_STOPS, after: COOL_STOPS, layer: HERO },
+      {
+        op: "set-static",
+        path: ["fills", 0, "stops"],
+        before: WARM_STOPS,
+        after: COOL_STOPS,
+        layer: HERO,
+      },
       // ...and a solid color onto that gradient tints every stop
       { op: "set-static", path: ["fills", 0, "color"], before: CREAM, after: EMBER, layer: HERO },
       {
@@ -244,7 +268,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
     name: "Storyboard shuffle",
     source: { nodeId: HERO.id, nodeName: HERO.name },
     steps: [
-      { op: "set-static", path: ["position"], before: HERO_REST, after: { x: 300, y: 420 }, layer: HERO },
+      {
+        op: "set-static",
+        path: ["position"],
+        before: HERO_REST,
+        after: { x: 300, y: 420 },
+        layer: HERO,
+      },
       { op: "set-plain", path: ["name"], before: "Caption", after: "Old Caption", layer: CAPTION },
       // order[newPos] = the layer's previous index
       { op: "reorder-layers", order: [2, 0, 1] },
@@ -276,7 +306,9 @@ const DEMO_SCRIPTS: DemoScript[] = [
         layer: { id: "demo-nest", name: "Hero Group" },
         fallback: [
           spec(HERO.id, "CONTAINER", HERO.name!, { props: { position: stat(HERO_REST) } }),
-          spec(ORBIT.id, "CONTAINER", ORBIT.name!, { props: { position: stat({ x: 820, y: 300 }) } }),
+          spec(ORBIT.id, "CONTAINER", ORBIT.name!, {
+            props: { position: stat({ x: 820, y: 300 }) },
+          }),
         ],
       },
     ],
@@ -292,7 +324,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
         op: "add-layer",
         spec: spec("demo-title", "TEXT_LAYER", "Title", {
           props: { position: stat({ x: 120, y: 200 }), opacity: stat(100) },
-          plain: { text: "Ship it.", fontFamily: "Inter", fontStyle: "Regular", fontSize: 64, alignment: "left" },
+          plain: {
+            text: "Ship it.",
+            fontFamily: "Inter",
+            fontStyle: "Regular",
+            fontSize: 64,
+            alignment: "left",
+          },
           fills: [{ kind: "solid", color: stat(CREAM) }],
         }),
       },
@@ -373,7 +411,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
         layer: HERO,
       },
       { op: "set-static", path: ["position"], before: HERO_REST, after: HERO_REST, layer: HERO },
-      { op: "set-static", path: ["scale"], before: { x: 100, y: 100 }, after: { x: 100, y: 100 }, layer: HERO },
+      {
+        op: "set-static",
+        path: ["scale"],
+        before: { x: 100, y: 100 },
+        after: { x: 100, y: 100 },
+        layer: HERO,
+      },
       { op: "set-plain", path: ["blendMode"], before: "normal", after: "normal", layer: HERO },
       {
         op: "keyframes",
@@ -400,7 +444,13 @@ const DEMO_SCRIPTS: DemoScript[] = [
     disabledIndices: [2],
     playOptions: { staggerFrames: 5, repeat: 2 },
     steps: [
-      { op: "set-static", path: ["position"], before: HERO_REST, after: { x: 660, y: 560 }, layer: HERO },
+      {
+        op: "set-static",
+        path: ["position"],
+        before: HERO_REST,
+        after: { x: 660, y: 560 },
+        layer: HERO,
+      },
       { op: "set-static", path: ["opacity"], before: 100, after: 30, layer: HERO },
       { op: "set-static", path: ["rotation"], before: 0, after: 15, layer: HERO },
     ],

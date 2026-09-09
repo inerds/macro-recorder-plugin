@@ -133,9 +133,7 @@ export function serializePaint(paint: AnyProxy): PaintSnapshot {
   // (docs/runtime-api.md quirk 6) — probe defensively anyway.
   const opacity = tryRead(() => paint.opacity);
   const opacitySnap =
-    opacity !== undefined && isAnimatableLike(opacity)
-      ? serializeAnimatable(opacity)
-      : undefined;
+    opacity !== undefined && isAnimatableLike(opacity) ? serializeAnimatable(opacity) : undefined;
   if (type === "SOLID") {
     const snapshot: PaintSnapshot = { kind: "solid", color: serializeAnimatable(paint.color) };
     if (opacitySnap) snapshot.opacity = opacitySnap;
@@ -205,7 +203,10 @@ function lottieAnimatable(raw: AnyProxy): AnimatableSnapshot | undefined {
  * runtime method — exposes the raw document, so opacities are recovered from
  * there, matched to the paint lists by document order.
  */
-function collectPaintOpacities(node: AnyProxy): { fills: AnimatableSnapshot[]; strokes: AnimatableSnapshot[] } {
+function collectPaintOpacities(node: AnyProxy): {
+  fills: AnimatableSnapshot[];
+  strokes: AnimatableSnapshot[];
+} {
   const out = { fills: [] as AnimatableSnapshot[], strokes: [] as AnimatableSnapshot[] };
   const raw = tryRead(() => (typeof node.toJSON === "function" ? node.toJSON() : undefined));
   if (raw === undefined || raw === null) return out;
@@ -281,12 +282,10 @@ export function serializeNode(node: AnyProxy, depth = 0): NodeSnapshot {
 
   const strokes = tryRead(() => node.strokes);
   if (Array.isArray(strokes)) {
-    snapshot.strokes = strokes.map(
-      (stroke: AnyProxy): StrokeSnapshot => ({
-        width: serializeAnimatable(stroke.width),
-        fill: serializePaint(tryRead(() => stroke.fill)),
-      }),
-    );
+    snapshot.strokes = strokes.map((stroke: AnyProxy): StrokeSnapshot => ({
+      width: serializeAnimatable(stroke.width),
+      fill: serializePaint(tryRead(() => stroke.fill)),
+    }));
   } else {
     const single = tryRead(() => node.stroke);
     if (single !== undefined && single !== null && typeof single === "object") {
@@ -374,8 +373,10 @@ function serializeSceneSettings(scene: AnyProxy): SceneSettings {
     const width = tryRead(() => Number(size.width));
     const height = tryRead(() => Number(size.height));
     if (
-      width !== undefined && height !== undefined &&
-      Number.isFinite(width) && Number.isFinite(height)
+      width !== undefined &&
+      height !== undefined &&
+      Number.isFinite(width) &&
+      Number.isFinite(height)
     ) {
       settings.size = { width, height };
     }
@@ -385,7 +386,9 @@ function serializeSceneSettings(scene: AnyProxy): SceneSettings {
   if (background === null) {
     settings.backgroundColor = null;
   } else if (background !== undefined && typeof background === "object") {
-    const channels = (["r", "g", "b"] as const).map((key) => tryRead(() => Number(background[key])));
+    const channels = (["r", "g", "b"] as const).map((key) =>
+      tryRead(() => Number(background[key])),
+    );
     if (channels.every((value) => value !== undefined && Number.isFinite(value))) {
       settings.backgroundColor = { r: channels[0]!, g: channels[1]!, b: channels[2]! };
     }
