@@ -5,15 +5,6 @@ entry names the evidence that motivated it, what it would build, and a rough
 size (S: a session, M: a few sessions, L: a project of its own). Move an entry
 out of this file and into `docs/history/improvements.md` once it ships.
 
-## `ENGINE_REV` gate and pre-commit hook
-
-`ENGINE_REV` moved eight times in one day during the 2026-09-07 session
-(`2026-09-07.1` through `2026-09-07.8`), each one a change a contributor had
-to remember by hand. A pre-commit hook, wired through
-`git config core.hooksPath .githooks` (no husky dependency), would fail a
-commit that touches `sandbox/` or `engine/` without also touching
-`ENGINE_REV` in the same diff. Size: S.
-
 ## Trace index: `traces/index.jsonl` and `pnpm traces:stale`
 
 Triage this session read `traces/.processed` by hand to find what was new,

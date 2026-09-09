@@ -34,3 +34,27 @@ Check `env.sandboxRev` FIRST. Stale-sandbox reproductions of already-fixed bugs
 cost this project a full day. Diagnostic fields also arrived at known
 revisions, so an older trace can be silent about a thing it never probed — the
 rev fences are listed in [`triage.md`](triage.md).
+
+## The gate
+
+`scripts/engine-rev-gate.mjs` enforces the rule instead of relying on memory.
+It fails when the diff touches `sandbox/` or `engine/` — excluding `*.test.ts`
+files and the `engine/testing/` and `sandbox/testing/` fixture directories —
+without also adding a new `ENGINE_REV` line in `engine/protocol.ts`.
+
+Two callers run it:
+
+- The `pre-commit` hook (`.githooks/pre-commit`), wired in by `pnpm install`
+  through `git config core.hooksPath .githooks`. It checks the staged diff
+  and blocks the commit on a failure. It skips, rather than blocks, on a
+  machine with no `node` on `PATH`.
+- The `build-and-test` job in `.github/workflows/ci.yml`, on `pull_request`
+  events only. It checks the diff between the base branch and the pull
+  request's head, so a contributor who bypassed the hook still gets caught
+  before merge.
+
+`SKIP_ENGINE_REV=1 git commit …` bypasses the hook. Use it only for a change
+that provably does not alter sandbox behaviour — a comment, a type-only edit —
+and say why in the commit message. The bypass is honest because it covers only
+the local hook: a change that reaches a pull request still meets the CI step,
+which has no bypass.

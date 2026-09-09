@@ -47,7 +47,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (855 tests, 36 files, ~1s)
+pnpm test                      # vitest run (876 tests, 37 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 pnpm test:ui                   # headless Chrome: the panel alone, on mock gateways
@@ -82,7 +82,9 @@ the host. It builds nothing — the dev server compiles `plugin.js` on request
 1. **Bump `ENGINE_REV` in `engine/protocol.ts` with every sandbox-behaviour
    change.** Creator evaluates `plugin.js` once and never re-fetches it, so a
    stale sandbox reproduces bugs that are already fixed. See
-   [`docs/contributing/engine-rev.md`](docs/contributing/engine-rev.md).
+   [`docs/contributing/engine-rev.md`](docs/contributing/engine-rev.md). The
+   `pre-commit` hook and the CI `build-and-test` job both run
+   `scripts/engine-rev-gate.mjs` to enforce this rule.
 2. **After every fix, add a row to
    [`docs/history/improvements.md`](docs/history/improvements.md)** — what was
    wrong, what changed, a sentence or two each. A fix is not done until you log

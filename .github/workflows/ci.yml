@@ -12,6 +12,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # ENGINE_REV gate: a pull request that touches sandbox/ or engine/ must
+      # also bump ENGINE_REV in the same range, or Creator's cached plugin.js
+      # goes stale and reproduces bugs that are already fixed. Skipped on a
+      # plain push: a push to main has no base ref to diff against.
+      #
+      # The `...` range needs the merge base between HEAD and the base branch,
+      # so checkout above is `fetch-depth: 0` (full history) rather than the
+      # single-commit checkout GitHub gives by default — a shallow HEAD has no
+      # ancestry to find a merge base in. The fetch below is then just to give
+      # `origin/<base_ref>` a name to diff against; `--depth=1` costs nothing
+      # extra here because the objects it would fetch already exist locally.
+      - if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          node scripts/engine-rev-gate.mjs --range "origin/${{ github.base_ref }}...HEAD"
 
       # Pinned to the packageManager version in package.json so CI never
       # drifts from what contributors run locally.
