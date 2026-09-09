@@ -5,15 +5,6 @@ entry names the evidence that motivated it, what it would build, and a rough
 size (S: a session, M: a few sessions, L: a project of its own). Move an entry
 out of this file and into `docs/history/improvements.md` once it ships.
 
-## Trace index: `traces/index.jsonl` and `pnpm traces:stale`
-
-Triage this session read `traces/.processed` by hand to find what was new,
-and `docs/contributing/triage.md`'s workflow has no automated way to flag a
-trace whose `env.sandboxRev` no longer matches `ENGINE_REV`. `scripts/trace-server.ts`
-would append one line per captured trace to `traces/index.jsonl` (timestamp,
-kind, sandbox and UI revisions, byte size), and `pnpm traces:stale` would list
-entries whose revision predates the current `ENGINE_REV`. Size: S.
-
 ## Token contrast test: `ui/theme/vintageTokens.test.ts`
 
 The 2026-09-07 session hand-solved the blue Record key's stops to match the

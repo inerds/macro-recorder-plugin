@@ -12,15 +12,32 @@ fixtures pin it → fixes land.**
 ## 1. Find unprocessed traces
 
 ```bash
+pnpm traces:unprocessed   # indexed traces that traces/.processed does not name, newest first
+pnpm traces:stale         # traces captured on an older sandbox revision
+```
+
+`traces/index.jsonl` holds one line per bundle — kind, label, sandbox and UI
+revisions, byte size, step and failure counts — so both commands answer
+without opening a bundle. `traces/.processed` lists filenames already triaged,
+one per line.
+
+Run `pnpm traces:index` first if `traces/index.jsonl` is missing: it rebuilds
+the index from the bundles on disk. The manual fallback, if the index is
+unusable, is:
+
+```bash
 ls -la traces/*.json 2>/dev/null | tail -20
 cat traces/.processed 2>/dev/null
 ```
 
-`traces/.processed` lists filenames already triaged, one per line. Skip those.
-If `traces/` is empty or missing, tell the user how to capture one — run
-`pnpm dev`, open the plugin in Creator, record and replay — and stop.
+A trace from an older sandbox revision reproduces bugs that are already fixed.
+Triage it last, and say so in the report. If `traces/` is empty or missing,
+tell the user how to capture one — run `pnpm dev`, open the plugin in Creator,
+record and replay — and stop.
 
 ## 2. Size each trace before reading it
+
+The index reports each bundle's `bytes`. Without it:
 
 ```bash
 wc -c traces/*.json | sort -n | tail

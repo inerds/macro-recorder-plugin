@@ -41,7 +41,7 @@ Run every check below before you open a pull request:
 ```bash
 pnpm type-check    # tsc -b across all three project references
 pnpm format:check  # the tree is prettier-clean; this keeps it that way
-pnpm test          # vitest run (876 tests, 37 files)
+pnpm test          # vitest run (899 tests, 38 files)
 pnpm lint:docs     # the numbers and names the docs quote, against the code
 pnpm test:quickjs  # builds, then drives dist/plugin.js in real QuickJS
 pnpm test:ui       # opens the panel in headless Chrome and probes the DOM
@@ -178,6 +178,16 @@ Dev sessions write a trace bundle per record run and per playback run to
 Claude Code and let the triage agents read them. The workflow, the rules that
 keep traces honest, and the engine-revision fences are in
 [`docs/contributing/triage.md`](docs/contributing/triage.md).
+
+`traces/index.jsonl` carries one line per bundle — kind, label, sandbox and UI
+revisions, byte size, step and failure counts — so you can see what is there
+without opening one:
+
+```bash
+pnpm traces:index         # rebuild traces/index.jsonl from the bundles on disk
+pnpm traces:stale         # traces captured on a sandbox rev that is not ENGINE_REV
+pnpm traces:unprocessed   # traces traces/.processed does not name, newest first
+```
 
 ## Agent skills
 

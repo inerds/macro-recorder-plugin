@@ -47,7 +47,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (876 tests, 37 files, ~1s)
+pnpm test                      # vitest run (899 tests, 38 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 pnpm test:ui                   # headless Chrome: the panel alone, on mock gateways
@@ -56,6 +56,9 @@ pnpm bundle                    # release zip → release/macro-recorder-v<versio
 pnpm bundle:dev                # dev build (dev strip on, "(dev)" manifest) → …-dev.zip
 pnpm wiki:check                # build the docs/ wiki mirror to a temp dir and verify its links
 pnpm wiki:build                # build the docs/ wiki mirror → artifacts/wiki/
+pnpm traces:index              # rebuild traces/index.jsonl from the bundles on disk
+pnpm traces:stale              # traces captured on a sandbox rev that is not ENGINE_REV
+pnpm traces:unprocessed        # traces traces/.processed does not name, newest first
 ```
 
 Single test file / single test:
@@ -105,7 +108,8 @@ the host. It builds nothing — the dev server compiles `plugin.js` on request
    `/triage-traces`, which fans out the read-only `macro-triage` agent
    (`.claude/agents/macro-triage.md`) and the test-writing `macro-fixture`
    agent (`.claude/agents/macro-fixture.md`). Check `env.sandboxRev` first in
-   any trace.
+   any trace — `pnpm traces:unprocessed` and `pnpm traces:stale` read
+   `traces/index.jsonl` and answer that without opening a bundle.
 5. **Update [`docs/user-guide.md`](docs/user-guide.md) when user-facing
    behaviour changes**, and add a `CHANGELOG.md` entry for anything a user
    sees.

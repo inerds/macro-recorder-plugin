@@ -96,6 +96,46 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   value and not the baseline frozen at `playback.begin` — a formula step's
   result is expected to differ from the recorded `after`.
 
+## The trace index
+
+`traces/index.jsonl` is the small file you can read. It holds one JSON line
+for each bundle, so you can see what a trace is, when it was captured, and
+which sandbox revision wrote it, without opening the bundle itself. One line
+looks like this:
+
+```json
+{"file":"2026-09-08T02-19-34-375_playback-Spin-the-badge.json","at":"2026-09-08T02:19:34.375Z","kind":"playback","label":"playback-Spin the badge","sandboxRev":"2026-09-08.2","uiRev":"2026-09-08.2","bytes":364,"steps":2,"failures":1}
+```
+
+`kind` is `record`, `record-failed`, `playback`, `manual`, or `other`, from
+the label the panel flushed the bundle under. `steps` counts the steps a
+recording emitted, or the steps a replay ran. `failures` counts the failures
+the sandbox reported plus the RPC errors in the session. Both counts stay
+absent when nothing in the bundle could report them, so a `0` means "none",
+never "not measured". A bundle that does not parse gets a `{ file, bytes,
+error }` line instead.
+
+The index is append-only. `scripts/trace-server.ts` adds one line as it writes
+each bundle, and nothing else writes to it while the dev server runs. Three
+commands read it:
+
+```bash
+pnpm traces:index         # rebuild traces/index.jsonl from the bundles on disk
+pnpm traces:stale         # traces whose sandbox revision is not the current one
+pnpm traces:unprocessed   # traces no triage run has claimed, newest first
+```
+
+`pnpm traces:index` is the only command that rewrites the whole file. Run it
+once over a `traces/` directory that predates the index, or after you delete
+bundles by hand. `pnpm traces:stale` reads `ENGINE_REV` out of
+`engine/protocol.ts`, groups the traces by the revision that captured them,
+and always exits 0: it is a report, not a gate. `pnpm traces:unprocessed`
+subtracts `traces/.processed` from the index.
+
+Each command works on `traces/` unless `TRACES_DIR` or `--dir <path>` names
+another directory. The logic lives in `scripts/trace-index.mjs`, which
+`scripts/trace-index.test.ts` covers.
+
 ## The dev strip
 
 `DevSettings` (`ui/dev/`) is the ONE dev strip at the panel foot — gated on
@@ -123,10 +163,13 @@ context; that is what the triage agents are for.
 Run `/triage-traces` in Claude Code. The loop is: you break it, traces land,
 agents triage, you confirm, fixtures pin it, fixes land.
 
-1. **Find unprocessed traces.** `traces/.processed` names the files already
-   triaged, one per line. The skill skips those.
-2. **Size each trace before you read it.** Bundles carry full node snapshots.
-   Never read one directly into the main context.
+1. **Find unprocessed traces.** Run `pnpm traces:unprocessed`, which lists
+   every indexed trace that `traces/.processed` does not name, newest first.
+   Run `pnpm traces:stale` beside it: a trace from an older sandbox revision
+   reproduces bugs that are already fixed, so triage it last or not at all.
+2. **Size each trace before you read it.** The index reports each bundle's
+   `bytes`. Bundles carry full node snapshots. Never read one directly into
+   the main context.
 3. **Fan out.** One read-only `macro-triage` agent per unprocessed trace, all
    in one message so they run concurrently, about six per batch. Each agent
    checks `env.sandboxRev` first, classifies the trace against the failure
