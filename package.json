@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "@lottiefiles/creator-plugins-ui": "^0.2.2",
-    "lucide-react": "^1.40.0",
+    "lucide-react": "^1.42.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
