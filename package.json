@@ -57,7 +57,7 @@
     "@lottiefiles/creator-api-types": "^1.0.1",
     "@lottiefiles/vite-plugin-creator": "^0.0.7",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^24.6.0",
+    "@types/node": "^26.5.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
