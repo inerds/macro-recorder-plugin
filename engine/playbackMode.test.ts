@@ -90,3 +90,30 @@ describe("playbackModeHint", () => {
     );
   });
 });
+
+describe("describePlaybackMode — transform parenting", () => {
+  it("a set-parent counts its layer, never its parent: 'parent A to B' stays retargetable", () => {
+    const parentStep = buildStep({
+      op: "set-parent",
+      parent: { id: "B", name: "B" },
+      before: null,
+      layer: { id: "A", name: "A" },
+    } as StepPayload);
+    expect(describePlaybackMode({ steps: [parentStep] })).toEqual({
+      mode: "targets",
+      layerCount: 1,
+    });
+  });
+
+  it("an add-controller is scene structure, and later edits to the controller do not count as pre-existing", () => {
+    const controller = buildStep({
+      op: "add-controller",
+      spec: spec("N1", "NULL_LAYER"),
+      layers: [{ id: "A", name: "A" }],
+    } as StepPayload);
+    expect(describePlaybackMode({ steps: [controller, edit("N1", ["rotation"])] })).toEqual({
+      mode: "scene",
+      layerCount: 0,
+    });
+  });
+});

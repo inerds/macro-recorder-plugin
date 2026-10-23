@@ -11,7 +11,7 @@ export const PROTOCOL_VERSION = 3;
  * served fresh by Vite can silently run against a stale engine — which made a
  * whole batch of traces misleading. hello returns this so the UI can warn.
  */
-export const ENGINE_REV = "2026-10-23.1";
+export const ENGINE_REV = "2026-10-23.2";
 
 /**
  * What a note says about its step. `skip` means the step did not fully apply;
@@ -112,6 +112,13 @@ export interface TargetProbe {
   strokes: number;
   /** Set when the probe itself could not resolve the path. */
   unreadable?: string;
+  /**
+   * The target's transform parent as `{id, name}`, `null` for none, probed
+   * around a `set-parent` step only. Absent when the host does not expose
+   * `transformParent` — the one reading that tells a swallowed write from a
+   * member that was never there.
+   */
+  parent?: Json;
 }
 
 /** Per-target before/after state around one applied step. */
@@ -155,6 +162,11 @@ export interface RpcContracts {
       shapeIntrospection?: Json;
       /** Debug-only: creator.selection's real surface — is `.keyframes` live? */
       selectionIntrospection?: Json;
+      /** Debug-only: whether the host exposes the parenting members that
+       *  creator-api-types 1.1.0 and 1.2.0 declare — `transformParent` on
+       *  the first layer, `createNullLayer` on the scene, and
+       *  `utils.isTransformableLayer`. None is live-verified yet. */
+      parentingIntrospection?: Json;
       /** What this recording watches. See ScopeReport. */
       scope: ScopeReport;
       /** Diagnostic only: how many nodes were selected when recording began.

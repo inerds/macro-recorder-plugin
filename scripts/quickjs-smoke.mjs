@@ -575,6 +575,60 @@ vm.unwrapResult(
   `),
 ).dispose();
 
+// 15. Transform parenting (creator-api-types 1.1.0). The serializer tells a
+//     host that DECLARES `transformParent` from one that lacks it with the
+//     `in` operator, inside the VM, where the host's proxies live. Layer 1
+//     declares the member and Layer 2 does not: parenting Layer 1 to Layer 2
+//     must come back as ONE synchronous `set-parent` step naming Layer 2,
+//     and a host that lacks the member must record nothing and throw
+//     nothing.
+vm.unwrapResult(
+  vm.evalCode(`
+    globalThis.__fakeNodes[0].transformParent = undefined;
+    globalThis.__fakeSelection = [];
+  `),
+).dispose();
+sendToPlugin({ t: "req", id: 40, method: "record.start", params: {} });
+vm.unwrapResult(
+  vm.evalCode(`globalThis.__fakeNodes[0].transformParent = globalThis.__fakeNodes[1];`),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 41, method: "record.tick", params: { seq: 1 } });
+const parentStep = posted[0]?.result?.steps?.[0];
+check(
+  "parenting a layer that declares transformParent records a set-parent step synchronously",
+  posted.length === 1 &&
+    posted[0]?.result?.steps?.length === 1 &&
+    parentStep?.kind === "parent" &&
+    parentStep?.payload?.op === "set-parent" &&
+    parentStep?.payload?.parent?.id === "n2" &&
+    parentStep?.payload?.parent?.name === "Layer 2" &&
+    parentStep?.payload?.before === null &&
+    parentStep?.payload?.layer?.id === "n1" &&
+    parentStep?.label === "Layer 1 · Parent → Layer 2",
+  JSON.stringify(parentStep ?? posted[0] ?? null),
+);
+// Layer 2 never declared the member: giving it a parent is invisible, and
+// the tick still answers.
+vm.unwrapResult(
+  vm.evalCode(`globalThis.__fakeNodes[1].transformParent = globalThis.__fakeNodes[0];`),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 42, method: "record.tick", params: { seq: 2 } });
+check(
+  "a layer that did not declare transformParent records no parent step",
+  posted.length === 1 && posted[0]?.ok === true && posted[0]?.result?.steps?.length === 0,
+  JSON.stringify(posted[0]?.result ?? null),
+);
+sendToPlugin({ t: "req", id: 43, method: "record.discard", params: {} });
+vm.unwrapResult(
+  vm.evalCode(`
+    delete globalThis.__fakeNodes[0].transformParent;
+    delete globalThis.__fakeNodes[1].transformParent;
+    delete globalThis.__fakeSelection;
+  `),
+).dispose();
+
 onMessageCallback.dispose();
 vm.dispose();
 console.log(`\n${pass}/${pass + fail} QuickJS checks passed`);

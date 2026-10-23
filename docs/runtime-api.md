@@ -28,8 +28,10 @@ The two kinds 1.1.0 and 1.2.0 added are typed and not yet seen live:
 | not yet seen live | `AUDIO_LAYER` | 1.2.0 `AudioLayer`: `BaseLayerMixin` plus `muted`, `volume`, `audio`; no transform |
 | `RECTANGLE` `ELLIPSE` `POLYGON` `STAR` `PATH` `GROUP` | ✓ | shape stack members |
 
+
 History: 0.0.2 said `Container` for a shape layer and `SCENE_INSTANCE` for a
-scene layer, and it named no text or image layer type.
+scene layer, and it named no text or image layer type. 1.2.0 also declares
+`AudioLayer`, which has no transform; the engine never reads one.
 
 ## `creator.timeline.currentFrame` — VERIFIED readable from the sandbox
 
@@ -175,7 +177,12 @@ has a fallback:
 Versions 1.1.0 and 1.2.0 added these members. No trace has shown any of them.
 The engine feature-detects each one it calls and has a fallback for it; a
 member the engine does not call is listed so that a later feature starts from
-the typed shape:
+the typed shape. Since rev `2026-10-23.2` the `record.start` debug probe
+reports `parentingIntrospection` — whether `transformParent` is on the first
+layer, by the `in` operator and by the own-and-prototype surface, whether the
+scene has `createNullLayer`, and whether `utils.isTransformableLayer` exists —
+so the first debug recording on a real host answers for the parenting members
+at once:
 
 - `creator.utils.isTransformableLayer(node)` on `UtilsAPI`: `true` for a
   `TransformableLayer`, which is every layer kind but `AudioLayer`.
@@ -187,19 +194,34 @@ the typed shape:
   because `BaseLayerMixin` gives both a timeline window; a host that has
   audio layers also has the guard.
 - `Scene.createNullLayer(opts?)`, from 1.1.0. `NullLayerCreateOptions` adds a
-  `layers` list to `LayerCreateOptions`. `createLayerFromSpec` rebuilds an
-  `add-layer` step whose spec is a `NULL_LAYER` with it, and skips with "this
-  scene can't create null layers — skipped" on a host without it. It never
-  falls back to `createShapeLayer`: a shape layer renders, a null layer does
-  not.
+  `layers` list to `LayerCreateOptions`.
+  `sandbox/applier.ts#createNullLayerFrom` calls it with `{ name, position,
+  layers }` for an `add-controller` step (rev `2026-10-23.2`) and with no
+  layers for an `add-layer` step whose spec is a `NULL_LAYER`, then verifies
+  through `nullLayer.layers`. A host that ignores the `layers` option gets
+  one `transformParent` write per layer; a host that rejects the option is
+  retried without it, with an info note; a host without the factory skips
+  with "this scene can't create null layers — skipped". It never falls back
+  to `createShapeLayer`: a shape layer renders, a null layer does not.
 - `NullLayer` (type `NULL_LAYER`): `LayerMixin` plus a read-only `layers`
   list, the layers whose transform parent it is. The recorder reads its
-  transform through `TYPE_PROPS.NULL_LAYER` and does not read `layers`.
+  transform through `TYPE_PROPS.NULL_LAYER` and does not read `layers`: a
+  parent is recorded from each child's `transformParent`, and `layers` is
+  the replay's witness that `createNullLayer` linked what it was given.
 - `LayerMixin.transformParent`, readable and writable, typed
   `TransformableLayer | undefined`, from 1.1.0. Reading a transform parent
   from `parent` is deprecated since 1.1.0 (removal eligible after 2027-03-05);
-  reading the containing `Scene` from `parent` stays. The engine neither
-  reads nor writes it: parenting is not recorded.
+  reading the containing `Scene` from `parent` stays, and the engine never
+  read a parent from it. Since rev `2026-10-23.2`
+  `sandbox/serialize.ts#readTransformParent` reads the member as a
+  `{id, name}` identity on every top-level layer, and tells "no parent" from
+  "member absent" with the `in` operator, because `undefined` is a legitimate
+  value of the member; `sandbox/applier.ts#writeTransformParent` writes it for
+  a `set-parent` step and reads it back. A kept value notes "Creator kept the
+  parent as it was — the change didn't apply", an absent member notes
+  "Creator doesn't expose transform parents here — skipped", and the debug
+  probe of a `set-parent` step reports the target's parent identity as
+  `parent`.
 - `AudioLayer` (type `AUDIO_LAYER`): `BaseLayerMixin` plus `AudibleMixin`
   (`muted: boolean`, `volume: Animatable<number>`, 0 to 100) and a read-only
   `audio: AudioAsset`. It has NO transform: no `position`, `opacity`,

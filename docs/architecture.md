@@ -178,6 +178,31 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   a `shapeHint`. A mask's `mode` rides the `set-plain` channel (1.0.1 `Mask`
   types it as a plain string), and a linear↔radial gradient swap records as
   `replace-paint`, because no host gradient carries a writable `type`.
+- **Layer parenting (rev `2026-10-23.2`)**: `NodeSnapshot.transformParent`
+  is `Layer.transformParent` (creator-api-types 1.1.0) read as a `{id, name}`
+  identity on top-level layers — `null` for none, ABSENT when the host does
+  not expose the member, which `sandbox/serialize.ts#readTransformParent`
+  tells apart with the `in` operator because `undefined` is a legitimate
+  value of the member. `diffScene` emits `set-parent` (new identity or null,
+  plus the one it left) when the id changes, bound to the layer like a path
+  op, and folds a fresh `NULL_LAYER` `add-layer` with the same-tick
+  `set-parent` steps that point at it into one `add-controller` (the null
+  layer's spec plus the layers it parents). Both carry the `parent` kind.
+  The scope keeps a `set-parent` whose layer is watched and drops one on
+  another layer, even when the parent is the watched layer; a controller
+  over a watched layer joins the scope like a nest's scene layer. On replay
+  `set-parent` is a per-target write (`applier.ts#writeTransformParent`,
+  read back) whose parent `playback.ts` resolves through
+  `ApplyContext.resolveLayer` — the source role is the target itself in
+  targets mode, then this replay's created layers, then the scene by id,
+  name, and prior name — and the parent is not counted as a pre-existing
+  layer, so "parent A to B" stays a one-layer macro. `add-controller` is
+  scene structure (scene mode) that follows the selection like a nest:
+  `applier.ts#createNullLayerFrom` calls `scene.createNullLayer({ name,
+  position, layers })`, verifies through `nullLayer.layers`, and writes
+  `transformParent` directly for what the option did not link. None of the
+  four members is live-verified; the `record.start` debug probe reports
+  `parentingIntrospection`, and a `set-parent` probe carries `parent`.
 - **The recording is pinned to ONE scene.** `record.start` captures
   `creator.activeScene`, and every tick re-serializes that same proxy. A user
   who switches scenes mid-recording gets ONE `not-replayable` step that says
@@ -581,7 +606,7 @@ replay that writes too widely is as much a failure as one that writes nothing.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-10-23.1)
+## Status and open threads (as of engine rev 2026-10-23.2)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two
@@ -620,9 +645,24 @@ declares the same URL.
   `isLayerNode`, and `Scene.createNullLayer` for a rebuilt `NULL_LAYER`; it
   records an audio layer's `volume` and `muted` through the ordinary channels
   and refuses to rebuild one, because the recording holds no audio asset. Those
-  sit under "Typed in 1.2.0, live verification pending". Parenting
-  (`transformParent`, a null layer's `layers`) is not recorded: a separate
-  feature.
+  sit under "Typed in 1.2.0, live verification pending".
+- Layer parenting (rev `2026-10-23.2`) builds on that pass: `set-parent` and
+  `add-controller` steps use `Layer.transformParent`, `NullLayer.layers`, and
+  `Scene.createNullLayer({ layers })` — feature-detected, none live-verified,
+  under the same `runtime-api.md` heading. The pull request that added them
+  carries the live-verification plan: a dev build with trace capture on, one
+  recording that parents a layer to a null object made in Creator's UI, and
+  one replay onto other layers. The `record.start` debug probe's
+  `parentingIntrospection` answers for all four members on the first debug
+  recording.
+- Baselined on `@lottiefiles/creator-api-types` 1.0.1 (2026-09-06). The typed
+  surfaces this branch starts to use — `creator.utils.isLayer`, the `Scene`
+  settings writes, `getValueAt` baselines, `createGroup(GroupOptions)`,
+  `clientStorage.usedQuota`, and the nest rebuild's members (the inner
+  scene's factories, `creator.createScene`, `createSceneLayer({ scene })`,
+  `isNestableScene`, and `Scene.remove()`) — are all feature-detected and
+  none is live-verified. `runtime-api.md` lists them under "Typed in 1.0.1, live
+  verification pending"; move each one when a trace confirms it.
 - Never live-verified yet: the interface-theme relay (`sandbox/theme.ts` —
   `creator.ui.theme` / `change:theme` per the ui-library docs,
   feature-detected, silent on hosts without it); the set-plain read-back

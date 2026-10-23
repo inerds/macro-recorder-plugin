@@ -39,7 +39,14 @@
  *   the reorder calls) plus `muted`, `volume`, and `audio`, and nothing else.
  * - a write to a NULL_LAYER's `layers` list — it is read-only in 1.1.0, and
  *   `transformParent` on the child is the one writer.
- * - a `transformParent` that is not a transformable layer or `undefined`.
+ * - a `transformParent` that is not a transformable layer or `undefined`, or
+ *   that is the layer itself.
+ *
+ * Two things the typings do not say, chosen strict rather than lenient: a
+ * `createNullLayer` whose `layers` list holds a bad entry seats nothing and
+ * links nothing, and removing a layer clears the parent of every layer that
+ * pointed at it, because a dangling reference to a deleted node is not a
+ * `TransformableLayer`.
  *
  * It does NOT model `Scene.import`: the one route to an audio layer is
  * asynchronous and decodes real audio, and the plugin never calls it. A test
@@ -59,6 +66,18 @@
  * skip path, which the tests drive by deleting the member. What stays
  * host-faithful is the ROOT scene's `createSceneLayer()`: it creates an EMPTY
  * scene layer and never consumes the selection (quirk 8).
+ *
+ * Parenting is modelled exactly as creator-api-types 1.1.0 and 1.2.0 type it,
+ * and NO trace has verified any of it yet (docs/runtime-api.md). Every layer
+ * carries `transformParent`, writable to a transformable layer or
+ * `undefined` and refused for anything else; a `NULL_LAYER` carries a
+ * read-only `layers` list DERIVED from the other layers' `transformParent`,
+ * never stored; and `scene.createNullLayer({ name, position, layers })`
+ * parents the given layers to the new null layer. Two things the typings do
+ * not say, chosen strict rather than lenient: a layer cannot be its own
+ * parent, and removing a layer clears the parent of every layer that pointed
+ * at it, because a dangling reference to a deleted node is not a
+ * `TransformableLayer`.
  *
  * Pure data only: no DOM, so it compiles under tsconfig.sandbox.json too.
  */
@@ -667,6 +686,13 @@ export function makeNode(
         const at = list.indexOf(node);
         if (at >= 0) list.splice(at, 1);
       }
+      // A deleted node is no `TransformableLayer`: the layers it drove let
+      // go of it, rather than hold a reference to a node that throws.
+      for (const sibling of siblingLayers()) {
+        if (sibling !== node && sibling.transformParent === node) {
+          sibling.transformParent = undefined;
+        }
+      }
       gone = true;
     },
     /**
@@ -752,6 +778,12 @@ export function makeNode(
     },
   };
   const nodeId = nextId("node");
+
+  /** The layers seated beside this node in its scene, or none. */
+  function siblingLayers(): Any[] {
+    const list = node.parent?.layers;
+    return Array.isArray(list) ? list : [];
+  }
 
   // --- SceneLayer: a source scene plus break() -----------------------------
   // 1.0.1 `SceneLayer` is `{ type, scene, break }` on top of LayerMixin. The
@@ -1178,7 +1210,25 @@ export function makeInnerScene(
   scene.createTextLayer = factory("TEXT_LAYER", TEXT_LAYER_CREATE_KEYS, "Text Layer");
   scene.createSceneLayer = factory("SCENE_LAYER", SCENE_LAYER_CREATE_KEYS, "Scene");
   // Creator's UI calls a null layer a "null object" (1.1.0 NullLayer docs).
-  scene.createNullLayer = factory("NULL_LAYER", NULL_LAYER_CREATE_KEYS, "Null Object");
+  const createNull = factory("NULL_LAYER", NULL_LAYER_CREATE_KEYS, "Null Object");
+  /**
+   * The `layers` list is validated as a whole BEFORE the null layer is seated
+   * or anything is linked, so a bad entry leaves the scene exactly as it was:
+   * the typings promise an array of `TransformableLayer`, and this fake takes
+   * nothing looser than that.
+   */
+  scene.createNullLayer = (opts: Any = {}) => {
+    if (!isPlainObject(opts)) invalidInput();
+    const children = fields(opts).layers;
+    if (children !== undefined) {
+      if (!Array.isArray(children)) invalidInput();
+      for (const child of children) {
+        if (child === null || typeof child !== "object") invalidInput();
+        if (!TRANSFORMABLE_LAYER_TYPES.includes(String(child.type))) invalidInput();
+      }
+    }
+    return createNull(opts);
+  };
   return scene;
 }
 

@@ -127,6 +127,11 @@ export function partitionByScope(
         if (grow(payload.spec.nodeId)) grew = true;
       } else if (payload.op === "nest-layers") {
         if (payload.layers.some((ref) => ids.has(ref.id)) && grow(payload.spec.nodeId)) grew = true;
+      } else if (payload.op === "add-controller") {
+        // A null object made to drive a scoped layer joins the scope, like
+        // the scene layer a nest makes: later edits to its transform are the
+        // user rigging their layer.
+        if (payload.layers.some((ref) => ids.has(ref.id)) && grow(payload.spec.nodeId)) grew = true;
       } else if (payload.op === "break-scene" && ids.has(payload.layer.id)) {
         for (const spec of payload.fallback) {
           if (grow(spec.nodeId)) grew = true;
@@ -150,6 +155,22 @@ export function partitionByScope(
         // Nesting a scoped layer with unscoped ones is still the user acting
         // on their layer, and replay rebuilds the whole nest from `spec`.
         keep = payload.layers.some((ref) => ids.has(ref.id));
+        break;
+      case "add-controller":
+        // Same rule as a nest: a controller over the watched layer is the
+        // user's edit to that layer, whatever else it parents. One over other
+        // layers alone is their rig, not this recording's — dropped and
+        // counted, even though the null layer itself is new.
+        keep = payload.layers.some((ref) => ids.has(ref.id));
+        break;
+      case "set-parent":
+        // The parent change belongs to the layer whose `transformParent`
+        // moved. The watched layer gaining a parent is recorded; another
+        // layer being parented TO the watched layer is that other layer's
+        // edit, and is dropped and counted like any other edit outside the
+        // scope. A legacy payload with no binding can only mean the recorded
+        // layer.
+        keep = payload.layer === undefined || ids.has(payload.layer.id);
         break;
       case "reorder-layers":
         // A permutation of layers the user never touched is not their edit.

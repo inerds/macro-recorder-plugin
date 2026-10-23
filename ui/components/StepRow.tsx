@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   Layers,
+  Link2,
   Move,
   PaintBucket,
   PenLine,
@@ -36,6 +37,7 @@ const KIND_ICONS: Record<StepKind, typeof Move> = {
   layer: Layers,
   shape: Shapes,
   mask: Scissors,
+  parent: Link2,
   other: Circle,
 };
 

@@ -83,6 +83,25 @@ the checked-in `engine/` sources, which is why the generator is a throwaway.
 
 ## Coverage
 
-`engine/corpus.test.ts` lists every `op` in the `StepPayload` union and fails
-until a fixture carries each one. A new op needs a fixture before that check
-passes.
+`engine/corpus.test.ts` checks every `op` in the `StepPayload` union against
+the corpus and fails until a fixture carries each one. The list it checks is
+`STEP_OPS` in `engine/steps.ts`, built from a `Record<StepPayload["op"],
+true>`: a new arm of the union is a compile error there until it is listed,
+and then a failing test here until a fixture carries it. The test keeps no
+literal of its own, so a new op cannot pass without a fixture.
+
+## The fixtures
+
+| File | Era | What the shape introduced |
+|---|---|---|
+| `01-v1-legacy.json` | `v1-legacy` | The first cut: `add-fill` and a mock `not-replayable` payload. |
+| `02-v3-launch.json` | `v3-launch` | Engine v3: deep paths with `shapeHint`, paints, masks, trims, shapes, and the `layer` binding. |
+| `03-kf-tangents.json` | `kf-tangents` | Motion-path handles on keyframes, which Creator drops. |
+| `04-params-disabled.json` | `params-disabled` | `params` pins and `disabled` steps. |
+| `05-play-options.json` | `play-options` | `playOptions`, and a positional `reorder-layers` with no identities. |
+| `06-reorder-verified.json` | `reorder-verified` | `reorder-layers` carries the layers in their new order; a fresh `add-layer` and a `remove-layer`. |
+| `07-scene-settings.json` | `scene-settings` | `set-scene`, with a `nest-layers` and a `break-scene`. |
+| `08-formula-strings.json` | `formula-strings` | The first cut's `apply` strings. |
+| `09-formula-terms.json` | `formula-terms` | `apply` as linear terms, one per component. |
+| `10-current.json` | `current` | The exact-values formula the Option-Record modifier stamps. |
+| `11-parenting.json` | `parenting` | `set-parent` and `add-controller`, the `parent` kind, and `transformParent` on a layer spec. The newest fixture, so `buildStep` must still write it. |

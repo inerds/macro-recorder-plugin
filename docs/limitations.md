@@ -255,9 +255,13 @@ a move. What 1.1.0 adds is a different surface: a null layer
 (`Scene.createNullLayer({ layers })`) and a writable `transformParent` on every
 transformable layer. That is transform PARENTING — a child follows a parent's
 transform and stays in its own slot of the layer list — not nesting into a
-scene, so it does not answer this entry. Recording and replaying it is a
-separate feature; `runtime-api.md` lists the members under "Typed in 1.2.0,
-live verification pending".
+scene, so it does not answer this entry. Since rev `2026-10-23.2` the
+recorder records it as a `set-parent` step, and a null object added above
+layers as an `add-controller` step; replay writes `transformParent` and calls
+`scene.createNullLayer({ layers })`. Those members stay typed and not yet
+live-verified; `runtime-api.md` lists them under "Typed in 1.2.0, live
+verification pending". A move INTO a scene layer's content still has no API,
+so the rebuild above stays the route for a nest.
 
 **Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06
 and against 1.2.0 on 2026-10-23):**

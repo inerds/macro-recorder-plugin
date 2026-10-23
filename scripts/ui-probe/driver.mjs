@@ -636,14 +636,18 @@ export async function launchProbe({ baseUrl, artifactDir = DEFAULT_ARTIFACT_DIR 
         return window.harness.selection.map((n) => n.name); })()`,
     );
 
-  /** One fake node's transform, read through the same proxies the plugin uses. */
+  /**
+   * One fake node's transform, read through the same proxies the plugin
+   * uses. `parent` is the name of its transform parent, or null for none.
+   */
   const readNode = (name) =>
     evaluate(
       `(() => { const node = window.harness.nodes[${JSON.stringify(name)}];
         if (!node) return null;
         const read = (prop) => (node[prop] ? node[prop].staticValue : undefined);
+        const parent = node.transformParent ? node.transformParent.name : null;
         return { name: node.name, position: read("position"), rotation: read("rotation"),
-                 opacity: read("opacity"), scale: read("scale") }; })()`,
+                 opacity: read("opacity"), scale: read("scale"), parent }; })()`,
     );
 
   /**

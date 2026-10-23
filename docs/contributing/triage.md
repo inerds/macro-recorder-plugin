@@ -75,6 +75,14 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   scene — left it where it was`, `couldn't rebuild your 3 selected layers
   inside a new scene — left them where they are`, and `couldn't find the
   layers to nest — rebuilt Nested Scene 5 from the recording instead`.
+  One fence at rev `2026-10-23.2`: layer parenting. A `set-parent` or
+  `add-controller` step, the `parent` kind, `transformParent` on a layer
+  snapshot, `parentingIntrospection` on the `record.start` debug result,
+  and `parent` on a `set-parent` step's probes all exist only from that rev
+  — an earlier trace of a rigging session is silent because the engine never
+  read the member, not because the host lacks it. From that rev on, a
+  snapshot WITHOUT `transformParent` on a top-level layer is the finding
+  that the host does not expose the member.
   Adoption is the empty-selection path alone from that rev, and its note now
   reads `Nested Scene 5 already exists — using it`; the
   `(its layers are inside)` wording belongs to `2026-09-06.2` and

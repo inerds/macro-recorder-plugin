@@ -331,7 +331,8 @@ export function layerBindingOf(payload: unknown): LayerRef | null {
     op === "remove-layer" ||
     op === "break-scene" ||
     op === "nest-layers" ||
-    op === "reorder-layers"
+    op === "reorder-layers" ||
+    op === "add-controller"
   ) {
     return null;
   }
@@ -441,7 +442,13 @@ function beforeTextOf(payload: StepPayload): string | null {
     return fmt(payload.before);
   }
   if (payload.op === "set-scene") return fmtSetting(payload.key, payload.before);
+  if (payload.op === "set-parent") return payload.before ? parentName(payload.before) : null;
   return null;
+}
+
+/** A parent's name as the label says it; a nameless identity reads "layer". */
+function parentName(ref: { name?: string }): string {
+  return ref.name ?? "layer";
 }
 
 /** Structural roots a set-plain path can start at — `Mask · mode` beats
@@ -585,6 +592,19 @@ function bareLabelOf(payload: StepPayload): string {
       return "Reorder layers";
     case "set-scene":
       return `Scene · ${sceneSettingName(payload.key)} ${fmtSetting(payload.key, payload.before)} → ${fmtSetting(payload.key, payload.after)}`;
+    case "set-parent": {
+      // "Parent → Rig" when the layer had none; "Parent Rig → none" when it
+      // was cleared. The arrow form keeps `labelPartsOf`'s split, with the
+      // old parent as the before half.
+      const from = payload.before ? ` ${parentName(payload.before)}` : "";
+      const to = payload.parent ? parentName(payload.parent) : "none";
+      return `Parent${from} → ${to}`;
+    }
+    case "add-controller": {
+      const name = payload.spec.nodeName ? ` "${payload.spec.nodeName}"` : "";
+      const names = payload.layers.map((l) => l.name ?? "layer").join(", ");
+      return `Add controller${name} above ${names || "layers"}`;
+    }
     case "not-replayable":
       return payload.description;
   }

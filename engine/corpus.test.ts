@@ -25,7 +25,7 @@ import { labelOf } from "./labels";
 import { isMacroShape, parseImportedMacro, type MacroStep } from "./macro";
 import { explicitFormulaOf } from "./operator";
 import { simplifySteps } from "./simplify";
-import { buildStep, kindOf, type StepPayload } from "./steps";
+import { buildStep, kindOf, STEP_OPS, type StepPayload } from "./steps";
 import { CORPUS, CURRENT_FIXTURE } from "./testing/corpus";
 
 /** Text that reads as a rendering bug rather than a label. */
@@ -49,9 +49,11 @@ it("holds a fixture for every era, oldest first", () => {
 });
 
 it("covers every StepPayload op at least once", () => {
-  // The union's own arms, read off the one function that must handle all of
-  // them: `kindOf` switches on `op` with no default, so this list is the
-  // union itself and a new op fails the check until a fixture carries it.
+  // `STEP_OPS` is the union itself: `engine/steps.ts` builds it from a
+  // `Record<StepPayload["op"], true>`, so a new arm of the union is a
+  // compile error there until it is listed, and then fails HERE until a
+  // fixture carries it. An earlier version of this test kept its own literal
+  // of the ops, which a new op could pass without any fixture at all.
   const ops = new Set<string>();
   for (const each of CORPUS) {
     for (const step of each.macro.steps) {
@@ -59,30 +61,10 @@ it("covers every StepPayload op at least once", () => {
       if (payload) ops.add(payload.op);
     }
   }
-  expect([...ops].sort()).toEqual([
-    "add-fill",
-    "add-layer",
-    "add-mask",
-    "add-paint",
-    "add-shape",
-    "add-stroke",
-    "add-trim",
-    "break-scene",
-    "keyframes",
-    "nest-layers",
-    "not-replayable",
-    "remove-layer",
-    "remove-mask",
-    "remove-paint",
-    "remove-shape",
-    "remove-trim",
-    "reorder-layers",
-    "reorder-shapes",
-    "replace-paint",
-    "set-plain",
-    "set-scene",
-    "set-static",
-  ]);
+  expect([...ops].sort()).toEqual([...STEP_OPS].sort());
+  // Every op in a fixture is one the union knows: a typo in a fixture must
+  // not count as coverage of anything.
+  for (const op of ops) expect(STEP_OPS).toContain(op);
 });
 
 describe.each(CORPUS.map((each) => [each.meta.era, each] as const))(

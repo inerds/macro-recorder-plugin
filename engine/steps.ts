@@ -7,6 +7,7 @@ import type {
   MaskSnapshot,
   NodeSnapshot,
   PaintSnapshot,
+  ParentRef,
   Path,
   SceneSettingKey,
   TrimSnapshot,
@@ -120,13 +121,70 @@ export type StepPayload =
    * the relative transform math applies and there is no layer to bind to.
    */
   | { op: "set-scene"; key: SceneSettingKey; before: Json; after: Json }
+  /**
+   * The layer's transform parent changed (`Layer.transformParent`,
+   * creator-api-types 1.1.0). `parent` is the new parent's identity, or null
+   * when the parent was cleared; `before` is the one it left. Replay resolves
+   * the parent by name in the live scene — or by the layer this replay
+   * created for that recorded id — and writes `transformParent` on the
+   * target, so a "parent A to B" macro parents every selected layer to B.
+   */
+  | { op: "set-parent"; parent: ParentRef | null; before: ParentRef | null; layer?: LayerRef }
+  /**
+   * A null layer created as a transform parent for existing layers, in one
+   * tick: Creator's "add null object and parent these to it". `spec` is the
+   * null layer's own end state and `layers` the layers it now parents, in
+   * scene order. Replay calls `scene.createNullLayer({ name, position,
+   * layers })` with the SELECTED layers when there is a selection, and the
+   * recorded `layers` (resolved by name) otherwise, then verifies through
+   * `nullLayer.layers`. A null layer added with no parenting in its tick is
+   * an ordinary `add-layer`.
+   */
+  | { op: "add-controller"; spec: NodeSnapshot; layers: LayerRef[] }
   /** observable but not replayable via the plugin API (e.g. reorder) */
   | { op: "not-replayable"; description: string }
   /** legacy v1 payloads still found in saved macros */
   | { op: "add-fill"; spec: PaintSnapshot };
 
 export type StepKind =
-  "transform" | "fill" | "stroke" | "keyframe" | "layer" | "shape" | "mask" | "other";
+  "transform" | "fill" | "stroke" | "keyframe" | "layer" | "shape" | "mask" | "parent" | "other";
+
+/**
+ * Every `op` in the `StepPayload` union, as a runtime list. The `Record` type
+ * makes a new arm a compile error here until it is listed, which is what lets
+ * `engine/corpus.test.ts` demand a fixture for every op without a hand-kept
+ * literal of its own.
+ */
+const STEP_OP_TABLE: Record<StepPayload["op"], true> = {
+  "set-static": true,
+  keyframes: true,
+  "set-plain": true,
+  "add-paint": true,
+  "remove-paint": true,
+  "replace-paint": true,
+  "add-stroke": true,
+  "add-mask": true,
+  "remove-mask": true,
+  "add-trim": true,
+  "remove-trim": true,
+  "add-shape": true,
+  "remove-shape": true,
+  "reorder-shapes": true,
+  "add-layer": true,
+  "remove-layer": true,
+  "break-scene": true,
+  "nest-layers": true,
+  "reorder-layers": true,
+  "set-scene": true,
+  "set-parent": true,
+  "add-controller": true,
+  "not-replayable": true,
+  "add-fill": true,
+};
+
+export const STEP_OPS: readonly StepPayload["op"][] = Object.keys(
+  STEP_OP_TABLE,
+) as StepPayload["op"][];
 
 const TRANSFORM_PROPS = new Set(["position", "scale", "rotation", "skew", "skewAxis", "opacity"]);
 
@@ -190,6 +248,11 @@ export function kindOf(payload: StepPayload): StepKind {
     case "remove-shape":
     case "reorder-shapes":
       return "shape";
+    // Parenting is its own lane: a transform link between layers, neither a
+    // value on the layer nor a change to the layer list.
+    case "set-parent":
+    case "add-controller":
+      return "parent";
     case "not-replayable":
       return "other";
   }

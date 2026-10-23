@@ -1,0 +1,110 @@
+{
+  "_corpus": {
+    "era": "parenting",
+    "introduced": "2026-10-23, first shipped in the release after v0.8.2",
+    "note": "Layer parenting: `set-parent` records a layer's transform parent (an identity, or null for none) and `add-controller` records a null layer created above existing layers in one tick. Both carry the `parent` kind. The null layer's spec carries `transformParent: null`, the value a host that declares the member reads for a layer with no parent."
+  },
+  "id": "corpus-parenting",
+  "name": "Rig the hero",
+  "createdAt": 1761220000000,
+  "steps": [
+    {
+      "id": "par-1",
+      "kind": "parent",
+      "label": "Add controller \"Rig\" above Hero Square, Orbit Dot",
+      "payload": {
+        "op": "add-controller",
+        "spec": {
+          "nodeId": "corpus-rig",
+          "nodeType": "NULL_LAYER",
+          "nodeName": "Rig",
+          "props": {
+            "position": {
+              "animated": false,
+              "static": {
+                "x": 300,
+                "y": 300
+              }
+            },
+            "rotation": {
+              "animated": false,
+              "static": 0
+            },
+            "opacity": {
+              "animated": false,
+              "static": 100
+            }
+          },
+          "plain": {
+            "visible": true
+          },
+          "fills": [],
+          "strokes": [],
+          "masks": [],
+          "trims": [],
+          "shapes": [],
+          "transformParent": null
+        },
+        "layers": [
+          {
+            "id": "demo-hero",
+            "name": "Hero Square"
+          },
+          {
+            "id": "demo-orbit",
+            "name": "Orbit Dot"
+          }
+        ]
+      }
+    },
+    {
+      "id": "par-2",
+      "kind": "parent",
+      "label": "Caption · Parent → Rig",
+      "payload": {
+        "op": "set-parent",
+        "parent": {
+          "id": "corpus-rig",
+          "name": "Rig"
+        },
+        "before": null,
+        "layer": {
+          "id": "demo-caption",
+          "name": "Caption"
+        }
+      }
+    },
+    {
+      "id": "par-3",
+      "kind": "parent",
+      "label": "Orbit Dot · Parent Rig → none",
+      "payload": {
+        "op": "set-parent",
+        "parent": null,
+        "before": {
+          "id": "corpus-rig",
+          "name": "Rig"
+        },
+        "layer": {
+          "id": "demo-orbit",
+          "name": "Orbit Dot"
+        }
+      }
+    },
+    {
+      "id": "par-4",
+      "kind": "transform",
+      "label": "Rig · Transform · rotation +15",
+      "payload": {
+        "op": "set-static",
+        "path": ["rotation"],
+        "before": 0,
+        "after": 15,
+        "layer": {
+          "id": "corpus-rig",
+          "name": "Rig"
+        }
+      }
+    }
+  ]
+}

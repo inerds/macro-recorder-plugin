@@ -117,6 +117,51 @@ function introspectSelection(): Json {
 }
 
 /**
+ * Dev-only: does this host carry the parenting members creator-api-types
+ * 1.1.0 and 1.2.0 declare? `transformParent` is probed on the first layer
+ * both ways the engine reads it — the `in` operator (what the serializer
+ * feature-detects with) and the own-and-prototype surface — so a trace can
+ * show the two disagreeing on a proxy that lacks a `has` trap. No trace has
+ * verified any of these members yet (docs/runtime-api.md).
+ */
+function introspectParenting(scene: AnyProxy, node: AnyProxy | undefined): Json {
+  const result: Record<string, Json> = {};
+  try {
+    result.createNullLayer = typeof scene?.createNullLayer;
+  } catch (error) {
+    result.createNullLayer = `threw: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  try {
+    result.isTransformableLayer = typeof (creator as AnyProxy).utils?.isTransformableLayer;
+  } catch (error) {
+    result.isTransformableLayer = `threw: ${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
+  if (node === undefined) return result;
+  try {
+    result.transformParentIn = "transformParent" in node;
+  } catch (error) {
+    result.transformParentIn = `threw: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  try {
+    result.transformParentOnSurface = surfaceOf(node).includes("transformParent");
+  } catch (error) {
+    result.transformParentOnSurface = `threw: ${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
+  try {
+    const value: AnyProxy = node.transformParent;
+    result.transformParentType =
+      value === null ? "null" : value === undefined ? "undefined" : typeof value;
+  } catch (error) {
+    result.transformParentType = `threw: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  return result;
+}
+
+/**
  * Dev-only: the first RECTANGLE shape's real surface plus every plausible
  * home for corner rounding. 1.0.1 types `Rectangle.roundness` as a full
  * `Animatable<number>`, but the proxy stays dead at runtime — no trace has
@@ -371,6 +416,7 @@ export function recordStart(params: { debug?: boolean }): {
   keyframeIntrospection?: Json;
   shapeIntrospection?: Json;
   selectionIntrospection?: Json;
+  parentingIntrospection?: Json;
   scope: ScopeReport;
   selectionCount?: number;
 } {
@@ -400,6 +446,7 @@ export function recordStart(params: { debug?: boolean }): {
     keyframeIntrospection?: Json;
     shapeIntrospection?: Json;
     selectionIntrospection?: Json;
+    parentingIntrospection?: Json;
     scope: ScopeReport;
     selectionCount?: number;
   } = { nodeId: snapshot.sceneId ?? "scene", scope: report };
@@ -436,6 +483,7 @@ export function recordStart(params: { debug?: boolean }): {
       result.shapeIntrospection = introspectRectangle(scene);
     }
     result.selectionIntrospection = introspectSelection();
+    result.parentingIntrospection = introspectParenting(scene, probe);
   }
   return result;
 }

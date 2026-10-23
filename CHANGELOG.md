@@ -6,6 +6,15 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- The recorder now records layer parenting: a layer's transform parent, set
+  to a null object or to another layer, or cleared, and a null object added
+  above layers, which reads as one step, *Add controller "Null 1" above
+  Layer A, Layer B*. A parent step plays onto every selected layer and finds
+  the parent by name in the scene; a controller step creates a new null
+  object above the selected layers. Creator declares these members in its
+  plugin typings (`@lottiefiles/creator-api-types` 1.1.0 and 1.2.0), and no
+  Creator session has confirmed them yet: a host without them skips the
+  step with a note.
 - Creator's two new layer kinds are safe to have in a scene. A null object
   (a layer that only moves other layers) records and replays its own
   transform, and a replay that must add one builds a real null layer when

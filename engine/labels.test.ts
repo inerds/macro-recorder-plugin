@@ -844,3 +844,61 @@ describe("1.2.0 layer kinds", () => {
     );
   });
 });
+
+describe("labelOf — transform parenting", () => {
+  const bound = { id: "A", name: "Layer A" };
+
+  it("names the new parent, with the layer the step is bound to in front", () => {
+    const payload: StepPayload = {
+      op: "set-parent",
+      parent: { id: "N", name: "Rig" },
+      before: null,
+      layer: bound,
+    };
+    expect(labelOf(payload)).toBe(`Layer A ${DOT} Parent ${ARROW} Rig`);
+    expect(kindOf(payload)).toBe("parent");
+    expect(labelPartsOf(payload)).toEqual({ path: `Layer A ${DOT} Parent`, after: "Rig" });
+  });
+
+  it("shows the parent it left, and 'none' for a cleared one", () => {
+    const payload: StepPayload = {
+      op: "set-parent",
+      parent: null,
+      before: { id: "N", name: "Rig" },
+      layer: bound,
+    };
+    expect(labelOf(payload)).toBe(`Layer A ${DOT} Parent Rig ${ARROW} none`);
+    expect(labelPartsOf(payload)).toEqual({
+      path: `Layer A ${DOT} Parent`,
+      before: "Rig",
+      after: "none",
+    });
+    expect(joinLabelParts(labelPartsOf(payload))).toBe(labelOf(payload));
+  });
+
+  it("reads 'layer' for a nameless parent identity", () => {
+    expect(
+      labelOf({ op: "set-parent", parent: { id: "N" }, before: { id: "M" }, layer: bound }),
+    ).toBe(`Layer A ${DOT} Parent layer ${ARROW} layer`);
+  });
+
+  it("names a controller and the layers under it, with no layer prefix", () => {
+    const payload: StepPayload = {
+      op: "add-controller",
+      spec: { ...shapeSpec("NULL_LAYER"), nodeName: "Rig" },
+      layers: [
+        { id: "A", name: "Layer A" },
+        { id: "B", name: "Layer B" },
+      ],
+    };
+    expect(labelOf(payload)).toBe('Add controller "Rig" above Layer A, Layer B');
+    expect(kindOf(payload)).toBe("parent");
+    expect(sharedLayerName([buildStep(payload)])).toBe("");
+  });
+
+  it("calls a bare null layer by its API name", () => {
+    expect(
+      labelOf({ op: "add-layer", spec: { ...shapeSpec("NULL_LAYER"), nodeName: "Rig" } }),
+    ).toBe('Add null layer "Rig"');
+  });
+});

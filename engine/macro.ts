@@ -33,6 +33,11 @@ export interface Macro {
   playOptions?: { atPlayhead?: boolean; staggerFrames?: number; repeat?: number };
 }
 
+/**
+ * Every `StepKind` a saved macro may carry. This list is CLOSED: a step whose
+ * kind is not here fails `isMacroShape`, and the whole macro then vanishes
+ * from the panel. A new kind in `engine/steps.ts` has to be added here too.
+ */
 const STEP_KINDS: readonly string[] = [
   "transform",
   "fill",
@@ -41,6 +46,7 @@ const STEP_KINDS: readonly string[] = [
   "layer",
   "shape",
   "mask",
+  "parent",
   "other",
 ];
 
