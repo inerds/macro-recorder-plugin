@@ -812,3 +812,35 @@ describe("propDisplayName", () => {
     expect(propDisplayName("opacity")).toBe("opacity");
   });
 });
+
+describe("1.2.0 layer kinds", () => {
+  const spec = (nodeType: string, nodeName: string) => ({
+    nodeId: "n",
+    nodeType,
+    nodeName,
+    props: {},
+    plain: {},
+    fills: [],
+    strokes: [],
+    masks: [],
+    shapes: [],
+  });
+
+  it("names a null layer and an audio layer in an add-layer label", () => {
+    expect(labelOf({ op: "add-layer", spec: spec("NULL_LAYER", "Controller") })).toBe(
+      'Add null layer "Controller"',
+    );
+    expect(labelOf({ op: "add-layer", spec: spec("AUDIO_LAYER", "Music.mp3") })).toBe(
+      'Add audio layer "Music.mp3"',
+    );
+  });
+
+  it("reads a mute as an on/off flag and a volume as a value change", () => {
+    expect(labelOf({ op: "set-plain", path: ["muted"], before: false, after: true })).toBe(
+      `Layer ${DOT} muted on`,
+    );
+    expect(labelOf({ op: "set-static", path: ["volume"], before: 100, after: 40 })).toBe(
+      `volume 100 ${ARROW} 40`,
+    );
+  });
+});

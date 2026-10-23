@@ -12,6 +12,16 @@ findings belong in the failure taxonomy.
 
 ---
 
+## 2026-10-23 — creator-api-types 1.2.0
+
+| Issue | Fix |
+|---|---|
+| **The sandbox compiled against `@lottiefiles/creator-api-types` 1.0.1 while 1.1.0 (null layers, `transformParent`) and 1.2.0 (audio layers, `TransformableLayer`, `isTransformableLayer`, the `import` overloads) were published.** The typings compiled either way — the sandbox types proxies as `any` — so nothing flagged the two layer kinds a scene could now hold. | `package.json` pins 1.2.0 (`pnpm type-check` passes with zero changes to the sources). `docs/runtime-api.md`, `docs/limitations.md`, `docs/architecture.md`, and `CLAUDE.md` are re-pinned, and every new member sits under "Typed in 1.2.0, live verification pending" with the call the engine makes and its fallback. Dependabot PR #17, which carries 1.1.0 inside a ten-package group, is superseded on this one line. |
+| `createLayerFromSpec` sent every node type it did not recognise to `createShapeLayer`, so an `add-layer` step for a `NULL_LAYER` or an `AUDIO_LAYER` would have built a shape shell — the TEXT_LAYER failure of 2026-08-24 again, for two more kinds. | A `NULL_LAYER` spec takes `scene.createNullLayer` when the host offers it and skips with "this scene can't create null layers — skipped" when it does not. An `AUDIO_LAYER` spec skips with "can't re-create an audio layer — the recording has no audio asset — skipped", the same refusal an image layer gets, and `nestByRebuild` holds audio sources back the way it holds image sources. Both go through `assetKindOf`. |
+| The missing-factory note read "this scene can't create text layer layers — skipped". | The kind drops its trailing "layer": "text layers", "null layers", "scene layers". |
+| `engine/snapshot.ts` had no registry entry for the new kinds, so an audio layer fell to the union-of-everything probe and a null layer did too. | `TYPE_PROPS.NULL_LAYER` is the transform set, `TYPE_PROPS.AUDIO_LAYER` is `["volume"]`, and `PLAIN_PROPS` carries `muted`. An idle audio layer records nothing (vitest and the QuickJS smoke both check it); a volume edit records as one absolute `set-static` and a mute as one `set-plain`, and the labels read "volume 100 → 40" and "Layer · muted on". |
+| `isLayerNode` asked `creator.utils.isLayer` and then `startFrame`. Both say yes to a 1.2.0 audio layer, which has no transform for a step to land on, so a selected one would have been a target and every transform step on it a skip. | `isLayerNode` asks `isTransformableLayer` first, then `isLayer`, then `startFrame`, each only when it answers with a boolean. A dropped audio layer is reported as "1 selected audio layer skipped — macros replay onto layers with a transform", not as a shape; the shape note is unchanged. |
+| `engine/testing/fakeScene.ts` knew four layer kinds and no `creator.utils`. | `NULL_LAYER` (LayerMixin plus a read-only `layers` list) and `AUDIO_LAYER` (BaseLayerMixin plus `muted`, `volume`, `audio`, and no transform, `visible`, `blendMode`, or masks) join `LAYER_TYPES`; every transformable layer carries a validated `transformParent`; `makeInnerScene` gains `createNullLayer`; `makeUtils()` models the three type guards, and the dev harness attaches it. The header lists the new refusals. |
 ## 2026-09-08 — Trace index
 
 | Issue | Fix |

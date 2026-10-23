@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { makeIds, makeNode } from "../engine/testing/fakeScene";
 import { recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
+import { serializeNode } from "./serialize";
 
 type Any = any;
 
@@ -477,5 +478,99 @@ describe("selectionPeek", () => {
     stubCreator(undefined);
     const { selectionPeek } = await import("./recorder");
     expect(selectionPeek()).toEqual({ scope: null });
+  });
+});
+
+describe("1.2.0 layer kinds in a recording (typed, not live-verified)", () => {
+  it("records nothing from an idle audio layer, and its snapshot carries no transform", () => {
+    const nextId = makeIds();
+    const shape = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const music = makeNode("Music.mp3", { type: "AUDIO_LAYER" }, nextId);
+    const scene = makeSceneRoot(nextId, [shape, music]);
+    stubCreator(scene);
+
+    recordStart({});
+    expect(recordTick(1).steps).toEqual([]);
+    expect(recordStop().steps).toEqual([]);
+
+    // The snapshot the differ saw: `volume` alone among the animatables, the
+    // four BaseLayerMixin flags plus `muted`, and no transform, mask, or paint
+    // slot that an absent-vs-present comparison could turn into a step.
+    const snapshot = serializeNode(music);
+    expect(snapshot.nodeType).toBe("AUDIO_LAYER");
+    expect(Object.keys(snapshot.props)).toEqual(["volume"]);
+    expect(snapshot.plain).toEqual({
+      locked: false,
+      startFrame: 0,
+      endFrame: 150,
+      timelineOffset: 0,
+      muted: false,
+    });
+    expect(snapshot.fills).toEqual([]);
+    expect(snapshot.strokes).toEqual([]);
+    expect(snapshot.masks).toEqual([]);
+    expect(snapshot.shapes).toEqual([]);
+  });
+
+  it("records a volume edit as one absolute step and a mute as one plain step", () => {
+    const nextId = makeIds();
+    const music = makeNode("Music.mp3", { type: "AUDIO_LAYER" }, nextId);
+    const scene = makeSceneRoot(nextId, [music]);
+    stubCreator(scene);
+
+    recordStart({});
+    music.volume.staticValue = 40;
+    const tick1 = recordTick(1);
+    expect(tick1.steps).toHaveLength(1);
+    expect(tick1.steps[0]!.payload).toMatchObject({
+      op: "set-static",
+      path: ["volume"],
+      before: 100,
+      after: 40,
+    });
+    expect(tick1.steps[0]!.label).toContain("volume 100 → 40");
+
+    music.muted = true;
+    const tick2 = recordTick(2);
+    expect(tick2.steps).toHaveLength(1);
+    expect(tick2.steps[0]!.payload).toMatchObject({
+      op: "set-plain",
+      path: ["muted"],
+      before: false,
+      after: true,
+    });
+    expect(tick2.steps[0]!.label).toContain("muted on");
+  });
+
+  it("records a null layer's transform, and neither its layers list nor a transformParent", () => {
+    const nextId = makeIds();
+    const controller = makeNode("Controller", { type: "NULL_LAYER" }, nextId);
+    const child = makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId);
+    const scene = makeSceneRoot(nextId, [controller, child]);
+    stubCreator(scene);
+
+    recordStart({});
+    // Parenting is a separate surface: the recorder does not see it yet.
+    child.transformParent = controller;
+    expect(controller.layers).toEqual([child]);
+    expect(recordTick(1).steps).toEqual([]);
+
+    controller.position.staticValue = { x: 10, y: 0 };
+    const tick = recordTick(2);
+    expect(tick.steps).toHaveLength(1);
+    expect(tick.steps[0]!.payload).toMatchObject({ op: "set-static", path: ["position"] });
+
+    const snapshot = serializeNode(controller);
+    expect(Object.keys(snapshot.props).sort()).toEqual([
+      "opacity",
+      "position",
+      "rotation",
+      "scale",
+      "skew",
+      "skewAxis",
+    ]);
+    expect("layers" in snapshot.plain).toBe(false);
+    expect("transformParent" in snapshot.plain).toBe(false);
+    expect(snapshot.shapes).toEqual([]);
   });
 });
