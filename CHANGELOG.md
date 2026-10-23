@@ -6,6 +6,17 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+- The recorder now records layer parenting: a layer's transform parent, set
+  to a null object or to another layer, or cleared, and a null object added
+  above layers, which reads as one step, *Add controller "Null 1" above
+  Layer A, Layer B*. A parent step plays onto every selected layer and finds
+  the parent by name in the scene; a controller step creates a new null
+  object above the selected layers. Creator declares these members in its
+  plugin typings (`@lottiefiles/creator-api-types` 1.1.0 and 1.2.0), and no
+  Creator session has confirmed them yet: a host without them skips the
+  step with a note.
+- The plugin builds against `@lottiefiles/creator-api-types` 1.2.0.
+
 ## 0.8.2 — 2026-09-08
 
 - The user guide is now published as a GitHub wiki page, mirrored from

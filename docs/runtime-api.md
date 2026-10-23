@@ -1,10 +1,12 @@
 # Creator plugin API — runtime ground truth
 
 This document records what the Creator plugin API really does at runtime. The
-published typings are `@lottiefiles/creator-api-types` 1.0.1. Version 1.0.1
-fixed most of the omissions and dropped the members that never existed. Each
-member appears once below, under the one status that describes it: verified
-live, typed but not verified yet, live but untyped, or absent from the host
+published typings are `@lottiefiles/creator-api-types` 1.2.0, adopted on
+2026-10-23. Version 1.0.1 fixed most of the omissions and dropped the members
+that never existed; 1.1.0 added null layers and `transformParent`; 1.2.0
+added audio layers and `creator.utils.isTransformableLayer`. Each member
+appears once below, under the one status that describes it: verified live,
+typed but not verified yet, live but untyped, or absent from the host
 altogether. **Runtime introspection inside real Creator** established the
 findings — own and prototype property enumeration, stamped into traces —
 together with live replay verification during 2026-08-21/22. Treat this file
@@ -22,9 +24,11 @@ The runtime `type` strings and 1.0.1 agree:
 | `TEXT_LAYER` | `TEXT_LAYER` | see text section |
 | image layers (from drops) | `IMAGE_LAYER` | generic layer surface works |
 | `RECTANGLE` `ELLIPSE` `POLYGON` `STAR` `PATH` `GROUP` | ✓ | shape stack members |
+| null objects | `NULL_LAYER` (1.1.0) | typed only — no trace has read one yet; see below |
 
 History: 0.0.2 said `Container` for a shape layer and `SCENE_INSTANCE` for a
-scene layer, and it named no text or image layer type.
+scene layer, and it named no text or image layer type. 1.2.0 also declares
+`AudioLayer`, which has no transform; the engine never reads one.
 
 ## `creator.timeline.currentFrame` — VERIFIED readable from the sandbox
 
@@ -160,6 +164,46 @@ one yet. Every call stays feature-detected, and each one has a fallback:
   `hello` result. The host exposes the bytes USED and no maximum, so a
   plugin cannot measure the cap: `saveMacro` blames a full store only when
   the host's own message names the quota.
+
+## Typed in 1.1.0 and 1.2.0, live verification pending
+
+The typings bump to 1.2.0 (2026-10-23) brought four members the engine now
+uses for layer parenting. None has a trace yet. Every call is
+feature-detected, and `record.start`'s debug probe reports
+`parentingIntrospection` — whether `transformParent` is on the first layer
+(by the `in` operator and by the own-and-prototype surface), whether the
+scene has `createNullLayer`, and whether `utils.isTransformableLayer` exists
+— so the first debug recording on a real host answers for all of them:
+
+- `Layer.transformParent` (1.1.0; `TransformableLayer | undefined`, writable).
+  `sandbox/serialize.ts#readTransformParent` reads it as a `{id, name}`
+  identity on every top-level layer, and tells "no parent" from "member
+  absent" with the `in` operator, because `undefined` is a legitimate value
+  of the member. `sandbox/applier.ts#writeTransformParent` writes it for a
+  `set-parent` step and reads it back; a kept value notes `Creator kept the
+  parent as it was — the change didn't apply`, and an absent member notes
+  `Creator doesn't expose transform parents here — skipped`. The debug probe
+  of a `set-parent` step reports the target's parent identity as `parent`.
+- `NullLayer` (1.1.0; runtime type `NULL_LAYER`, with a read-only `layers`
+  list of the layers it parents). The recorder reads it as a layer with the
+  transform animatables and the layer flags; `engine/snapshot.ts#TYPE_PROPS`
+  lists it. The label says "null object", Creator's own name for it.
+- `Scene.createNullLayer({ name?, position?, layers? })` (1.1.0).
+  `sandbox/applier.ts#createNullLayerFrom` calls it for an `add-controller`
+  step and for an `add-layer` step whose spec is a `NULL_LAYER`, then
+  verifies through `nullLayer.layers`. A host that ignores the `layers`
+  option gets one `transformParent` write per layer; a host that rejects the
+  option is retried without it, with an info note; a host without the
+  factory notes `this scene can't create null objects — skipped`.
+- `creator.utils.isTransformableLayer(node)` (1.2.0). Not called yet: the
+  engine's targets are layers already (`isLayerNode`), and a shape as a
+  parent is refused by the write's read-back. Listed so the probe's reading
+  has a home when a trace arrives.
+
+The deprecation that came with them: 1.1.0 deprecates reading a transform
+parent from `BaseLayerMixin.parent` (removal eligible after 2027-03-05).
+Reading the containing `Scene` from `parent` stays supported, and the engine
+never read a parent from it.
 
 ## Still untyped in 1.0.1
 

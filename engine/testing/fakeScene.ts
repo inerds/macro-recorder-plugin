@@ -48,6 +48,18 @@
  * host-faithful is the ROOT scene's `createSceneLayer()`: it creates an EMPTY
  * scene layer and never consumes the selection (quirk 8).
  *
+ * Parenting is modelled exactly as creator-api-types 1.1.0 and 1.2.0 type it,
+ * and NO trace has verified any of it yet (docs/runtime-api.md). Every layer
+ * carries `transformParent`, writable to a transformable layer or
+ * `undefined` and refused for anything else; a `NULL_LAYER` carries a
+ * read-only `layers` list DERIVED from the other layers' `transformParent`,
+ * never stored; and `scene.createNullLayer({ name, position, layers })`
+ * parents the given layers to the new null layer. Two things the typings do
+ * not say, chosen strict rather than lenient: a layer cannot be its own
+ * parent, and removing a layer clears the parent of every layer that pointed
+ * at it, because a dangling reference to a deleted node is not a
+ * `TransformableLayer`.
+ *
  * Pure data only: no DOM, so it compiles under tsconfig.sandbox.json too.
  */
 import type { Json } from "../json";
@@ -552,8 +564,26 @@ const TEXT_PLAIN_DEFAULTS: Record<string, Json> = {
   alignment: "left",
 };
 
-/** 1.0.1 `Layer` = ShapeLayer | SceneLayer | TextLayer | ImageLayer. */
-const LAYER_TYPES = ["SHAPE_LAYER", "CONTAINER", "SCENE_LAYER", "TEXT_LAYER", "IMAGE_LAYER"];
+/**
+ * The `TransformableLayer` union (1.2.0): every `Layer` that extends
+ * `LayerMixin`, which is all of them but `AudioLayer`. CONTAINER is the
+ * runtime spelling of a shape layer (docs/runtime-api.md).
+ */
+const LAYER_TYPES = [
+  "SHAPE_LAYER",
+  "CONTAINER",
+  "SCENE_LAYER",
+  "TEXT_LAYER",
+  "IMAGE_LAYER",
+  "NULL_LAYER",
+];
+
+/** A node this fake made as a layer — the only thing `transformParent` takes. */
+function isTransformableLayer(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const node = value as Any;
+  return LAYER_TYPES.includes(String(node.type)) && "transformParent" in node;
+}
 
 /** The only two carriers of ShapeContainerMixin in 1.0.1. */
 const SHAPE_CONTAINER_TYPES = ["SHAPE_LAYER", "CONTAINER", "GROUP"];
@@ -599,6 +629,13 @@ export function makeNode(
       if (Array.isArray(list)) {
         const at = list.indexOf(node);
         if (at >= 0) list.splice(at, 1);
+      }
+      // A deleted node is no `TransformableLayer`: the layers it drove let
+      // go of it, rather than hold a reference to a node that throws.
+      for (const sibling of siblingLayers()) {
+        if (sibling !== node && sibling.transformParent === node) {
+          sibling.transformParent = undefined;
+        }
       }
       gone = true;
     },
@@ -685,6 +722,47 @@ export function makeNode(
     },
   };
   const nodeId = nextId("node");
+
+  /** The layers seated beside this node in its scene, or none. */
+  function siblingLayers(): Any[] {
+    const list = node.parent?.layers;
+    return Array.isArray(list) ? list : [];
+  }
+
+  // --- Transform parenting: every layer (1.1.0 LayerMixin.transformParent) --
+  // Stored as the parent node itself, exactly what the typings return. The
+  // setter takes a transformable layer or `undefined`, and refuses anything
+  // else — a shape, a scene, a string, the node itself — with the live
+  // host's one error. Reading it back is how the applier verifies a write.
+  if (isLayer) {
+    let transformParent: Any = undefined;
+    Object.defineProperty(node, "transformParent", {
+      enumerable: true,
+      configurable: true,
+      get() {
+        if (gone) throw new Error("node has been deleted");
+        return transformParent;
+      },
+      set(next: Any) {
+        if (next !== undefined && (!isTransformableLayer(next) || next === node)) invalidInput();
+        transformParent = next;
+      },
+    });
+  }
+
+  // --- NullLayer.layers: derived, read-only (1.1.0) ------------------------
+  // "The layers whose transform parent is this null layer" — computed from
+  // the siblings' `transformParent` on every read, so the list can never
+  // disagree with the links it describes.
+  if (nodeType === "NULL_LAYER") {
+    Object.defineProperty(node, "layers", {
+      enumerable: true,
+      configurable: true,
+      get() {
+        return siblingLayers().filter((layer) => layer.transformParent === node);
+      },
+    });
+  }
 
   // --- SceneLayer: a source scene plus break() -----------------------------
   // 1.0.1 `SceneLayer` is `{ type, scene, break }` on top of LayerMixin. The
@@ -939,6 +1017,8 @@ const TEXT_LAYER_CREATE_KEYS = [
   "alignment",
 ];
 const SCENE_LAYER_CREATE_KEYS = [...LAYER_CREATE_KEYS, "scene"];
+/** 1.1.0 `NullLayerCreateOptions`: the layer options plus `layers`. */
+const NULL_LAYER_CREATE_KEYS = [...LAYER_CREATE_KEYS, "layers"];
 
 export interface FakeSceneOptions {
   /** 1.0.1 `Scene.isNestableScene` — false blocks use as a source scene. */
@@ -992,7 +1072,7 @@ export function makeInnerScene(
 
   const applyOptions = (layer: Any, opts: Record<string, Any>) => {
     for (const [key, value] of Object.entries(opts)) {
-      if (key === "scene") continue;
+      if (key === "scene" || key === "layers") continue;
       if (key === "position" || key === "opacity") {
         const prop = layer[key];
         if (prop) prop.staticValue = value as Json;
@@ -1030,6 +1110,27 @@ export function makeInnerScene(
   scene.createShapeLayer = factory("SHAPE_LAYER", LAYER_CREATE_KEYS, "Shape Layer");
   scene.createTextLayer = factory("TEXT_LAYER", TEXT_LAYER_CREATE_KEYS, "Text Layer");
   scene.createSceneLayer = factory("SCENE_LAYER", SCENE_LAYER_CREATE_KEYS, "Scene");
+  /**
+   * 1.1.0 `Scene.createNullLayer(opts?)`: a NULL_LAYER seated at the end of
+   * the list, with every layer in `opts.layers` parented to it. The list is
+   * validated as a whole before any link is made, so a bad entry leaves the
+   * scene exactly as it was — the typings promise an array of
+   * `TransformableLayer`, and this fake takes nothing looser.
+   */
+  const createNull = factory("NULL_LAYER", NULL_LAYER_CREATE_KEYS, "Null");
+  scene.createNullLayer = (opts: Any = {}) => {
+    if (!isPlainObject(opts)) invalidInput();
+    const children = fields(opts).layers;
+    if (children !== undefined) {
+      if (!Array.isArray(children)) invalidInput();
+      for (const child of children) {
+        if (!isTransformableLayer(child)) invalidInput();
+      }
+    }
+    const nullLayer = createNull(opts);
+    for (const child of children ?? []) child.transformParent = nullLayer;
+    return nullLayer;
+  };
   return scene;
 }
 

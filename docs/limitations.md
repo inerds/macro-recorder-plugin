@@ -250,6 +250,16 @@ Five things stay:
 layers into a new scene" macro cannot move the selected layers, and early
 replays produced an empty nested scene.
 
+**Parenting is a different operation, and this entry does not cover it.**
+`Layer.transformParent` (creator-api-types 1.1.0) links a layer's transform
+to another layer's; the layer stays at the scene root, in the same layer
+list, and nothing moves into a scene. The recorder records it as a
+`set-parent` step, and a null object added above layers as an
+`add-controller` step; replay writes `transformParent` and calls
+`scene.createNullLayer({ layers })`. Those members are typed and not yet
+live-verified (`runtime-api.md`). A move INTO a scene layer's content still
+has no API, so the rebuild above stays the route for a nest.
+
 **Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06):**
 - 0.0.2 promised `Scene.createSceneInstance(layers)`. Runtime introspection
   shows **no such method exists** (the scene exposes `createSceneLayer`,

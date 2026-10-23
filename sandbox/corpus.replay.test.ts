@@ -232,3 +232,22 @@ describe("what each corpus macro does to the scene", () => {
     expect(hero.scale.keyframes.map((kf: Any) => kf.frame)).toEqual([0, 18]);
   });
 });
+
+describe("the parenting corpus macro", () => {
+  it("builds the controller above the recorded layers, re-parents the caption, and unparents the orbit", () => {
+    const { scene, hero, orbit, caption, failures, notes, mode } = replay(
+      corpusFixture("parenting"),
+    );
+    expect(mode).toBe("scene");
+    expect(failures).toEqual([]);
+    const rig = scene.layers.find((layer: Any) => layer.type === "NULL_LAYER");
+    expect(rig.name).toBe("Rig");
+    expect(rig.position.staticValue).toEqual({ x: 300, y: 300 });
+    // The later set-static on the controller found it through the recorded
+    // id this replay registered — a scene rebuild writes 15 verbatim.
+    expect(rig.rotation.staticValue).toBe(15);
+    expect(rig.layers).toEqual([hero, caption]);
+    expect(orbit.transformParent).toBeUndefined();
+    expect(notes).toEqual(['created "Rig" above Hero Square, Orbit Dot']);
+  });
+});

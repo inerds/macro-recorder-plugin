@@ -38,6 +38,12 @@ export function describePlaybackMode(macro: {
       createdIds.add(payload.spec.nodeId);
       if (payload.cloneOf) cloneSources.add(payload.cloneOf.id);
       else unretargetableSceneOps = true; // fresh layers are scene structure
+    } else if (payload.op === "add-controller") {
+      // A new null layer is scene structure, like a fresh add-layer. The
+      // replay still follows the selection (it parents the SELECTED layers
+      // when there are any), the way a nest does.
+      createdIds.add(payload.spec.nodeId);
+      unretargetableSceneOps = true;
     } else if (
       payload.op === "remove-layer" ||
       payload.op === "break-scene" ||
@@ -46,6 +52,9 @@ export function describePlaybackMode(macro: {
     ) {
       unretargetableSceneOps = true;
     }
+    // A `set-parent` step's PARENT is not counted: it is a role the replay
+    // fills by name in whatever scene it runs in, not a layer the macro
+    // writes to. "Parent A to B" touches one layer and stays retargetable.
     const ref = "layer" in payload ? payload.layer : undefined;
     if (ref) referenced.add(ref.id);
   }

@@ -11,7 +11,7 @@ import type { Json } from "../engine/json";
 import { jsonEqual, toJson } from "../engine/json";
 import { nodeTypeName, propDisplayName } from "../engine/labels";
 import type { NoteKind } from "../engine/protocol";
-import type { KfSnap, NodeSnapshot, PaintSnapshot, Path } from "../engine/snapshot";
+import type { KfSnap, NodeSnapshot, PaintSnapshot, ParentRef, Path } from "../engine/snapshot";
 import { pathKey, propClassOf } from "../engine/snapshot";
 import { payloadClass } from "../engine/operator";
 import { computeTarget } from "../engine/relative";
@@ -35,6 +35,14 @@ export interface ApplyContext {
    * value is written verbatim.
    */
   mode?: "targets" | "scene";
+  /**
+   * Finds the live layer a `set-parent` step's parent identity names, in the
+   * scene this replay runs in. Supplied by sandbox/playback.ts, which owns
+   * layer resolution — the recorded id, then the name, then the pre-rename
+   * name, and the layers this replay itself created — so the applier never
+   * searches the scene. Absent means no parent can be found.
+   */
+  resolveLayer?: (ref: ParentRef) => AnyProxy | undefined;
 }
 
 /**
@@ -1209,11 +1217,35 @@ export function applyStep(
       return outcomeOf(notes);
     }
 
+    case "set-parent": {
+      // Clearing needs no lookup. Setting resolves the recorded identity
+      // through the orchestrator's chain, then writes and reads back: the
+      // member is typed on 1.1.0 and not live-verified, so a host that
+      // swallows the assignment must be reported, never assumed.
+      const label = payload.parent?.name ?? "the recorded parent";
+      let parent: AnyProxy = undefined;
+      if (payload.parent !== null) {
+        parent = context.resolveLayer?.(payload.parent);
+        if (parent === undefined) {
+          notes.push(`couldn't find "${label}" to parent this layer to — skipped`);
+          return outcomeOf(notes);
+        }
+        if (parent === target) {
+          notes.push(`"${label}" is this layer — a layer can't be its own parent — skipped`);
+          return outcomeOf(notes);
+        }
+      }
+      const written = writeTransformParent(target, parent);
+      if (!written.ok) notes.push(parentFailureNote(written));
+      return outcomeOf(notes);
+    }
+
     case "add-layer":
     case "remove-layer":
     case "break-scene":
     case "nest-layers":
-    case "reorder-layers": {
+    case "reorder-layers":
+    case "add-controller": {
       // Scene-level ops are applied by the playback orchestrator, which owns
       // the scene; reaching applyStep means a legacy selection-mode replay.
       notes.push("scene-level step doesn't apply to a single layer — skipped");
@@ -1664,6 +1696,168 @@ export function readBaseline(target: AnyProxy, path: Path): Json | undefined {
   } catch {
     return undefined;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Transform parenting (creator-api-types 1.1.0 — typed, not live-verified)
+// ---------------------------------------------------------------------------
+
+/** What one `transformParent` write came to. */
+export type ParentWrite =
+  | { ok: true; verified: boolean }
+  | { ok: false; reason: "absent" | "kept" | "threw"; detail?: string };
+
+/** The id a parent proxy reports, or undefined for none / unreadable. */
+function parentIdOf(value: AnyProxy): string | undefined {
+  if (value === undefined || value === null || typeof value !== "object") return undefined;
+  return tryRead(() => String(value.id));
+}
+
+/**
+ * Writes `node.transformParent` and verifies the host kept it.
+ *
+ * `absent`: the node does not carry the member at all, found with the `in`
+ * operator — `undefined` is a legitimate value here (no parent), so a plain
+ * read cannot tell "none" from "not exposed", and a bare assignment would
+ * create a phantom property the read-back then trivially "verifies". A
+ * throwing `in` makes no claim, and the read-back decides. `kept`: the
+ * assignment went through and the read-back disagrees — the same trap
+ * `set-plain` guards against. An unreadable read-back is `ok` and
+ * unverified, as everywhere else: unverifiable is not a failure.
+ */
+export function writeTransformParent(node: AnyProxy, parent: AnyProxy | undefined): ParentWrite {
+  const declared = tryRead(() => "transformParent" in node);
+  if (declared === false) return { ok: false, reason: "absent" };
+  try {
+    node.transformParent = parent;
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "threw",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+  let seen: AnyProxy;
+  try {
+    seen = node.transformParent;
+  } catch {
+    return { ok: true, verified: false };
+  }
+  if (parent === undefined) {
+    return seen === undefined || seen === null
+      ? { ok: true, verified: true }
+      : { ok: false, reason: "kept" };
+  }
+  if (seen === parent) return { ok: true, verified: true };
+  const wanted = parentIdOf(parent);
+  const got = parentIdOf(seen);
+  if (wanted !== undefined && got === wanted) return { ok: true, verified: true };
+  return { ok: false, reason: "kept" };
+}
+
+/** A failed parent write, in the words the note uses. */
+export function parentFailureNote(written: Extract<ParentWrite, { ok: false }>): string {
+  switch (written.reason) {
+    case "absent":
+      return "Creator doesn't expose transform parents here — skipped";
+    case "kept":
+      return "Creator kept the parent as it was — the change didn't apply";
+    case "threw":
+      return `couldn't set the parent — ${written.detail ?? "Creator refused it"}`;
+  }
+}
+
+/** A live layer's name for a note, or a stand-in. */
+function nameOf(node: AnyProxy, fallback: string): string {
+  const name = tryRead(() => node.name);
+  return typeof name === "string" && name ? name : fallback;
+}
+
+/**
+ * Does the null layer report `layer` among the layers it parents? `undefined`
+ * when `NullLayer.layers` is unreadable — then the layer's own
+ * `transformParent` is the only witness.
+ */
+function linkedTo(nullLayer: AnyProxy, layer: AnyProxy): boolean | undefined {
+  const list = tryRead(() => nullLayer.layers);
+  if (!Array.isArray(list)) return undefined;
+  if (list.includes(layer)) return true;
+  const id = tryRead(() => String(layer.id));
+  return id !== undefined && list.some((entry) => parentIdOf(entry) === id);
+}
+
+/**
+ * Creates a null layer from a recorded spec and parents `layers` to it:
+ * `scene.createNullLayer({ name, position, layers })`, creator-api-types
+ * 1.1.0, typed and not live-verified. The rest of the spec — opacity,
+ * rotation, scale, plain flags — lands through `applyNodeSpec` afterwards.
+ *
+ * Verified through `NullLayer.layers`, with the layer's own `transformParent`
+ * as the second witness. A host that ignores the `layers` option, or rejects
+ * it, gets one direct `transformParent` write per layer instead, and the
+ * notes say which route ran and which layers it could not link. A host
+ * without the factory skips with a note. A factory that throws even without
+ * `layers` is a genuine failure and propagates.
+ */
+export function createNullLayerFrom(
+  scene: AnyProxy,
+  spec: NodeSnapshot,
+  layers: AnyProxy[],
+  notes: NoteList,
+): AnyProxy | undefined {
+  const factory = tryRead(() => scene.createNullLayer);
+  if (typeof factory !== "function") {
+    notes.push("this scene can't create null objects — skipped");
+    return undefined;
+  }
+  const opts: Record<string, unknown> = {};
+  if (spec.nodeName) opts.name = spec.nodeName;
+  const position = spec.props.position?.static;
+  if (position !== undefined && position !== null && typeof position === "object") {
+    opts.position = position;
+  }
+  let created: AnyProxy;
+  let viaOption = layers.length > 0;
+  try {
+    created = factory.call(scene, viaOption ? { ...opts, layers } : opts);
+  } catch (error) {
+    if (!viaOption) throw error;
+    // The option is the part the typings added last; retry without it and
+    // link each layer by hand below.
+    viaOption = false;
+    notes.info(
+      `Creator refused the layers option (${
+        error instanceof Error ? error.message : String(error)
+      }) — parenting each layer directly`,
+    );
+    created = factory.call(scene, opts);
+  }
+  if (!created || typeof created !== "object") {
+    notes.push("Creator returned no null object — skipped");
+    return undefined;
+  }
+  // Name, position and the rest of the recorded state. Shapes are withheld:
+  // a null layer renders nothing and carries no shape list.
+  applyNodeSpec(created, { ...spec, shapes: [] }, notes);
+
+  const nullName = nameOf(created, spec.nodeName ?? "the null object");
+  const linked: string[] = [];
+  const failed: string[] = [];
+  layers.forEach((layer, i) => {
+    const label = nameOf(layer, `layer ${i + 1}`);
+    const byList = viaOption ? linkedTo(created, layer) : false;
+    const byLink = viaOption && parentIdOf(tryRead(() => layer.transformParent)) !== undefined;
+    if (byList === true || (byList === undefined && byLink)) {
+      linked.push(label);
+      return;
+    }
+    const written = writeTransformParent(layer, created);
+    if (written.ok) linked.push(label);
+    else failed.push(`${label} (${parentFailureNote(written)})`);
+  });
+  if (linked.length > 0) notes.info(`created "${nullName}" above ${linked.join(", ")}`);
+  if (failed.length > 0) notes.push(`couldn't parent ${failed.join(", ")} to "${nullName}"`);
+  return created;
 }
 
 // ---------------------------------------------------------------------------

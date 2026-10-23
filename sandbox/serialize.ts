@@ -14,6 +14,7 @@ import type {
   MaskSnapshot,
   NodeSnapshot,
   PaintSnapshot,
+  ParentRef,
   SceneSettings,
   SceneSnapshot,
   StrokeSnapshot,
@@ -236,6 +237,33 @@ function collectPaintOpacities(node: AnyProxy): {
   return out;
 }
 
+/**
+ * `Layer.transformParent` (creator-api-types 1.1.0) as an identity.
+ *
+ * Three answers, and the difference matters to the differ: a `{id, name}`
+ * when the layer has a parent; `null` when the host DECLARES the member and
+ * the layer has none; `undefined` when the host does not expose the member
+ * at all, so the snapshot omits the field and no parent step is ever
+ * recorded on that host. `undefined` is also a legitimate VALUE of the
+ * typed member (no parent), so the two are told apart with the `in`
+ * operator — the same own-and-prototype surface the debug probes enumerate.
+ * A parent proxy whose id cannot be read says nothing rather than invent a
+ * `null`. Exported for the playback probe, which must read the same thing.
+ */
+export function readTransformParent(node: AnyProxy): ParentRef | null | undefined {
+  const declared = tryRead(() => "transformParent" in node);
+  const value = tryRead(() => node.transformParent);
+  if (value !== undefined && value !== null && typeof value === "object") {
+    const id = tryRead(() => String(value.id));
+    if (id === undefined) return undefined;
+    const ref: ParentRef = { id };
+    const name = tryRead(() => value.name);
+    if (typeof name === "string") ref.name = name;
+    return ref;
+  }
+  return declared === true ? null : undefined;
+}
+
 export function serializeNode(node: AnyProxy, depth = 0): NodeSnapshot {
   const nodeType = tryRead(() => String(node.type)) ?? "UNKNOWN";
   const snapshot: NodeSnapshot = {
@@ -251,6 +279,13 @@ export function serializeNode(node: AnyProxy, depth = 0): NodeSnapshot {
   };
   const name = tryRead(() => node.name);
   if (typeof name === "string") snapshot.nodeName = name;
+
+  // Top-level layers only: a layer inside a scene layer's content is parented
+  // within that scene, and the differ binds steps to top-level layers.
+  if (depth === 0) {
+    const parent = readTransformParent(node);
+    if (parent !== undefined) snapshot.transformParent = parent;
+  }
 
   for (const propName of propsForType(nodeType)) {
     const prop = tryRead(() => node[propName]);

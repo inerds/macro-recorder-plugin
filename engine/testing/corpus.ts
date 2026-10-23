@@ -23,6 +23,7 @@ import sceneSettings from "./macros/07-scene-settings.json";
 import formulaStrings from "./macros/08-formula-strings.json";
 import formulaTerms from "./macros/09-formula-terms.json";
 import current from "./macros/10-current.json";
+import parenting from "./macros/11-parenting.json";
 
 /** The `_corpus` block every fixture carries. It is not part of a macro. */
 export interface CorpusMeta {
@@ -78,6 +79,7 @@ export const CORPUS: readonly CorpusFixture[] = [
   fixture("08-formula-strings.json", formulaStrings),
   fixture("09-formula-terms.json", formulaTerms),
   fixture("10-current.json", current),
+  fixture("11-parenting.json", parenting),
 ];
 
 /** The fixture that must match what `buildStep` writes today. */

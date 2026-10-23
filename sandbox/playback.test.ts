@@ -2393,3 +2393,394 @@ describe(
     );
   },
 );
+
+// ---------------------------------------------------------------------------
+// Transform parenting (creator-api-types 1.1.0 — typed, not live-verified)
+// ---------------------------------------------------------------------------
+
+const RIG_SPEC = {
+  nodeId: "REC-RIG",
+  nodeType: "NULL_LAYER",
+  nodeName: "Rig",
+  props: { position: { animated: false, static: { x: 300, y: 300 } } },
+  plain: {},
+  fills: [],
+  strokes: [],
+  masks: [],
+  shapes: [],
+  transformParent: null,
+};
+
+describe("set-parent replay", () => {
+  it("targets mode: parents every SELECTED layer to the recorded parent, found by name", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("Layer A", {}, ids));
+    const b = scene.addLayer(makeNode("Layer B", {}, ids));
+    const c = scene.addLayer(makeNode("Layer C", {}, ids));
+    const d = scene.addLayer(makeNode("Layer D", {}, ids));
+    stubCreator(scene, [c, d]);
+
+    const begin = playbackBegin({
+      steps: [
+        step({
+          op: "set-parent",
+          parent: { id: "rec-b", name: "Layer B" },
+          before: null,
+          layer: { id: "rec-a", name: "Layer A" },
+        }),
+      ] as Any,
+      sourceNodeId: "rec-a",
+    });
+    expect(begin.targetCount).toBe(2);
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(result.notes ?? []).toEqual([]);
+    expect(c.transformParent).toBe(b);
+    expect(d.transformParent).toBe(b);
+    // Only the selection moves: the recorded layer is not a target.
+    expect(a.transformParent).toBeUndefined();
+    expect(b.transformParent).toBeUndefined();
+  });
+
+  it("targets mode: the recorded SOURCE as a parent is the target itself — 'duplicate, then parent the copy to the original'", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const a = scene.addLayer(makeNode("Layer A", { props: { position: { x: 1, y: 1 } } }, ids));
+    const c = scene.addLayer(makeNode("Layer C", { props: { position: { x: 5, y: 5 } } }, ids));
+    stubCreator(scene, [c]);
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-layer",
+          spec: {
+            ...RIG_SPEC,
+            nodeId: "REC-COPY",
+            nodeType: "CONTAINER",
+            nodeName: "Layer A copy",
+          },
+          cloneOf: { id: "rec-a", name: "Layer A" },
+        }),
+        step({
+          op: "set-parent",
+          parent: { id: "rec-a", name: "Layer A" },
+          before: null,
+          layer: { id: "REC-COPY", name: "Layer A copy" },
+        }),
+      ] as Any,
+      sourceNodeId: "rec-a",
+    });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    const result = playbackStep({ index: 1 });
+    expect(result.failures).toEqual([]);
+    const copy = scene.layers.find((l: Any) => l.name === "Layer C copy");
+    expect(copy).toBeDefined();
+    // The copy of C is parented to C, not to the recorded Layer A.
+    expect(copy.transformParent).toBe(c);
+    expect(a.transformParent).toBeUndefined();
+  });
+
+  it("targets mode: skips with a note when the parent's name is not in this scene", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const c = scene.addLayer(makeNode("Layer C", {}, ids));
+    stubCreator(scene, [c]);
+    playbackBegin({
+      steps: [
+        step({
+          op: "set-parent",
+          parent: { id: "rec-b", name: "Layer B" },
+          before: null,
+          layer: { id: "rec-a", name: "Layer A" },
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).map((n: Any) => [n.target, n.message, n.kind])).toEqual([
+      ["Layer C", 'couldn\'t find "Layer B" to parent this layer to — skipped', "skip"],
+    ]);
+    expect(c.transformParent).toBeUndefined();
+  });
+
+  it("scene mode: parents the recorded layer to a controller THIS replay created, by recorded id", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const hero = scene.addLayer(makeNode("Hero", {}, ids));
+    const caption = scene.addLayer(makeNode("Caption", {}, ids));
+    // A stale "Rig" from an earlier run must NOT win over the one this
+    // replay makes: the recorded id maps to the new layer first.
+    const stale = scene.createNullLayer({ name: "Rig" });
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        step({ op: "add-controller", spec: RIG_SPEC, layers: [{ id: "rec-hero", name: "Hero" }] }),
+        step({
+          op: "set-parent",
+          parent: { id: "REC-RIG", name: "Rig" },
+          before: null,
+          layer: { id: "rec-caption", name: "Caption" },
+        }),
+        step({
+          op: "set-parent",
+          parent: null,
+          before: { id: "REC-RIG", name: "Rig" },
+          layer: { id: "rec-hero", name: "Hero" },
+        }),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+    expect(r0.failures).toEqual([]);
+    const rig = scene.layers[scene.layers.length - 1];
+    expect(rig).not.toBe(stale);
+    expect(rig.type).toBe("NULL_LAYER");
+    expect(hero.transformParent).toBe(rig);
+
+    const r1 = playbackStep({ index: 1 });
+    expect(r1.failures).toEqual([]);
+    expect(r1.notes ?? []).toEqual([]);
+    expect(caption.transformParent).toBe(rig);
+
+    const r2 = playbackStep({ index: 2 });
+    expect(r2.failures).toEqual([]);
+    expect(hero.transformParent).toBeUndefined();
+    expect(rig.layers).toEqual([caption]);
+  });
+
+  it("debug probes report the target's parent identity before and after", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const b = scene.addLayer(makeNode("Layer B", {}, ids));
+    const c = scene.addLayer(makeNode("Layer C", {}, ids));
+    stubCreator(scene, [c]);
+    playbackBegin({
+      steps: [
+        step({
+          op: "set-parent",
+          parent: { id: "rec-b", name: "Layer B" },
+          before: null,
+          layer: { id: "rec-a", name: "Layer A" },
+        }),
+      ] as Any,
+      debug: true,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.debug?.before[0]?.parent).toBeNull();
+    expect(result.debug?.after[0]?.parent).toEqual({ id: String(b.id), name: "Layer B" });
+    // A host without the member reports no `parent` at all — the finding.
+    delete c.transformParent;
+    playbackEnd();
+    stubCreator(scene, [c]);
+    playbackBegin({
+      steps: [
+        step({ op: "set-parent", parent: null, before: null, layer: { id: "rec-a" } }),
+      ] as Any,
+      debug: true,
+    });
+    const absent = playbackStep({ index: 0 });
+    expect(absent.debug?.before[0]).not.toHaveProperty("parent");
+  });
+});
+
+describe("add-controller replay", () => {
+  it("with a selection: the null object goes above the SELECTED layers, like a nest", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const hero = scene.addLayer(makeNode("Hero", {}, ids));
+    const c = scene.addLayer(makeNode("Layer C", {}, ids));
+    const d = scene.addLayer(makeNode("Layer D", {}, ids));
+    stubCreator(scene, [c, d]);
+    playbackBegin({
+      steps: [
+        step({ op: "add-controller", spec: RIG_SPEC, layers: [{ id: "rec-hero", name: "Hero" }] }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).map((n: Any) => [n.target, n.message, n.kind])).toEqual([
+      ["scene", 'created "Rig" above Layer C, Layer D', "info"],
+    ]);
+    const rig = scene.layers.find((l: Any) => l.type === "NULL_LAYER");
+    expect(rig.name).toBe("Rig");
+    expect(rig.position.staticValue).toEqual({ x: 300, y: 300 });
+    expect(rig.layers).toEqual([c, d]);
+    expect(hero.transformParent).toBeUndefined();
+  });
+
+  it("without a selection: above the recorded layers, found by name", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const hero = scene.addLayer(makeNode("Hero", {}, ids));
+    const orbit = scene.addLayer(makeNode("Orbit", {}, ids));
+    scene.addLayer(makeNode("Keep", {}, ids));
+    stubCreator(scene, []);
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-controller",
+          spec: RIG_SPEC,
+          layers: [
+            { id: "rec-hero", name: "Hero" },
+            { id: "rec-orbit", name: "Orbit" },
+          ],
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    const rig = scene.layers.find((l: Any) => l.type === "NULL_LAYER");
+    expect(rig.layers).toEqual([hero, orbit]);
+  });
+
+  it("ignores selected SHAPES — a null object parents layers", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const hero = scene.addLayer(makeNode("Hero", {}, ids));
+    const rect = hero.createRectangle({});
+    stubCreator(scene, [rect]);
+    playbackBegin({
+      steps: [
+        step({ op: "add-controller", spec: RIG_SPEC, layers: [{ id: "rec-hero", name: "Hero" }] }),
+      ] as Any,
+    });
+    expect(playbackStep({ index: 0 }).failures).toEqual([]);
+    expect(hero.transformParent?.type).toBe("NULL_LAYER");
+  });
+
+  it("creates the null object above nothing, and says so, when none of the recorded layers is here", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    scene.addLayer(makeNode("Unrelated", {}, ids));
+    stubCreator(scene, []);
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-controller",
+          spec: RIG_SPEC,
+          layers: [
+            { id: "rec-hero", name: "Hero" },
+            { id: "rec-orbit", name: "Orbit" },
+          ],
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "couldn't find Hero, Orbit in this scene — created the null object above nothing",
+    ]);
+    const rig = scene.layers.find((l: Any) => l.type === "NULL_LAYER");
+    expect(rig.layers).toEqual([]);
+  });
+
+  it("skips with a note on a host without createNullLayer, and parents nothing", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const hero = scene.addLayer(makeNode("Hero", {}, ids));
+    delete scene.createNullLayer;
+    stubCreator(scene, [hero]);
+    playbackBegin({
+      steps: [
+        step({ op: "add-controller", spec: RIG_SPEC, layers: [{ id: "rec-hero", name: "Hero" }] }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "this scene can't create null objects — skipped",
+    ]);
+    expect(hero.transformParent).toBeUndefined();
+    expect(scene.layers).toEqual([hero]);
+  });
+
+  it("re-executes: a second run makes a second null object", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const hero = scene.addLayer(makeNode("Hero", {}, ids));
+    stubCreator(scene, []);
+    const steps = [
+      step({ op: "add-controller", spec: RIG_SPEC, layers: [{ id: "rec-hero", name: "Hero" }] }),
+    ] as Any;
+    playbackBegin({ steps });
+    playbackStep({ index: 0 });
+    playbackEnd();
+    playbackBegin({ steps });
+    playbackStep({ index: 0 });
+    const rigs = scene.layers.filter((l: Any) => l.type === "NULL_LAYER");
+    expect(rigs).toHaveLength(2);
+    expect(hero.transformParent).toBe(rigs[1]);
+  });
+});
+
+describe("add-layer with a NULL_LAYER spec", () => {
+  it("rebuilds it with createNullLayer, never as a shape shell", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    let shapeLayerCalls = 0;
+    scene.createShapeLayer = () => {
+      shapeLayerCalls += 1;
+      return scene.addLayer(makeNode("wrong shell", {}, ids));
+    };
+    stubCreator(scene, []);
+    playbackBegin({ steps: [step({ op: "add-layer", spec: RIG_SPEC })] as Any });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(shapeLayerCalls).toBe(0);
+    const rig = scene.layers.find((l: Any) => l.name === "Rig");
+    expect(rig.type).toBe("NULL_LAYER");
+    expect(rig.layers).toEqual([]);
+  });
+
+  it("a rebuilt layer takes the parent its spec recorded, resolved like a set-parent", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const rig = scene.createNullLayer({ name: "Rig" });
+    stubCreator(scene, []);
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-layer",
+          spec: {
+            ...RIG_SPEC,
+            nodeId: "REC-NEW",
+            nodeType: "CONTAINER",
+            nodeName: "New Layer",
+            transformParent: { id: "rec-rig", name: "Rig" },
+          },
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    const created = scene.layers.find((l: Any) => l.name === "New Layer");
+    expect(created.transformParent).toBe(rig);
+  });
+
+  it("notes a recorded parent it cannot find, and keeps the new layer", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    stubCreator(scene, []);
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-layer",
+          spec: {
+            ...RIG_SPEC,
+            nodeId: "REC-NEW",
+            nodeType: "CONTAINER",
+            nodeName: "New Layer",
+            transformParent: { id: "rec-rig", name: "Rig" },
+          },
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toEqual([
+      'couldn\'t find "Rig" to parent New Layer to',
+    ]);
+    expect(scene.layers.map((l: Any) => l.name)).toEqual(["New Layer"]);
+  });
+});

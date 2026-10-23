@@ -9,12 +9,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { Json } from "../engine/json";
-import { makeGradientFill, makeIds, makeNode } from "../engine/testing/fakeScene";
+import { makeFakeScene, makeGradientFill, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { diffSnapshots } from "../engine/diff";
+import type { NodeSnapshot } from "../engine/snapshot";
 import type { StepPayload } from "../engine/steps";
 import {
   applyNodeSpec,
   applyStep,
+  createNullLayerFrom,
   delayLayer,
   NoteList,
   readBaseline,
@@ -2547,5 +2549,276 @@ describe("steps with no formula keep the class their recording implies", () => {
       { x: 400, y: 300 },
       { x: 460, y: 300 },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transform parenting (creator-api-types 1.1.0 — typed, not live-verified)
+// ---------------------------------------------------------------------------
+
+describe("set-parent", () => {
+  /** A scene with three layers and the resolver the orchestrator supplies. */
+  function rigged() {
+    const ids = makeIds();
+    const scene = makeFakeScene(ids);
+    const a = scene.addLayer(makeNode("Layer A", {}, ids));
+    const rig = scene.createNullLayer({ name: "Rig" });
+    const other = scene.addLayer(makeNode("Other", {}, ids));
+    const byName = (ref: { id: string; name?: string }) =>
+      scene.layers.find((layer: Any) => layer.name === ref.name);
+    const context: ApplyContext = { origins: {}, baselines: {}, resolveLayer: byName };
+    return { scene, a, rig, other, context };
+  }
+  const to = (name: string | null, before: string | null = null): StepPayload => ({
+    op: "set-parent",
+    parent: name === null ? null : { id: `rec-${name}`, name },
+    before: before === null ? null : { id: `rec-${before}`, name: before },
+  });
+
+  it("parents the target to the layer the resolver finds, and verifies by read-back", () => {
+    const { a, rig, context } = rigged();
+    const outcome = apply(a, to("Rig"), context);
+    expect(outcome.notes).toEqual([]);
+    expect(a.transformParent).toBe(rig);
+    expect(rig.layers).toEqual([a]);
+  });
+
+  it("clears the parent for a null identity, without any lookup", () => {
+    const { a, rig } = rigged();
+    a.transformParent = rig;
+    const outcome = apply(a, to(null, "Rig"));
+    expect(outcome.notes).toEqual([]);
+    expect(a.transformParent).toBeUndefined();
+    expect(rig.layers).toEqual([]);
+  });
+
+  it("skips with a note when no layer of that name is in the scene", () => {
+    const { a, context } = rigged();
+    const outcome = apply(a, to("Ghost"), context);
+    expect(outcome.notes).toEqual(['couldn\'t find "Ghost" to parent this layer to — skipped']);
+    expect(outcome.noteKinds).toEqual(["skip"]);
+    expect(a.transformParent).toBeUndefined();
+  });
+
+  it("skips with a note when no resolver was supplied at all", () => {
+    const { a } = rigged();
+    const outcome = apply(a, to("Rig"));
+    expect(outcome.notes).toEqual(['couldn\'t find "Rig" to parent this layer to — skipped']);
+  });
+
+  it("refuses to parent a layer to itself", () => {
+    const { a, context } = rigged();
+    const outcome = apply(a, to("Layer A"), context);
+    expect(outcome.notes).toEqual([
+      '"Layer A" is this layer — a layer can\'t be its own parent — skipped',
+    ]);
+    expect(a.transformParent).toBeUndefined();
+  });
+
+  it("skips with a note on a host that does not expose transformParent", () => {
+    const { a, context } = rigged();
+    delete a.transformParent;
+    const outcome = apply(a, to("Rig"), context);
+    expect(outcome.notes).toEqual(["Creator doesn't expose transform parents here — skipped"]);
+    // Never a phantom property: a bare assignment would have created one.
+    expect("transformParent" in a).toBe(false);
+  });
+
+  it("reports a host that accepts the assignment and keeps its own value", () => {
+    const { a, context } = rigged();
+    Object.defineProperty(a, "transformParent", {
+      configurable: true,
+      enumerable: true,
+      get: () => undefined,
+      set: () => {
+        /* swallowed */
+      },
+    });
+    const outcome = apply(a, to("Rig"), context);
+    expect(outcome.notes).toEqual(["Creator kept the parent as it was — the change didn't apply"]);
+    expect(outcome.noteKinds).toEqual(["skip"]);
+  });
+
+  it("reports a host that refuses the write", () => {
+    const { a, other, context } = rigged();
+    // The fake refuses a shape as a parent; the resolver hands one over.
+    const rect = other.createRectangle({});
+    const outcome = apply(a, to("Rig"), { ...context, resolveLayer: () => rect });
+    expect(outcome.notes).toEqual(["couldn't set the parent — ✗ Invalid input"]);
+  });
+
+  it("makes no claim when the parent cannot be read back", () => {
+    const { a, rig, context } = rigged();
+    let stored: Any;
+    Object.defineProperty(a, "transformParent", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("write-only here");
+      },
+      set: (next: Any) => {
+        stored = next;
+      },
+    });
+    const outcome = apply(a, to("Rig"), context);
+    expect(outcome.notes).toEqual([]);
+    expect(stored).toBe(rig);
+  });
+});
+
+describe("createNullLayerFrom", () => {
+  const rigSpec = (name = "Rig"): NodeSnapshot => ({
+    nodeId: "rec-rig",
+    nodeType: "NULL_LAYER",
+    nodeName: name,
+    props: {
+      position: { animated: false, static: { x: 300, y: 200 } },
+      rotation: { animated: false, static: 15 },
+    },
+    plain: { locked: true },
+    fills: [],
+    strokes: [],
+    masks: [],
+    shapes: [],
+    transformParent: null,
+  });
+
+  function sceneWith(...names: string[]) {
+    const ids = makeIds();
+    const scene = makeFakeScene(ids);
+    const layers = names.map((name) => scene.addLayer(makeNode(name, {}, ids)));
+    return { scene, layers };
+  }
+
+  it("creates the null layer above the given layers through the typed option and verifies by its layers list", () => {
+    const { scene, layers } = sceneWith("A", "B");
+    const notes = new NoteList();
+    const rig = createNullLayerFrom(scene, rigSpec(), layers, notes);
+    expect(rig.type).toBe("NULL_LAYER");
+    expect(rig.name).toBe("Rig");
+    expect(rig.position.staticValue).toEqual({ x: 300, y: 200 });
+    expect(rig.rotation.staticValue).toBe(15);
+    expect(rig.locked).toBe(true);
+    expect(rig.layers).toEqual(layers);
+    expect(notes.messages).toEqual(['created "Rig" above A, B']);
+    expect(notes.kinds).toEqual(["info"]);
+  });
+
+  it("creates a bare null layer when there is nothing to parent", () => {
+    const { scene } = sceneWith();
+    const notes = new NoteList();
+    const rig = createNullLayerFrom(scene, rigSpec(), [], notes);
+    expect(rig.layers).toEqual([]);
+    expect(notes.messages).toEqual([]);
+  });
+
+  it("skips with a note on a scene without the factory", () => {
+    const { scene, layers } = sceneWith("A");
+    delete scene.createNullLayer;
+    const notes = new NoteList();
+    expect(createNullLayerFrom(scene, rigSpec(), layers, notes)).toBeUndefined();
+    expect(notes.messages).toEqual(["this scene can't create null objects — skipped"]);
+    expect(layers[0].transformParent).toBeUndefined();
+  });
+
+  it("falls back to one transformParent write per layer when the host ignores the layers option", () => {
+    const { scene, layers } = sceneWith("A", "B");
+    const create = scene.createNullLayer;
+    scene.createNullLayer = (opts: Any) => {
+      const { layers: _ignored, ...rest } = opts ?? {};
+      return create(rest);
+    };
+    const notes = new NoteList();
+    const rig = createNullLayerFrom(scene, rigSpec(), layers, notes);
+    expect(rig.layers).toEqual(layers);
+    expect(notes.messages).toEqual(['created "Rig" above A, B']);
+  });
+
+  it("retries without the option, and says so, when the host rejects it", () => {
+    const { scene, layers } = sceneWith("A");
+    const create = scene.createNullLayer;
+    scene.createNullLayer = (opts: Any) => {
+      if (opts && "layers" in opts) throw new Error("✗ Invalid input");
+      return create(opts);
+    };
+    const notes = new NoteList();
+    const rig = createNullLayerFrom(scene, rigSpec(), layers, notes);
+    expect(rig.layers).toEqual(layers);
+    expect(notes.messages).toEqual([
+      "Creator refused the layers option (✗ Invalid input) — parenting each layer directly",
+      'created "Rig" above A',
+    ]);
+    expect(notes.kinds).toEqual(["info", "info"]);
+  });
+
+  it("names the layers it could not link when the direct write is swallowed too", () => {
+    const { scene, layers } = sceneWith("A", "B");
+    const create = scene.createNullLayer;
+    scene.createNullLayer = (opts: Any) => {
+      const { layers: _ignored, ...rest } = opts ?? {};
+      return create(rest);
+    };
+    Object.defineProperty(layers[1], "transformParent", {
+      configurable: true,
+      enumerable: true,
+      get: () => undefined,
+      set: () => {
+        /* swallowed */
+      },
+    });
+    const notes = new NoteList();
+    createNullLayerFrom(scene, rigSpec(), layers, notes);
+    expect(notes.messages).toEqual([
+      'created "Rig" above A',
+      "couldn't parent B (Creator kept the parent as it was — the change didn't apply) to \"Rig\"",
+    ]);
+    expect(notes.kinds).toEqual(["info", "skip"]);
+  });
+
+  it("propagates a factory that throws even without the option — a genuine failure", () => {
+    const { scene, layers } = sceneWith("A");
+    scene.createNullLayer = () => {
+      throw new Error("✗ Invalid input");
+    };
+    expect(() => createNullLayerFrom(scene, rigSpec(), layers, new NoteList())).toThrow(
+      "✗ Invalid input",
+    );
+  });
+});
+
+describe("the fake scene's parenting surface (what the tests above lean on)", () => {
+  it("refuses a shape, a scene, and the layer itself as a parent, with the live host's error", () => {
+    const ids = makeIds();
+    const scene = makeFakeScene(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const rect = a.createRectangle({});
+    expect(() => (a.transformParent = rect)).toThrow("✗ Invalid input");
+    expect(() => (a.transformParent = scene)).toThrow("✗ Invalid input");
+    expect(() => (a.transformParent = a)).toThrow("✗ Invalid input");
+    expect(() => (a.transformParent = "Rig")).toThrow("✗ Invalid input");
+  });
+
+  it("derives NullLayer.layers from the siblings' transformParent and clears links on remove", () => {
+    const ids = makeIds();
+    const scene = makeFakeScene(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    const b = scene.addLayer(makeNode("B", {}, ids));
+    const rig = scene.createNullLayer({ name: "Rig", layers: [b] });
+    expect(rig.layers).toEqual([b]);
+    a.transformParent = rig;
+    expect(rig.layers).toEqual([a, b]);
+    rig.remove();
+    expect(a.transformParent).toBeUndefined();
+    expect(b.transformParent).toBeUndefined();
+    expect(scene.layers).toEqual([a, b]);
+  });
+
+  it("validates the layers option as a whole before linking anything", () => {
+    const ids = makeIds();
+    const scene = makeFakeScene(ids);
+    const a = scene.addLayer(makeNode("A", {}, ids));
+    expect(() => scene.createNullLayer({ layers: [a, "nope"] })).toThrow("✗ Invalid input");
+    expect(a.transformParent).toBeUndefined();
+    expect(scene.layers).toEqual([a]);
   });
 });

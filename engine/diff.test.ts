@@ -1129,3 +1129,124 @@ describe("diffScene — scene settings", () => {
     expect(diffScene({ sceneId: "s", layers: [] }, scene({ framerate: 60 }))).toEqual([]);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* transform parenting (creator-api-types 1.1.0)                       */
+/* ------------------------------------------------------------------ */
+
+describe("diffScene — transform parents", () => {
+  const layer = (id: string, name: string, overrides: Partial<NodeSnapshot> = {}) =>
+    makeNode({ nodeId: id, nodeName: name, ...overrides });
+  const scene = (...layers: NodeSnapshot[]) => ({ layers });
+  const rig = (overrides: Partial<NodeSnapshot> = {}) =>
+    layer("N", "Rig", { nodeType: "NULL_LAYER", transformParent: null, ...overrides });
+
+  it("records a layer gaining a parent as set-parent, bound to the layer", () => {
+    const before = layer("A", "Layer A", { transformParent: null });
+    const after = layer("A", "Layer A", { transformParent: { id: "N", name: "Rig" } });
+    expect(diffScene(scene(before, rig()), scene(after, rig()))).toEqual([
+      {
+        op: "set-parent",
+        parent: { id: "N", name: "Rig" },
+        before: null,
+        layer: { id: "A", name: "Layer A" },
+      },
+    ]);
+  });
+
+  it("records a cleared parent with null, and remembers what it left", () => {
+    const before = layer("A", "Layer A", { transformParent: { id: "N", name: "Rig" } });
+    const after = layer("A", "Layer A", { transformParent: null });
+    expect(diffScene(scene(before, rig()), scene(after, rig()))).toEqual([
+      {
+        op: "set-parent",
+        parent: null,
+        before: { id: "N", name: "Rig" },
+        layer: { id: "A", name: "Layer A" },
+      },
+    ]);
+  });
+
+  it("says nothing when either snapshot lacks the field (a host without the member)", () => {
+    const without = layer("A", "Layer A");
+    const withNull = layer("A", "Layer A", { transformParent: null });
+    const withRig = layer("A", "Layer A", { transformParent: { id: "N" } });
+    expect(diffScene(scene(without), scene(withRig))).toEqual([]);
+    expect(diffScene(scene(withRig), scene(without))).toEqual([]);
+    expect(diffScene(scene(withNull), scene(withNull))).toEqual([]);
+  });
+
+  it("identity is the id: a renamed parent is the same parent", () => {
+    const before = layer("A", "Layer A", { transformParent: { id: "N", name: "Rig" } });
+    const after = layer("A", "Layer A", { transformParent: { id: "N", name: "Controller" } });
+    expect(diffScene(scene(before), scene(after))).toEqual([]);
+  });
+
+  it("never records a parent change inside a scene layer's content", () => {
+    const inner = (parent: NodeSnapshot["transformParent"]) =>
+      makeShape("inner", "CONTAINER", { transformParent: parent });
+    const before = layer("S", "Nested", { nodeType: "SCENE_LAYER", shapes: [inner(null)] });
+    const after = layer("S", "Nested", {
+      nodeType: "SCENE_LAYER",
+      shapes: [inner({ id: "N", name: "Rig" })],
+    });
+    expect(diffScene(scene(before), scene(after))).toEqual([]);
+  });
+
+  it("folds a new null layer and the layers parented to it, in one tick, into add-controller", () => {
+    const a = layer("A", "Layer A", { transformParent: null });
+    const b = layer("B", "Layer B", { transformParent: null });
+    const c = layer("C", "Layer C", { transformParent: null });
+    const controller = rig();
+    const parented = (l: NodeSnapshot) => ({ ...l, transformParent: { id: "N", name: "Rig" } });
+    const ops = diffScene(scene(a, b, c), scene(parented(a), b, parented(c), controller));
+    expect(ops).toEqual([
+      {
+        op: "add-controller",
+        spec: controller,
+        layers: [
+          { id: "A", name: "Layer A" },
+          { id: "C", name: "Layer C" },
+        ],
+      },
+    ]);
+    expect(kindOf(ops[0]!)).toBe("parent");
+  });
+
+  it("keeps a null layer that parents nothing this tick as an ordinary add-layer", () => {
+    const a = layer("A", "Layer A", { transformParent: null });
+    const controller = rig();
+    expect(diffScene(scene(a), scene(a, controller))).toEqual([
+      { op: "add-layer", spec: controller },
+    ]);
+  });
+
+  it("keeps a DUPLICATE of a null layer as a clone, with the parenting as its own step", () => {
+    const original = rig();
+    const copy = layer("N2", "Rig 2", { nodeType: "NULL_LAYER", transformParent: null });
+    const a = layer("A", "Layer A", { transformParent: null });
+    const ops = diffScene(
+      scene(original, a),
+      scene(original, copy, { ...a, transformParent: { id: "N2", name: "Rig 2" } }),
+    );
+    expect(ops).toEqual([
+      { op: "add-layer", spec: copy, cloneOf: { id: "N", name: "Rig" } },
+      {
+        op: "set-parent",
+        parent: { id: "N2", name: "Rig 2" },
+        before: null,
+        layer: { id: "A", name: "Layer A" },
+      },
+    ]);
+  });
+
+  it("does not fold a parent that is a new SHAPE layer — only a null layer is a controller", () => {
+    const a = layer("A", "Layer A", { transformParent: null });
+    const holder = layer("H", "Holder", { transformParent: null });
+    const ops = diffScene(
+      scene(a),
+      scene({ ...a, transformParent: { id: "H", name: "Holder" } }, holder),
+    );
+    expect(ops.map((op) => op.op)).toEqual(["set-parent", "add-layer"]);
+  });
+});

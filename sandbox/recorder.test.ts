@@ -12,7 +12,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 
-import { makeIds, makeNode } from "../engine/testing/fakeScene";
+import { makeFakeScene, makeIds, makeNode } from "../engine/testing/fakeScene";
 import { recordDiscard, recordStart, recordStop, recordTick } from "./recorder";
 
 type Any = any;
@@ -477,5 +477,113 @@ describe("selectionPeek", () => {
     stubCreator(undefined);
     const { selectionPeek } = await import("./recorder");
     expect(selectionPeek()).toEqual({ scope: null });
+  });
+});
+
+describe("recording transform parents (creator-api-types 1.1.0)", () => {
+  /** The real fake scene, not this file's bare root: `createNullLayer` is a
+   *  scene factory, and the harness page seats its layers the same way. */
+  function riggedScene() {
+    const nextId = makeIds();
+    const scene = makeFakeScene(nextId);
+    const a = scene.addLayer(makeNode("Layer A", { props: { position: { x: 0, y: 0 } } }, nextId));
+    const b = scene.addLayer(
+      makeNode("Layer B", { props: { position: { x: 100, y: 0 } } }, nextId),
+    );
+    stubCreator(scene);
+    return { a, b, scene, nextId };
+  }
+
+  function select(...nodes: Any[]) {
+    (globalThis as Any).creator.selection.nodes = nodes;
+  }
+
+  it("records 'parent A to B' on the watched layer, as a step bound to A", () => {
+    const { a, b } = riggedScene();
+    select(a);
+    recordStart({});
+    a.transformParent = b;
+    const tick = recordTick(1);
+    expect(tick.steps.map((step) => [step.kind, step.label, step.payload])).toEqual([
+      [
+        "parent",
+        "Layer A · Parent → Layer B",
+        {
+          op: "set-parent",
+          parent: { id: b.id, name: "Layer B" },
+          before: null,
+          layer: { id: a.id, name: "Layer A" },
+        },
+      ],
+    ]);
+    expect(tick.ignored).toBe(0);
+  });
+
+  it("drops, and counts, another layer being parented to the watched layer", () => {
+    const { a, b } = riggedScene();
+    select(a);
+    recordStart({});
+    b.transformParent = a;
+    const tick = recordTick(1);
+    expect(tick.steps).toEqual([]);
+    expect(tick.ignored).toBe(1);
+  });
+
+  it("records a null object made above the watched layer as ONE controller step, and watches the controller from then on", () => {
+    const { a, b, scene } = riggedScene();
+    select(a);
+    recordStart({});
+    const rig = scene.createNullLayer({ name: "Rig", layers: [a, b] });
+    const tick = recordTick(1);
+    expect(tick.steps.map((step) => [step.kind, step.label])).toEqual([
+      ["parent", 'Add controller "Rig" above Layer A, Layer B'],
+    ]);
+    expect(tick.scope).toEqual({
+      kind: "layers",
+      layers: [
+        { id: a.id, name: "Layer A" },
+        { id: rig.id, name: "Rig" },
+      ],
+    });
+    rig.rotation.staticValue = 30;
+    const next = recordTick(2);
+    expect(next.steps.map((step) => step.label)).toEqual(["Rig · Transform · rotation +30"]);
+    expect(next.ignored).toBe(0);
+  });
+
+  it("records nothing, and does not throw, on a host that lacks transformParent", () => {
+    const { a, b } = riggedScene();
+    delete a.transformParent;
+    delete b.transformParent;
+    recordStart({});
+    // Nothing can be parented without the member; a plain edit still records.
+    a.position.staticValue = { x: 5, y: 0 };
+    const tick = recordTick(1);
+    expect(tick.steps.map((step) => step.payload)).toEqual([
+      expect.objectContaining({ op: "set-static", path: ["position"] }),
+    ]);
+  });
+
+  it("the debug probe reports whether the host carries the parenting members", () => {
+    const { a, scene } = riggedScene();
+    select(a);
+    const started = recordStart({ debug: true });
+    expect(started.parentingIntrospection).toEqual({
+      createNullLayer: "function",
+      isTransformableLayer: "undefined",
+      transformParentIn: true,
+      transformParentOnSurface: true,
+      transformParentType: "undefined",
+    });
+    delete scene.createNullLayer;
+    delete a.transformParent;
+    recordDiscard();
+    expect(recordStart({ debug: true }).parentingIntrospection).toEqual(
+      expect.objectContaining({
+        createNullLayer: "undefined",
+        transformParentIn: false,
+        transformParentOnSurface: false,
+      }),
+    );
   });
 });

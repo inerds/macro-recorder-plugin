@@ -64,6 +64,16 @@ export interface MaskSnapshot {
 }
 
 /**
+ * The identity of a layer another layer is parented to: `Layer.transformParent`
+ * (creator-api-types 1.1.0) read as `{id, name}`, never as the proxy itself.
+ * A null layer or any other transformable layer can play the part.
+ */
+export interface ParentRef {
+  id: string;
+  name?: string;
+}
+
+/**
  * Recursive snapshot of a node and its whole shape subtree. `shapes` recurses
  * through Groups; fills/strokes/masks are captured at every level they exist.
  */
@@ -81,6 +91,14 @@ export interface NodeSnapshot {
   /** Optional: absent in snapshots recorded before trim support. */
   trims?: TrimSnapshot[];
   shapes: NodeSnapshot[];
+  /**
+   * The layer's transform parent, top-level layers only. `null` is a real
+   * value — the host declares `transformParent` and the layer has none.
+   * ABSENT means the host does not expose the member (feature-detected in
+   * `sandbox/serialize.ts`), or the snapshot predates parenting support, and
+   * the differ then says nothing about parents at all.
+   */
+  transformParent?: ParentRef | null;
 }
 
 /**
@@ -135,6 +153,10 @@ export const TYPE_PROPS: Record<string, readonly string[]> = {
   SCENE_LAYER: TRANSFORM_PROPS,
   // Image layers carry the generic layer surface and nothing else animatable.
   IMAGE_LAYER: TRANSFORM_PROPS,
+  // A null layer (creator-api-types 1.1.0; Creator's UI calls it a null
+  // object) is LayerMixin alone: a transform that other layers inherit, and
+  // nothing it renders itself.
+  NULL_LAYER: TRANSFORM_PROPS,
   GROUP: TRANSFORM_PROPS,
   SHAPE_LAYER: TRANSFORM_PROPS, // legacy/fake type name
   RECTANGLE: ["size", "position", "roundness"],

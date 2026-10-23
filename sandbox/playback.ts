@@ -13,15 +13,18 @@ import {
   resolvePaint,
   applyNodeSpec,
   applyStep,
+  createNullLayerFrom,
   delayLayer,
   NoteList,
+  parentFailureNote,
   readBaseline,
   reorderChildren,
   resolvePath,
+  writeTransformParent,
 } from "./applier";
 // (instance-content edits resolve strictly by index — user decision: layer
 // order, not shape-type matching, maps recorded content onto nested content)
-import { serializeNode, valueToJson } from "./serialize";
+import { readTransformParent, serializeNode, valueToJson } from "./serialize";
 import { type PlaybackSession, session } from "./session";
 
 type AnyProxy = any;
@@ -63,6 +66,7 @@ function isSceneOp(payload: StepPayload): boolean {
     payload.op === "break-scene" ||
     payload.op === "nest-layers" ||
     payload.op === "reorder-layers" ||
+    payload.op === "add-controller" ||
     payload.op === "set-scene"
   );
 }
@@ -99,6 +103,12 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
       createdIds.add(payload.spec.nodeId);
       if (payload.cloneOf) cloneSources.add(payload.cloneOf.id);
       else unretargetableSceneOps = true; // fresh layers are scene structure
+    } else if (payload.op === "add-controller") {
+      // A new null layer is scene structure like a fresh add-layer; the step
+      // itself still parents the SELECTED layers when there are any, the
+      // way a nest takes the selection as its sources.
+      createdIds.add(payload.spec.nodeId);
+      unretargetableSceneOps = true;
     } else if (
       payload.op === "remove-layer" ||
       payload.op === "break-scene" ||
@@ -111,6 +121,9 @@ function chooseMode(steps: MacroStep[], selectionCount: number): StepAnalysis {
       // must not cost a mixed macro its per-selection retargeting.
       sceneSettings = true;
     }
+    // A set-parent step's PARENT is a role filled by name in whatever scene
+    // the replay runs in, not a layer the macro writes to, so it is not
+    // counted: "parent A to B" touches one layer and stays retargetable.
     const ref = layerRefOf(payload);
     if (ref) referenced.add(ref.id);
   }
@@ -254,7 +267,12 @@ function isPaintShaped(prop: AnyProxy): boolean {
   );
 }
 
-function probe(target: AnyProxy, name: string, path: Path | undefined): TargetProbe {
+function probe(
+  target: AnyProxy,
+  name: string,
+  path: Path | undefined,
+  op?: StepPayload["op"],
+): TargetProbe {
   const base: TargetProbe = {
     target: name,
     value: null,
@@ -263,6 +281,13 @@ function probe(target: AnyProxy, name: string, path: Path | undefined): TargetPr
     fills: countOf(target, "fills"),
     strokes: countOf(target, "strokes"),
   };
+  // A parent step has no path: its observable state is the target's own
+  // `transformParent`, read the way the recorder reads it. Absent when the
+  // host has no such member, which is itself the finding.
+  if (op === "set-parent") {
+    const parent = readTransformParent(target);
+    if (parent !== undefined) base.parent = parent === null ? null : { ...parent };
+  }
   if (!path) return base;
   let prop: AnyProxy;
   try {
@@ -481,6 +506,11 @@ export function createLayerFromSpec(
   // 2026-08-24T07-49-36-061, "Text 1" with runtime type SHAPE_LAYER). A
   // host without createTextLayer skips with the note below rather than
   // silently building a fake.
+  // A null layer has its own factory (creator-api-types 1.1.0) and a shape
+  // shell in its place would render where it should not. The applier owns
+  // the call, with no layers to parent: an add-layer null layer parented
+  // nothing in its tick, or that parenting is a later set-parent step.
+  if (spec.nodeType === "NULL_LAYER") return createNullLayerFrom(scene, spec, [], notes);
   const factoryName = spec.nodeType.startsWith("SCENE")
     ? "createSceneLayer"
     : spec.nodeType === "TEXT_LAYER"
@@ -866,6 +896,26 @@ function applySceneSetting(
   }
 }
 
+/**
+ * A rebuilt layer takes the transform parent its spec recorded, resolved
+ * through the same chain as a `set-parent` step. Nothing to do when the spec
+ * carries no parent, or predates parenting; a parent that cannot be found,
+ * or a write the host keeps, is a note against the new layer.
+ */
+function parentFromSpec(created: AnyProxy, spec: NodeSnapshot, notes: NoteList): void {
+  const ref = spec.transformParent;
+  if (!ref) return;
+  const label = spec.nodeName ?? "the new layer";
+  const parent = resolveLayer(ref);
+  if (!parent) {
+    notes.push(`couldn't find "${ref.name ?? "the recorded parent"}" to parent ${label} to`);
+    return;
+  }
+  if (parent === created) return;
+  const written = writeTransformParent(created, parent);
+  if (!written.ok) notes.push(`${label}: ${parentFailureNote(written)}`);
+}
+
 function applySceneOp(
   payload: Extract<
     StepPayload,
@@ -876,6 +926,7 @@ function applySceneOp(
         | "break-scene"
         | "nest-layers"
         | "reorder-layers"
+        | "add-controller"
         | "set-scene";
     }
   >,
@@ -889,6 +940,32 @@ function applySceneOp(
 
   if (payload.op === "set-scene") {
     applySceneSetting(scene, payload, notes);
+    return;
+  }
+
+  if (payload.op === "add-controller") {
+    const playback = session.playback!;
+    // The macro is a tool, like a nest: with a selection, the null object
+    // goes above the SELECTED layers. Without one, replay still means DO
+    // IT — above the recorded layers, found by name in this scene — and a
+    // null object above nothing when none of them is here, with a note.
+    const selection = selectedNodes().filter((node) => isLayerNode(node));
+    const targets =
+      selection.length > 0
+        ? selection
+        : payload.layers
+            .map((ref) => resolveLayer(ref))
+            .filter((layer): layer is AnyProxy => layer !== undefined);
+    pinned.add(payload.spec.nodeId);
+    for (const ref of payload.layers) pinned.add(ref.id);
+    for (const node of targets) pinNode(node);
+    if (targets.length === 0 && payload.layers.length > 0) {
+      notes.push(
+        `couldn't find ${payload.layers.map((ref) => layerLabel(ref)).join(", ")} in this scene — created the null object above nothing`,
+      );
+    }
+    const created = createNullLayerFrom(scene, payload.spec as NodeSnapshot, targets, notes);
+    if (created) playback.layerByRecordedId.set(payload.spec.nodeId, created);
     return;
   }
 
@@ -924,6 +1001,7 @@ function applySceneOp(
               }
             }
           }
+          parentFromSpec(created, payload.spec as NodeSnapshot, notes);
           return;
         }
       }
@@ -933,7 +1011,10 @@ function applySceneOp(
     }
     // Untyped runtime factory (introspection-discovered).
     const created = createLayerFromSpec(scene, payload.spec as NodeSnapshot, notes);
-    if (created) playback.layerByRecordedId.set(payload.spec.nodeId, created);
+    if (created) {
+      playback.layerByRecordedId.set(payload.spec.nodeId, created);
+      parentFromSpec(created, payload.spec as NodeSnapshot, notes);
+    }
     return;
   }
 
@@ -1400,7 +1481,7 @@ export function playbackStep(params: { index: number }): {
       if (!layer) {
         stepNotes.push(`couldn't find the layer "${layerLabel(ref)}" — skipped`);
       } else {
-        if (playback.debug) before = [probe(layer, label, path)];
+        if (playback.debug) before = [probe(layer, label, path, payload.op)];
         try {
           // A scene rebuild reproduces the recorded result exactly: no
           // origins and no formulas, so values pass through verbatim.
@@ -1409,6 +1490,7 @@ export function playbackStep(params: { index: number }): {
             origins: {},
             baselines: {},
             frameOffset: playback.frameOffsetBase,
+            resolveLayer,
           });
           outcome.notes.forEach((message, i) =>
             stepNotes.add(message, outcome.noteKinds[i] ?? "skip"),
@@ -1419,7 +1501,7 @@ export function playbackStep(params: { index: number }): {
             message: error instanceof Error ? error.message : String(error),
           });
         }
-        if (playback.debug) after = [probe(layer, label, path)];
+        if (playback.debug) after = [probe(layer, label, path, payload.op)];
       }
     } else {
       stepNotes.push("this step can't be replayed (unrecognized format) — skipped");
@@ -1435,8 +1517,20 @@ export function playbackStep(params: { index: number }): {
       if (ref.id === playback.sourceRoleId) return target;
       return playback.targetMaps?.[i]?.get(ref.id) ?? target;
     };
+    // The parent a set-parent step names, for THIS target: the recorded
+    // source role is the target itself ("duplicate, then parent the copy to
+    // the original"), a layer this replay made for this target is its clone,
+    // and anything else is found in the scene by id, name, or prior name.
+    const parentFor =
+      (target: AnyProxy, i: number) =>
+      (ref: LayerRef): AnyProxy | undefined => {
+        if (ref.id === playback.sourceRoleId) return target;
+        return playback.targetMaps?.[i]?.get(ref.id) ?? resolveLayer(ref);
+      };
     if (playback.debug) {
-      before = playback.targets.map((target, i) => probe(nodeFor(target, i), nameOf(i), path));
+      before = playback.targets.map((target, i) =>
+        probe(nodeFor(target, i), nameOf(i), path, payload?.op),
+      );
     }
     playback.targets.forEach((target, i) => {
       try {
@@ -1500,6 +1594,7 @@ export function playbackStep(params: { index: number }): {
           baselines: playback.baselines[i] ?? {},
           // Cascade: each selected layer's motion starts later than the last.
           frameOffset: playback.frameOffsetBase + i * playback.staggerFrames,
+          resolveLayer: parentFor(target, i),
         });
         let skipped = false;
         outcome.notes.forEach((message, at) => {
@@ -1520,7 +1615,9 @@ export function playbackStep(params: { index: number }): {
       }
     });
     if (playback.debug) {
-      after = playback.targets.map((target, i) => probe(nodeFor(target, i), nameOf(i), path));
+      after = playback.targets.map((target, i) =>
+        probe(nodeFor(target, i), nameOf(i), path, payload?.op),
+      );
     }
   }
 

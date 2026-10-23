@@ -209,6 +209,23 @@ function diffNode(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, out: S
   }
 }
 
+/**
+ * A layer's transform parent changed. Top-level layers only — a parent inside
+ * a scene layer's content belongs to that scene — and only when BOTH
+ * snapshots carry the field: absent on either side means the host does not
+ * expose it, or the older snapshot predates it, which is structural noise
+ * like a plain flag that appeared. Identity is the id: a renamed parent is
+ * the same parent.
+ */
+function diffParent(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, out: StepPayload[]) {
+  if (basePath.length !== 0) return;
+  if (prev.transformParent === undefined || next.transformParent === undefined) return;
+  const before = prev.transformParent;
+  const after = next.transformParent;
+  if ((before?.id ?? null) === (after?.id ?? null)) return;
+  out.push({ op: "set-parent", parent: after, before });
+}
+
 function diffNodeInner(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, out: StepPayload[]) {
   if (
     prev.nodeName !== undefined &&
@@ -222,6 +239,7 @@ function diffNodeInner(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, o
       after: next.nodeName,
     });
   }
+  diffParent(basePath, prev, next, out);
   const propNames = Object.keys(prev.props).filter((name) => name in next.props);
   for (const name of propNames) {
     diffAnimatable([...basePath, name], prev.props[name], next.props[name], out);
@@ -427,6 +445,42 @@ function layerRefOf(layer: NodeSnapshot): LayerRef {
 }
 
 /**
+ * Creator's "add a null object and parent these layers to it" lands in one
+ * tick as a fresh NULL_LAYER `add-layer` plus one `set-parent` per layer that
+ * now points at it. Folded into ONE `add-controller` payload — the null
+ * layer's spec and the layers it parents, in scene order — so the user reads
+ * "Add controller above Layer A, Layer B" and replay makes one
+ * `createNullLayer({ layers })` call. A null layer that parents nothing this
+ * tick stays an ordinary `add-layer`, and a DUPLICATE of a null layer keeps
+ * its `cloneOf` with any parenting as separate steps.
+ */
+function foldControllers(out: StepPayload[]): void {
+  const controllers = out.filter(
+    (payload): payload is Extract<StepPayload, { op: "add-layer" }> =>
+      payload.op === "add-layer" && !payload.cloneOf && payload.spec.nodeType === "NULL_LAYER",
+  );
+  for (const controller of controllers) {
+    const parented = out.filter(
+      (payload): payload is Extract<StepPayload, { op: "set-parent" }> =>
+        payload.op === "set-parent" &&
+        payload.parent !== null &&
+        payload.parent.id === controller.spec.nodeId &&
+        payload.layer !== undefined,
+    );
+    if (parented.length === 0) continue;
+    for (const payload of [controller, ...parented]) {
+      const at = out.indexOf(payload);
+      if (at >= 0) out.splice(at, 1);
+    }
+    out.push({
+      op: "add-controller",
+      spec: controller.spec,
+      layers: parented.map((payload) => ({ ...payload.layer! })),
+    });
+  }
+}
+
+/**
  * Whole-scene diff: layers matched by id. Edits inside a surviving layer come
  * from diffSnapshots, each payload bound to its layer. New layers that are
  * structural copies of an existing one become clone-based add-layer steps
@@ -457,7 +511,7 @@ export function diffScene(prev: SceneSnapshot, next: SceneSnapshot): StepPayload
         ref.priorName = prevEntry.layer.nodeName;
       }
       for (const payload of payloads) {
-        if ("path" in payload || payload.op === "add-shape") {
+        if ("path" in payload || payload.op === "add-shape" || payload.op === "set-parent") {
           (payload as { layer?: LayerRef }).layer = ref;
         }
         out.push(payload);
@@ -478,6 +532,8 @@ export function diffScene(prev: SceneSnapshot, next: SceneSnapshot): StepPayload
       }
     }
   }
+
+  foldControllers(out);
 
   // Break detection: exactly one SCENE-instance layer vanished while new
   // layers appeared in the same tick — that's SceneInstance.break() spilling

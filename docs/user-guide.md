@@ -85,6 +85,9 @@ engine as soon as the engine answers.
      locked, blend mode…), renames
    - scene structure: new layers, deleted layers, **duplicates / copy-paste**,
      reordering, breaking a scene layer apart, nesting layers
+   - parenting: a layer's transform parent, set to a null object or to
+     another layer, or cleared; and a null object you add above layers, which
+     records as one step, *Add controller "Null 1" above Layer A, Layer B*
    - scene settings, in a whole-scene recording only: size, background (a
      transparent one included), frame rate, duration, and the scene name
 3. Watch the steps appear live in the panel as you work. The recorder samples
@@ -368,6 +371,22 @@ recording: *couldn't find the layers to nest — rebuilt Nested Scene 5 from
 the recording instead*. The copies are new layers, so undo takes several
 steps.
 
+**Parent steps follow the selection.** A macro that recorded *Layer A ·
+Parent → Rig* parents every selected layer to the layer named Rig in the
+scene you play it in, and says *couldn't find "Rig" to parent this layer to
+— skipped* when no layer of that name is there. A cleared parent clears it
+on every target. A step that recorded a null object above layers, *Add
+controller "Rig" above Layer A, Layer B*, creates a new null object above
+the layers you have selected, like a nest step, and reports *created "Rig"
+above Layer C, Layer D*. With nothing selected it goes above the layers the
+recording named, found by name. Creator exposes these members in its plugin
+typings, and no session of this plugin has confirmed them in Creator yet: a
+host without them reports *Creator doesn't expose transform parents here —
+skipped*, or *this scene can't create null objects — skipped*, and a host
+that keeps its own value says *Creator kept the parent as it was — the
+change didn't apply*. Parenting records on top-level layers only, not on
+the layers inside a scene layer.
+
 **Scene settings apply to the scene.** A step that recorded the size,
 background, frame rate, duration, or name goes to the active scene once per
 play, whatever you have selected. Playback names the setting it wrote, and it
@@ -585,6 +604,10 @@ likely to meet these:
   of building a copy next to it.
 - **A new image layer** cannot be re-created on replay: a recording holds the
   layer, not the image asset behind it. The step says so and skips.
+- **Parenting is typed, not yet verified.** Creator's plugin typings declare
+  a layer's transform parent and null objects, and the plugin records and
+  replays both, but no Creator session has confirmed them yet. A host that
+  lacks them skips the step with a note.
 - **Macros replay onto layers**, so a shape in the selection is skipped with a
   note. Select the layer that holds the shape.
 - Layer-reorder replay is live-verified: the macro records which layers it

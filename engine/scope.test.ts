@@ -302,3 +302,65 @@ describe("partitionByScope — layer scope", () => {
     expect(partition([setScene], SCENE).kept).toEqual([setScene]);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* transform parenting                                                 */
+/* ------------------------------------------------------------------ */
+
+describe("partitionByScope — transform parenting", () => {
+  const parentOf = (layerId: string, parentId: string | null): StepPayload => ({
+    op: "set-parent",
+    parent: parentId === null ? null : { id: parentId, name: parentId },
+    before: null,
+    layer: ref(layerId),
+  });
+  const controller = (over: string[]): StepPayload => ({
+    op: "add-controller",
+    spec: { ...spec("n"), nodeType: "NULL_LAYER" },
+    layers: over.map(ref),
+  });
+
+  it("records the watched layer gaining or losing a parent", () => {
+    expect(partition([parentOf("a", "b")]).kept).toEqual([parentOf("a", "b")]);
+    expect(partition([parentOf("a", null)]).kept).toEqual([parentOf("a", null)]);
+  });
+
+  it("drops, and counts, another layer being parented TO the watched layer", () => {
+    // The change is on B's transformParent — B's edit, not A's.
+    const result = partition([parentOf("b", "a")]);
+    expect(result.kept).toEqual([]);
+    expect(result.ignored).toBe(1);
+  });
+
+  it("keeps a legacy set-parent with no binding, as the recorded layer's own", () => {
+    const unbound: StepPayload = { op: "set-parent", parent: { id: "b" }, before: null };
+    expect(partition([unbound]).kept).toEqual([unbound]);
+  });
+
+  it("keeps a controller over the watched layer and grows the scope with it", () => {
+    const result = partition([controller(["a", "b"])]);
+    expect(result.kept).toEqual([controller(["a", "b"])]);
+    expect(result.ignored).toBe(0);
+    expect(result.scope).toEqual({ kind: "layers", ids: ["a", "n"] });
+  });
+
+  it("the grown scope keeps the controller's later edits, in the same tick or a later one", () => {
+    const rigEdit = edit("n");
+    const sameTick = partition([rigEdit, controller(["a"])]);
+    expect(sameTick.kept).toEqual([rigEdit, controller(["a"])]);
+    const later = partition([rigEdit], sameTick.scope);
+    expect(later.kept).toEqual([rigEdit]);
+  });
+
+  it("drops, and counts, a controller over other layers only — even though the null layer is new", () => {
+    const result = partition([controller(["b"]), edit("n")]);
+    expect(result.kept).toEqual([]);
+    expect(result.ignored).toBe(2);
+    expect(result.scope).toEqual(onlyA);
+  });
+
+  it("scene scope keeps everything", () => {
+    const payloads = [parentOf("b", "a"), controller(["b"])];
+    expect(partition(payloads, SCENE).kept).toEqual(payloads);
+  });
+});
