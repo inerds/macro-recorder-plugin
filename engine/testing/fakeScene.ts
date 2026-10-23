@@ -5,7 +5,7 @@
  * sandbox/serialize.ts and sandbox/applier.ts talk to. It is deliberately
  * STRICTER than a convenient mock: a friendlier fake hides the exact class of
  * bug this harness exists to catch. The model is
- * `@lottiefiles/creator-api-types` 1.0.1, corrected by `docs/runtime-api.md`
+ * `@lottiefiles/creator-api-types` 1.2.0, corrected by `docs/runtime-api.md`
  * and `docs/limitations.md`, which win where the two disagree.
  *
  * What it deliberately REFUSES:
@@ -33,6 +33,18 @@
  * - invalid input, with the live host's `✗ Invalid input` message: blend
  *   modes, easings, colors, mask modes, text alignments, paint types, and any
  *   unknown key in a `create*` options object.
+ * - a transform, `opacity`, `visible`, `blendMode`, `isMatte`, `masks` or
+ *   `createMask` on an AUDIO_LAYER. 1.2.0 gives an audio layer
+ *   BaseLayerMixin (`locked`, `startFrame`, `endFrame`, `timelineOffset`,
+ *   the reorder calls) plus `muted`, `volume`, and `audio`, and nothing else.
+ * - a write to a NULL_LAYER's `layers` list — it is read-only in 1.1.0, and
+ *   `transformParent` on the child is the one writer.
+ * - a `transformParent` that is not a transformable layer or `undefined`.
+ *
+ * It does NOT model `Scene.import`: the one route to an audio layer is
+ * asynchronous and decodes real audio, and the plugin never calls it. A test
+ * seats an audio layer with `scene.addLayer(makeNode(name, { type:
+ * "AUDIO_LAYER" }))` instead.
  *
  * It also models runtime-api quirk 5 for a PATH: `pathData` values are
  * getter-based host objects whose fields are invisible to `Object.keys`, so a
@@ -523,17 +535,33 @@ const DEFAULTS: Record<string, Json> = {
   outerRoundness: 0,
   points: 5,
   pathData: { points: [], closed: true },
+  // 1.2.0 `AudibleMixin.volume`, 0 to 100.
+  volume: 100,
 };
 
-/** 1.0.1 LayerMixin's plain flags. Layers only — a GROUP carries none. */
-const PLAIN_DEFAULTS: Record<string, Json> = {
-  visible: true,
+/**
+ * 1.2.0 BaseLayerMixin's plain flags: what EVERY layer carries, an audio
+ * layer included. Layers only — a GROUP carries none.
+ */
+const BASE_LAYER_PLAIN_DEFAULTS: Record<string, Json> = {
   locked: false,
-  blendMode: "normal",
   startFrame: 0,
   endFrame: 150,
   timelineOffset: 0,
+};
+
+/** 1.2.0 LayerMixin's plain flags: the base set plus what a transform brings. */
+const PLAIN_DEFAULTS: Record<string, Json> = {
+  ...BASE_LAYER_PLAIN_DEFAULTS,
+  visible: true,
+  blendMode: "normal",
   isMatte: false,
+};
+
+/** 1.2.0 `AudioLayer`: BaseLayerMixin plus `AudibleMixin.muted`. */
+const AUDIO_PLAIN_DEFAULTS: Record<string, Json> = {
+  ...BASE_LAYER_PLAIN_DEFAULTS,
+  muted: false,
 };
 
 /**
@@ -552,27 +580,64 @@ const TEXT_PLAIN_DEFAULTS: Record<string, Json> = {
   alignment: "left",
 };
 
-/** 1.0.1 `Layer` = ShapeLayer | SceneLayer | TextLayer | ImageLayer. */
-const LAYER_TYPES = ["SHAPE_LAYER", "CONTAINER", "SCENE_LAYER", "TEXT_LAYER", "IMAGE_LAYER"];
+/**
+ * 1.2.0 `TransformableLayer` = `Extract<Layer, TransformMixin>`: every layer
+ * kind but the audio layer.
+ */
+const TRANSFORMABLE_LAYER_TYPES = [
+  "SHAPE_LAYER",
+  "CONTAINER",
+  "SCENE_LAYER",
+  "TEXT_LAYER",
+  "IMAGE_LAYER",
+  "NULL_LAYER",
+];
 
-/** The only two carriers of ShapeContainerMixin in 1.0.1. */
+/**
+ * 1.2.0 `Layer` = ShapeLayer | SceneLayer | TextLayer | ImageLayer |
+ * NullLayer | AudioLayer. The audio layer is the one member without a
+ * transform.
+ */
+const LAYER_TYPES = [...TRANSFORMABLE_LAYER_TYPES, "AUDIO_LAYER"];
+
+/** The only two carriers of ShapeContainerMixin in 1.2.0. */
 const SHAPE_CONTAINER_TYPES = ["SHAPE_LAYER", "CONTAINER", "GROUP"];
 
 const SHAPE_FACTORY_TYPES = ["RECTANGLE", "ELLIPSE", "POLYGON", "STAR", "PATH"];
 
+/** 1.2.0 `Shape` = Group | Rectangle | Ellipse | Polygon | Star | Path. */
+const SHAPE_TYPES = ["GROUP", ...SHAPE_FACTORY_TYPES];
+
 /**
  * Animatable names for a node type, straight from the snapshot registry —
- * which names SCENE_LAYER and IMAGE_LAYER (LayerMixin plus TransformMixin,
- * the same set a shape layer has), so nothing is special-cased here.
+ * which names SCENE_LAYER, IMAGE_LAYER and NULL_LAYER (LayerMixin plus
+ * TransformMixin, the same set a shape layer has) and gives AUDIO_LAYER
+ * `volume` alone, so nothing is special-cased here.
  */
 function animatableProps(nodeType: string): readonly string[] {
   return propsForType(nodeType);
 }
 
 /**
- * A fake node mirroring the 1.0.1 surface: per-type animatable props, plain
+ * 1.2.0 `creator.utils`: the three type guards, answered from the fake's
+ * `type` string. Attach it to a stubbed `creator` to model a host that has
+ * them; leave it off to model one that does not.
+ */
+export function makeUtils() {
+  const typeOf = (node: Any): string =>
+    node !== null && typeof node === "object" ? String(node.type) : "";
+  return {
+    isLayer: (node: Any): boolean => LAYER_TYPES.includes(typeOf(node)),
+    isTransformableLayer: (node: Any): boolean => TRANSFORMABLE_LAYER_TYPES.includes(typeOf(node)),
+    isShape: (node: Any): boolean => SHAPE_TYPES.includes(typeOf(node)),
+  };
+}
+
+/**
+ * A fake node mirroring the 1.2.0 surface: per-type animatable props, plain
  * layer flags on layers only, ShapeContainerMixin on shape layers and groups
- * only, masks on layers only — plus the modelled host quirks.
+ * only, masks and `transformParent` on transformable layers only — plus the
+ * modelled host quirks.
  */
 export function makeNode(
   name: string,
@@ -581,8 +646,10 @@ export function makeNode(
 ) {
   const nodeType = options.type ?? "CONTAINER";
   const isLayer = LAYER_TYPES.includes(nodeType);
+  const isTransformable = TRANSFORMABLE_LAYER_TYPES.includes(nodeType);
   const isShapeContainer = SHAPE_CONTAINER_TYPES.includes(nodeType);
   const isTextLayer = nodeType === "TEXT_LAYER";
+  const isAudioLayer = nodeType === "AUDIO_LAYER";
   let gone = false;
   const failingProps = new Set<string>();
 
@@ -829,8 +896,74 @@ export function makeNode(
     };
   }
 
-  // --- LayerMixin masks: layers only ---------------------------------------
-  if (isLayer) {
+  // --- NullLayer: the layers parented to it --------------------------------
+  // 1.1.0 `NullLayer.layers` is a ReadonlyArray: the one writer is the CHILD's
+  // `transformParent`, so the list here is a getter over a private array and
+  // an assignment to it throws, as it would on the host's proxy.
+  if (nodeType === "NULL_LAYER") {
+    const parented: Any[] = [];
+    Object.defineProperty(node, "__parented", { enumerable: false, value: parented });
+    Object.defineProperty(node, "layers", {
+      enumerable: true,
+      configurable: true,
+      get: () => Object.freeze([...parented]),
+    });
+  }
+
+  // --- LayerMixin.transformParent: transformable layers only ---------------
+  // 1.1.0 types it `TransformableLayer | undefined`, readable and writable.
+  // Anything else is `✗ Invalid input`. A NULL_LAYER parent's `layers` list
+  // follows the assignment.
+  if (isTransformable) {
+    let transformParent: Any = undefined;
+    Object.defineProperty(node, "transformParent", {
+      enumerable: true,
+      configurable: true,
+      get: () => transformParent,
+      set: (next: Any) => {
+        if (next !== undefined) {
+          if (next === null || typeof next !== "object") invalidInput();
+          if (!TRANSFORMABLE_LAYER_TYPES.includes(String(next.type))) invalidInput();
+          if (next === node) invalidInput();
+        }
+        const before = transformParent?.__parented;
+        if (Array.isArray(before)) {
+          const at = before.indexOf(node);
+          if (at >= 0) before.splice(at, 1);
+        }
+        transformParent = next;
+        const after = next?.__parented;
+        if (Array.isArray(after) && !after.includes(node)) after.push(node);
+      },
+    });
+  }
+
+  // --- AudioLayer: the asset it plays --------------------------------------
+  // 1.2.0 `AudioLayer.audio` is an `AudioAsset`: `id`, `name`, `type`, `uri`
+  // (null until the host has the data), `getDuration()` and `remove()`, which
+  // removes every layer that plays it.
+  if (isAudioLayer) {
+    const asset: Any = {
+      id: nextId("audio"),
+      name,
+      type: "AUDIO",
+      uri: null,
+      getDuration: () => Promise.resolve(null),
+      remove() {
+        node.remove();
+      },
+    };
+    Object.defineProperty(node, "audio", {
+      enumerable: true,
+      configurable: true,
+      get: () => asset,
+    });
+  }
+
+  // --- LayerMixin masks: transformable layers only -------------------------
+  // 1.2.0 `AudioLayer` has no masks: "An audio layer has no transform, so it
+  // has no position, opacity, blend mode, matte or masks."
+  if (isTransformable) {
     node.masks = [] as Any[];
     /**
      * Real host has no `addMask` — only `createMask` (docs/runtime-api.md,
@@ -892,16 +1025,19 @@ export function makeNode(
     });
   }
 
-  // Plain flags. LayerMixin gives them to every LAYER type; 1.0.1 `Group` has
-  // only blendMode (its opacity is the animatable above); geometry shapes have
+  // Plain flags. LayerMixin gives them to every transformable layer; an audio
+  // layer has BaseLayerMixin's four plus `muted`; 1.2.0 `Group` has only
+  // blendMode (its opacity is the animatable above); geometry shapes have
   // neither.
   const flags: Record<string, Json> = isTextLayer
     ? { ...PLAIN_DEFAULTS, ...TEXT_PLAIN_DEFAULTS }
-    : isLayer
-      ? PLAIN_DEFAULTS
-      : nodeType === "GROUP"
-        ? { blendMode: PLAIN_DEFAULTS.blendMode! }
-        : {};
+    : isAudioLayer
+      ? AUDIO_PLAIN_DEFAULTS
+      : isLayer
+        ? PLAIN_DEFAULTS
+        : nodeType === "GROUP"
+          ? { blendMode: PLAIN_DEFAULTS.blendMode! }
+          : {};
   for (const [flag, initial] of Object.entries(flags)) {
     let value: Json = initial;
     Object.defineProperty(node, flag, {
@@ -926,7 +1062,7 @@ export function makeNode(
 // Scenes
 // ---------------------------------------------------------------------------
 
-/** 1.0.1 `LayerCreateOptions`, plus what each layer factory adds to it. */
+/** 1.2.0 `LayerCreateOptions`, plus what each layer factory adds to it. */
 const LAYER_CREATE_KEYS = ["name", "position", "opacity", "startFrame", "endFrame"];
 const TEXT_LAYER_CREATE_KEYS = [
   ...LAYER_CREATE_KEYS,
@@ -939,6 +1075,8 @@ const TEXT_LAYER_CREATE_KEYS = [
   "alignment",
 ];
 const SCENE_LAYER_CREATE_KEYS = [...LAYER_CREATE_KEYS, "scene"];
+/** 1.1.0 `NullLayerCreateOptions`: the layers to parent to the new null. */
+const NULL_LAYER_CREATE_KEYS = [...LAYER_CREATE_KEYS, "layers"];
 
 export interface FakeSceneOptions {
   /** 1.0.1 `Scene.isNestableScene` — false blocks use as a source scene. */
@@ -948,9 +1086,12 @@ export interface FakeSceneOptions {
 }
 
 /**
- * A 1.0.1 `Scene`: a layer list, `isNestableScene`, the three layer factories
- * and `remove()`. It models BOTH ends of the nesting work — the active scene
- * the plugin runs against, and the source scene a SCENE_LAYER references.
+ * A 1.2.0 `Scene`: a layer list, `isNestableScene`, the four layer factories
+ * (`createShapeLayer`, `createTextLayer`, `createSceneLayer`, and 1.1.0's
+ * `createNullLayer`) and `remove()`. It models BOTH ends of the nesting work
+ * — the active scene the plugin runs against, and the source scene a
+ * SCENE_LAYER references. `createImageLayer` and `import` are absent: both
+ * need an asset the fake has no way to make.
  *
  * Scene SETTINGS (size / framerate / duration / backgroundColor) are
  * deliberately absent: the set-scene path must stay testable against a host
@@ -993,6 +1134,12 @@ export function makeInnerScene(
   const applyOptions = (layer: Any, opts: Record<string, Any>) => {
     for (const [key, value] of Object.entries(opts)) {
       if (key === "scene") continue;
+      // NullLayerCreateOptions.layers: parent each one to the new null layer.
+      if (key === "layers") {
+        if (!Array.isArray(value)) invalidInput();
+        for (const child of value) child.transformParent = layer;
+        continue;
+      }
       if (key === "position" || key === "opacity") {
         const prop = layer[key];
         if (prop) prop.staticValue = value as Json;
@@ -1030,6 +1177,8 @@ export function makeInnerScene(
   scene.createShapeLayer = factory("SHAPE_LAYER", LAYER_CREATE_KEYS, "Shape Layer");
   scene.createTextLayer = factory("TEXT_LAYER", TEXT_LAYER_CREATE_KEYS, "Text Layer");
   scene.createSceneLayer = factory("SCENE_LAYER", SCENE_LAYER_CREATE_KEYS, "Scene");
+  // Creator's UI calls a null layer a "null object" (1.1.0 NullLayer docs).
+  scene.createNullLayer = factory("NULL_LAYER", NULL_LAYER_CREATE_KEYS, "Null Object");
   return scene;
 }
 

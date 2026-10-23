@@ -31,7 +31,7 @@ rationale lives in `docs/`.
   the fixture corpus of every saved macro shape, and the rule for changing
   one.
 - [`docs/runtime-api.md`](docs/runtime-api.md) — the host API's real runtime
-  surface. The published typings, `@lottiefiles/creator-api-types` 1.0.1,
+  surface. The published typings, `@lottiefiles/creator-api-types` 1.2.0,
   still diverge from the runtime in the places this file lists.
 - [`docs/limitations.md`](docs/limitations.md) — confirmed host limits, with
   evidence.
@@ -47,7 +47,7 @@ pnpm dev                       # vite dev server on :5173 (serves both the UI an
                                # @lottiefiles/vite-plugin-creator, the plugin sandbox bundle)
 pnpm build                     # tsc -b && vite build → dist/{manifest.json,plugin.js,ui.html}
 pnpm type-check                # tsc -b across all three project references
-pnpm test                      # vitest run (899 tests, 38 files, ~1s)
+pnpm test                      # vitest run (914 tests, 38 files, ~1s)
 pnpm test:watch
 pnpm test:quickjs              # builds first, then drives dist/plugin.js in real QuickJS
 pnpm test:ui                   # headless Chrome: the panel alone, on mock gateways

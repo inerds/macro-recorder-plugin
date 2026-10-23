@@ -242,7 +242,7 @@ Five things stay:
   new scene — left it where it was".
 - Undo is many steps. One rebuild is a scene layer, one layer per copy, and
   one removal per original.
-- The inner-scene factories are typed in 1.0.1 and not live-verified. The
+- The inner-scene factories are typed since 1.0.1 and not live-verified. The
   17-13 traces prove only that the shell carries a `scene` whose `layers` is
   an array. See `runtime-api.md`.
 
@@ -250,7 +250,17 @@ Five things stay:
 layers into a new scene" macro cannot move the selected layers, and early
 replays produced an empty nested scene.
 
-**Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06):**
+**Not lifted by 1.1.0 or 1.2.0 (re-checked 2026-10-23).** Neither version adds
+a move. What 1.1.0 adds is a different surface: a null layer
+(`Scene.createNullLayer({ layers })`) and a writable `transformParent` on every
+transformable layer. That is transform PARENTING — a child follows a parent's
+transform and stays in its own slot of the layer list — not nesting into a
+scene, so it does not answer this entry. Recording and replaying it is a
+separate feature; `runtime-api.md` lists the members under "Typed in 1.2.0,
+live verification pending".
+
+**Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06
+and against 1.2.0 on 2026-10-23):**
 - 0.0.2 promised `Scene.createSceneInstance(layers)`. Runtime introspection
   shows **no such method exists** (the scene exposes `createSceneLayer`,
   `createShapeLayer`, `createImageLayer`, `createTextLayer`, `export`,
@@ -337,7 +347,8 @@ A same-scene replay with nothing selected adopts the original nest.
 **What does not work:** an `add-layer` step for an `IMAGE_LAYER`. Replay
 cannot rebuild the layer, because the macro carries no image.
 
-**Why (evidence, 2026-09-06, against the 1.0.1 typings):**
+**Why (evidence, 2026-09-06, against the 1.0.1 typings; re-checked against
+1.2.0 on 2026-10-23):**
 - A recorded layer is a `NodeSnapshot` — transforms, plain flags, paints,
   masks, and child shapes. It has no channel for an image asset, so the macro
   carries nothing to draw.
@@ -354,13 +365,56 @@ layer — the recording has no image asset — skipped*
 edit to that image layer — transform, opacity, timing, keyframes — replays
 normally when the layer is already in the scene.
 
-**Path to lift:** 1.0.1 types two routes, and neither is live-verified here.
-Record the source asset's identity from `ImageLayer.image` and resolve it
-against `creator.assets` on replay, then call `createImageLayer({ image })`.
+**Path to lift:** the typings offer two routes, and neither is live-verified
+here. Record the source asset's identity from `ImageLayer.image` and resolve
+it against `creator.assets` on replay, then call `createImageLayer({ image })`.
 Or record `Image.uri` — a base64 data URI, `null` until the host has loaded
-the image — and rebuild through `Scene.import`. Weigh the second one against
-the store: a data URI inside a macro makes the saved entry much larger, and
-`clientStorage` reports the bytes used but no cap (`runtime-api.md`).
+the image — and rebuild through `Scene.import`. 1.2.0 narrows the second
+route: its `import` overloads take an IMAGE from a URL only
+(`ImportFromURL & { type: 'IMAGE' }`), while inline `content` is typed for
+`LOTTIE`, `SVG`, and `AUDIO` alone. A recorded data URI is therefore not
+enough on its own; the macro would need a URL the host can fetch with CORS.
+Weigh any content route against the store: a data URI inside a macro makes
+the saved entry much larger, and `clientStorage` reports the bytes used but
+no cap (`runtime-api.md`).
+
+---
+
+## Re-creating an audio layer on replay — the recording has no asset
+
+**What does not work:** an `add-layer` step for an `AUDIO_LAYER`. Replay
+cannot rebuild the layer, because the macro carries no sound.
+
+**Why (evidence, 2026-10-23, against the 1.2.0 typings; no live trace holds an
+audio layer yet):**
+- A recorded layer is a `NodeSnapshot`. For an audio layer it holds `volume`,
+  `muted`, and the four `BaseLayerMixin` timing flags, and nothing that could
+  play.
+- No `Scene` factory makes an audio layer. The one route is
+  `Scene.import({ type: 'AUDIO', content | url })`, which needs the audio
+  bytes as base64 or a URL and returns a Promise. The sandbox answers every
+  RPC synchronously (`architecture.md`, the no-job-pump constraint), so a
+  Promise-returning import has no place in a replay step as the engine stands.
+- Building the layer with `createShapeLayer` instead would produce the
+  dishonest shape shell the TEXT_LAYER bug of 2026-08-24 produced, where every
+  later write lands on nothing. The engine refuses to do that.
+
+**What the user sees:** the step skips with the note *can't re-create an audio
+layer — the recording has no audio asset — skipped*
+(`sandbox/playback.ts#createLayerFromSpec`, rev `2026-10-23.1`). A nest step
+leaves an audio layer where it is, with *an audio layer can't be rebuilt
+inside the new scene — left it where it was*. A selected audio layer is not a
+replay target: it has no transform, so `playbackBegin` drops it with *1
+selected audio layer skipped — macros replay onto layers with a transform*.
+Every edit the typings allow on an audio layer that is already in the scene
+— `volume`, `muted`, in and out point, timeline offset — records and replays
+through the ordinary channels, none of it live-verified.
+
+**Path to lift:** record `AudioAsset.uri` from `AudioLayer.audio`, then
+rebuild through `Scene.import({ type: 'AUDIO', url })` or with the base64
+content. Both need a Promise to settle, so the RPC protocol would need a
+deferred answer for this one step. Weigh a content route against the store as
+for an image.
 
 ---
 

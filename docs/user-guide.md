@@ -345,20 +345,23 @@ reports a skip if it cannot. Duplicate steps really duplicate, and edits
 recorded on a copy go to the copy the replay created. Layers the replay
 recreates keep their kind: a recorded text layer comes back as a real text
 layer, with its text, font, size, and alignment applied. If the host cannot
-create one, the plugin skips the step with a note rather than faking it. An
-image layer is always such a step: a recording holds no image asset, so the
-plugin reports *can't re-create an image layer — the recording has no image
-asset — skipped*. Every other edit to that image layer replays normally when
-the layer is already there.
+create one, the plugin skips the step with a note rather than faking it. A
+null object comes back as a real null layer when Creator offers that factory,
+and otherwise skips with *this scene can't create null layers — skipped*. An
+image layer or an audio layer is always such a step: a recording holds no
+image or audio asset, so the plugin reports *can't re-create an image layer —
+the recording has no image asset — skipped*, or the same note for an audio
+layer. Every other edit to that layer replays normally when the layer is
+already there.
 
 **A nest step rebuilds the layers.** Creator gives no plugin a way to move a
 layer into a scene, so the plugin rebuilds instead. It copies each selected
 layer into the new scene, places the new scene where the first selected layer
 was, and removes the originals. A run says *nested the 3 selected layers
-(rebuilt inside the new scene — Creator can't move them)*. An image layer
-cannot be copied, so it stays where it is: *an image layer can't be rebuilt
-inside the new scene — left it where it was*, and the count drops to *nested 2
-of the 3 selected layers*. If the rebuild fails, nothing moves: *couldn't
+(rebuilt inside the new scene — Creator can't move them)*. An image layer or
+an audio layer cannot be copied, so it stays where it is: *an image layer
+can't be rebuilt inside the new scene — left it where it was*, and the count
+drops to *nested 2 of the 3 selected layers*. If the rebuild fails, nothing moves: *couldn't
 rebuild your 3 selected layers inside a new scene — left them where they are*.
 With nothing selected, the plugin nests the layers it recorded. If they are
 gone but the nested scene is still there — you replay in the scene you
@@ -583,10 +586,17 @@ likely to meet these:
   stays where it is, with a note. With nothing selected in the scene the macro
   was recorded in, the step uses the nested scene that already exists instead
   of building a copy next to it.
-- **A new image layer** cannot be re-created on replay: a recording holds the
-  layer, not the image asset behind it. The step says so and skips.
-- **Macros replay onto layers**, so a shape in the selection is skipped with a
-  note. Select the layer that holds the shape.
+- **A new image layer or audio layer** cannot be re-created on replay: a
+  recording holds the layer, not the image or audio asset behind it. The step
+  says so and skips.
+- **Macros replay onto layers with a transform**, so a shape in the selection
+  is skipped with a note, and so is an audio layer, which has no position,
+  scale, or opacity for a step to land on. Select the layer that holds the
+  shape.
+- **A null object's parenting is not recorded.** Its own moves, scale, and
+  rotation record and replay like any layer's. Which layers it controls does
+  not: Creator exposes that through a new API surface that no trace has
+  confirmed yet.
 - Layer-reorder replay is live-verified: the macro records which layers it
   reordered, and replay checks them before it moves anything. Mask creation on
   replay was fixed in the 0.4.0 build, and a live session has not re-verified

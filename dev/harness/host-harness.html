@@ -37,7 +37,7 @@
     <div id="panel-slot"></div>
     <pre id="log"></pre>
     <script type="module">
-      import { makeScene } from "/engine/testing/fakeScene.ts";
+      import { makeScene, makeUtils } from "/engine/testing/fakeScene.ts";
 
       const logEl = document.getElementById("log");
       function log(...args) {
@@ -112,6 +112,8 @@
           },
         },
         timeline: { currentFrame: 0, goToFrame() {}, play() {}, pause() {} },
+        // 1.2.0 `creator.utils`: the three type guards, answered by the fake.
+        utils: makeUtils(),
         on() {},
         off() {},
         closePlugin() {},
