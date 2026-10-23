@@ -14,6 +14,19 @@ least 4.5, the plate-on-chassis ratio is at least 3, and each blue stop's
 relative luminance sits within 0.005 of its red twin, so a future palette
 edit cannot silently break contrast or the red/blue pairing. Size: S.
 
+## Model Creator's in-place parenting in `engine/testing/fakeScene.ts`
+
+Creator keeps a layer where it is on screen when it gets a transform parent:
+`setParentModifyChild` rewrites the child's static transform and its
+transform keyframes in the new parent's space, at the playhead frame
+(`docs/runtime-api.md`, quirk 11; traces `2026-10-23T14-19-42-689_record.json`
+and `14-22-00-855_record.json`). The fake scene only stores the link, so the
+harness scenario `scripts/ui-probe/harness-scenarios/parenting.mjs` passed
+while a live replay would have moved a selected child twice. A faithful
+subset — subtract the parent's static position on link, add it back on clear,
+and shift position keyframes the same way — would let `pnpm test:harness`
+catch the next regression of this kind. Size: S.
+
 ## `ui-probe` and `docs-audit` Claude skills
 
 This session ran headless-Chrome checks and a full documentation audit as

@@ -517,6 +517,30 @@ function deferParentsToAddedLayers(out: StepPayload[]): void {
   out.splice(lastAdd + 1, 0, ...deferred);
 }
 
+/** The transform members the host rewrites in place when a layer is re-parented. */
+const HOST_REWRITES_ON_REPARENT = new Set(["position", "rotation", "scale", "skew", "skewAxis"]);
+
+/**
+ * Creator keeps a layer where it is on screen when its transform parent
+ * changes: it rewrites the layer's own transform — static value and
+ * keyframes — in the new parent's space, at the playhead frame
+ * (docs/runtime-api.md, quirk 11). That rewrite lands in the same tick as the
+ * `set-parent`, and the host makes it AGAIN when replay writes the parent, so
+ * a recorded copy would move the layer twice in a targets-mode replay. Drop
+ * it. Opacity, the layer's shapes, and every other layer keep their changes.
+ */
+function dropParentCompensation(payloads: StepPayload[]): StepPayload[] {
+  if (!payloads.some((payload) => payload.op === "set-parent")) return payloads;
+  return payloads.filter(
+    (payload) =>
+      !(
+        (payload.op === "set-static" || payload.op === "keyframes") &&
+        payload.path.length === 1 &&
+        HOST_REWRITES_ON_REPARENT.has(String(payload.path[0]))
+      ),
+  );
+}
+
 /**
  * Whole-scene diff: layers matched by id. Edits inside a surviving layer come
  * from diffSnapshots, each payload bound to its layer. New layers that are
@@ -539,7 +563,7 @@ export function diffScene(prev: SceneSnapshot, next: SceneSnapshot): StepPayload
   for (const [id, { layer: nextLayer }] of nextById) {
     const prevEntry = prevById.get(id);
     if (prevEntry) {
-      const payloads = diffSnapshots(prevEntry.layer, nextLayer);
+      const payloads = dropParentCompensation(diffSnapshots(prevEntry.layer, nextLayer));
       const ref = layerRefOf(nextLayer);
       if (
         prevEntry.layer.nodeName !== undefined &&

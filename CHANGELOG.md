@@ -11,10 +11,16 @@ one row per fix — is `docs/history/improvements.md`.
   above layers, which reads as one step, *Add controller "Null 1" above
   Layer A, Layer B*. A parent step plays onto every selected layer and finds
   the parent by name in the scene; a controller step creates a new null
-  object above the selected layers. Creator declares these members in its
-  plugin typings (`@lottiefiles/creator-api-types` 1.1.0 and 1.2.0), and no
-  Creator session has confirmed them yet: a host without them skips the
-  step with a note.
+  object above the selected layers. Creator confirmed these members on
+  2026-10-23; an older host without them skips the step with a note. A
+  parent step leaves out the position rewrite Creator makes to keep the
+  layer where it is on screen, because Creator makes it again on replay.
+- At playhead now slides a layer the macro creates along with its motion,
+  and says so: *At playhead slid Null 1's in and out points by 149 frames,
+  to 149–299*. A keyframe that lands past a layer's out point is noted:
+  *keyframe at 276 lands past Null 1's out point (150)*. Before, a null
+  object added and animated by a macro kept its recorded window while its
+  keyframes slid past it, so it sat still.
 - Creator's two new layer kinds are safe to have in a scene. A null object
   (a layer that only moves other layers) records and replays its own
   transform, and a replay that must add one builds a real null layer when

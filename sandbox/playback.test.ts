@@ -3044,3 +3044,89 @@ describe("add-layer with a NULL_LAYER spec", () => {
     expect(scene.layers.map((l: Any) => l.name)).toEqual(["New Layer"]);
   });
 });
+
+describe("At playhead slides a created layer's window", () => {
+  // A null added with a 0-150 window and position keyframes at 0 and 127: the
+  // recording of a rig whose motion fills its whole window.
+  const NULL_WINDOW_SPEC = {
+    ...RIG_SPEC,
+    plain: { startFrame: 0, endFrame: 150 },
+    props: { position: { animated: false, static: { x: 41, y: 155 } } },
+  };
+
+  function positionKeyframes(layer: Any) {
+    return step({
+      op: "keyframes",
+      path: ["position"],
+      added: [
+        { frame: 0, value: { x: 41, y: 155 } },
+        { frame: 127, value: { x: 334, y: 428 } },
+      ],
+      removed: [],
+      changed: [],
+      layer,
+    });
+  }
+
+  function sceneModeRun(currentFrame: number) {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    stubCreator(scene, []);
+    (globalThis as Any).creator.timeline = { currentFrame };
+    const steps = [
+      step({ op: "add-layer", spec: NULL_WINDOW_SPEC }),
+      positionKeyframes({ id: "REC-RIG", name: "Rig" }),
+    ] as Any;
+    playbackBegin({ steps, atPlayhead: true });
+    const created = playbackStep({ index: 0 });
+    const keyframed = playbackStep({ index: 1 });
+    const rig = scene.layers.find((l: Any) => l.name === "Rig");
+    return { rig, created, keyframed };
+  }
+
+  it("slides a created null's window with its keyframes at the playhead, and says so", () => {
+    const { rig, created, keyframed } = sceneModeRun(149);
+    expect(created.failures).toEqual([]);
+    expect(keyframed.failures).toEqual([]);
+    // The motion slid (already true today)…
+    expect(rig.position.keyframes.map((k: Any) => k.frame)).toEqual([149, 276]);
+    // …and the window must slide with it, or the layer is gone before its motion ends.
+    expect.soft([rig.startFrame, rig.endFrame]).toEqual([149, 299]);
+    // The slide is an adaptation that worked: an info note on the creating step.
+    const slide = (created.notes ?? []).find((n: Any) =>
+      /slid .*149|in point .*149|playhead.*149/.test(n.message),
+    );
+    expect(slide, JSON.stringify(created.notes)).toBeDefined();
+    expect(slide?.kind).toBe("info");
+  });
+
+  it("leaves a created layer's window at 0-150 and says nothing when the playhead is at 0", () => {
+    const { rig, created, keyframed } = sceneModeRun(0);
+    expect(rig.position.keyframes.map((k: Any) => k.frame)).toEqual([0, 127]);
+    expect([rig.startFrame, rig.endFrame]).toEqual([0, 150]);
+    const slideNotes = [...(created.notes ?? []), ...(keyframed.notes ?? [])].filter((n: Any) =>
+      /slid|playhead|in point/.test(n.message),
+    );
+    expect(slideNotes).toEqual([]);
+  });
+
+  it("targets mode: says when a keyframe lands past the selected layer's out point", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Hero", {}, ids));
+    expect(layer.endFrame).toBe(150);
+    stubCreator(scene, [layer]);
+    (globalThis as Any).creator.timeline = { currentFrame: 149 };
+    playbackBegin({
+      steps: [positionKeyframes({ id: "REC", name: "Rec" })] as Any,
+      atPlayhead: true,
+    });
+    const result = playbackStep({ index: 0 });
+    expect(result.failures).toEqual([]);
+    expect(layer.position.keyframes.map((k: Any) => k.frame)).toEqual([149, 276]);
+    const past = (result.notes ?? []).find((n: Any) => /past .*out point/.test(n.message));
+    expect(past, JSON.stringify(result.notes)).toBeDefined();
+    expect(past?.message).toContain("150");
+    expect(past?.kind).toBe("info");
+  });
+});

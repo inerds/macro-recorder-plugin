@@ -1267,4 +1267,154 @@ describe("diffScene — transform parents", () => {
       },
     ]);
   });
+
+  // The host re-parents with setParentModifyChild: it rewrites the child's own
+  // transform in place so the layer stays put on screen. That rewrite lands in
+  // the same tick as the parent change, and the host redoes it on replay when
+  // the parent is written — a recorded copy of it would apply twice.
+  describe("the host's same-tick compensation of the child's transform", () => {
+    const A_REF = { id: "A", name: "Layer A" };
+    const RIG_REF = { id: "N", name: "Rig" };
+    // Live trace values: the new parent sits at {41,155}, so the compensated
+    // position is the old one minus that.
+    const BEFORE_POS = { x: 124.5, y: 234.5 };
+    const AFTER_POS = { x: 83.5, y: 79.5 };
+
+    const unparented = (props: NodeSnapshot["props"], overrides: Partial<NodeSnapshot> = {}) =>
+      layer("A", "Layer A", { transformParent: null, props, ...overrides });
+    const parented = (props: NodeSnapshot["props"], overrides: Partial<NodeSnapshot> = {}) =>
+      layer("A", "Layer A", { transformParent: RIG_REF, props, ...overrides });
+    const setParentA = {
+      op: "set-parent",
+      parent: RIG_REF,
+      before: null,
+      layer: A_REF,
+    };
+
+    it("records only set-parent when a layer gains a parent and the host rewrites its static position", () => {
+      const before = unparented({ position: anim(BEFORE_POS) });
+      const after = parented({ position: anim(AFTER_POS) });
+      expect(diffScene(scene(before, rig()), scene(after, rig()))).toEqual([setParentA]);
+    });
+
+    it("records only set-parent when a layer gains a parent and the host rewrites its position keyframes", () => {
+      const before = unparented({
+        position: anim(undefined, [kf(0, BEFORE_POS, "k1"), kf(30, { x: 224.5, y: 234.5 }, "k2")]),
+      });
+      const after = parented({
+        position: anim(undefined, [kf(0, AFTER_POS, "k1"), kf(30, { x: 183.5, y: 79.5 }, "k2")]),
+      });
+      expect(diffScene(scene(before, rig()), scene(after, rig()))).toEqual([setParentA]);
+    });
+
+    it.each([
+      ["rotation", 0, -12.5],
+      ["scale", { x: 100, y: 100 }, { x: 80, y: 80 }],
+      ["skew", 0, 5],
+      ["skewAxis", 0, 15],
+    ] as [string, Json, Json][])(
+      "records only set-parent when a layer gains a parent and the host rewrites its %s",
+      (prop, was, now) => {
+        const before = unparented({ position: anim(BEFORE_POS), [prop]: anim(was) });
+        const after = parented({ position: anim(BEFORE_POS), [prop]: anim(now) });
+        expect(diffScene(scene(before, rig()), scene(after, rig()))).toEqual([setParentA]);
+      },
+    );
+
+    it("records only set-parent when a layer's parent is cleared and the host rewrites its position", () => {
+      const before = parented({ position: anim(AFTER_POS) });
+      const after = unparented({ position: anim(BEFORE_POS) });
+      expect(diffScene(scene(before, rig()), scene(after, rig()))).toEqual([
+        { op: "set-parent", parent: null, before: RIG_REF, layer: A_REF },
+      ]);
+    });
+
+    it("folds into a single add-controller when the parent is a null layer added in the same tick as the host's position rewrite", () => {
+      const before = unparented({ position: anim(BEFORE_POS) });
+      const after = parented({ position: anim(AFTER_POS) });
+      const controller = rig();
+      expect(diffScene(scene(before), scene(after, controller))).toEqual([
+        { op: "add-controller", spec: controller, layers: [A_REF] },
+      ]);
+    });
+
+    // Controls: what the drop must not swallow.
+
+    it("keeps a position change on a layer whose parent did not change", () => {
+      const before = parented({ position: anim(AFTER_POS) });
+      const after = parented({ position: anim({ x: 90, y: 100 }) });
+      expect(diffScene(scene(before, rig()), scene(after, rig()))).toEqual([
+        {
+          op: "set-static",
+          path: ["position"],
+          before: AFTER_POS,
+          after: { x: 90, y: 100 },
+          layer: A_REF,
+        },
+      ]);
+    });
+
+    it("keeps a layer's position change in the tick another layer gained a parent", () => {
+      const b = (parent: NodeSnapshot["transformParent"]) =>
+        layer("B", "Layer B", { transformParent: parent });
+      const before = unparented({ position: anim(BEFORE_POS) });
+      const after = unparented({ position: anim({ x: 300, y: 40 }) });
+      expect(diffScene(scene(before, b(null), rig()), scene(after, b(RIG_REF), rig()))).toEqual([
+        {
+          op: "set-static",
+          path: ["position"],
+          before: BEFORE_POS,
+          after: { x: 300, y: 40 },
+          layer: A_REF,
+        },
+        { op: "set-parent", parent: RIG_REF, before: null, layer: { id: "B", name: "Layer B" } },
+      ]);
+    });
+
+    it("keeps an opacity change in the tick the layer gained a parent (opacity is not rewritten by the host)", () => {
+      const before = unparented({ position: anim(BEFORE_POS), opacity: anim(100) });
+      const after = parented({ position: anim(AFTER_POS), opacity: anim(40) });
+      const ops = diffScene(scene(before, rig()), scene(after, rig()));
+      expect(ops).toContainEqual(setParentA);
+      expect(ops).toContainEqual({
+        op: "set-static",
+        path: ["opacity"],
+        before: 100,
+        after: 40,
+        layer: A_REF,
+      });
+    });
+
+    it("keeps a change to a layer's child shape in the tick the layer gained a parent", () => {
+      const child = (size: Json, position: Json) =>
+        makeShape("c1", "RECTANGLE", { props: { size: anim(size), position: anim(position) } });
+      const before = unparented(
+        { position: anim(BEFORE_POS) },
+        { shapes: [child({ x: 80, y: 60 }, { x: 0, y: 0 })] },
+      );
+      const after = parented(
+        { position: anim(AFTER_POS) },
+        { shapes: [child({ x: 200, y: 100 }, { x: 12, y: 8 })] },
+      );
+      const ops = diffScene(scene(before, rig()), scene(after, rig()));
+      expect(ops).toContainEqual(setParentA);
+      expect(ops).toContainEqual({
+        op: "set-static",
+        path: ["shapes", 0, "size"],
+        before: { x: 80, y: 60 },
+        after: { x: 200, y: 100 },
+        shapeHint: "RECTANGLE",
+        layer: A_REF,
+      });
+      // The child's own position is not the layer's transform, whatever its name.
+      expect(ops).toContainEqual({
+        op: "set-static",
+        path: ["shapes", 0, "position"],
+        before: { x: 0, y: 0 },
+        after: { x: 12, y: 8 },
+        shapeHint: "RECTANGLE",
+        layer: A_REF,
+      });
+    });
+  });
 });

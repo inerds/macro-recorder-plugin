@@ -985,6 +985,7 @@ export function applyStep(
         return skipNote(notes, error);
       }
       applyKeyframes(prop, payload, notes, context);
+      noteKeyframesPastOutPoint(target, payload, context, notes);
       return outcomeOf(notes);
     }
 
@@ -1889,6 +1890,85 @@ export function createNullLayerFrom(
   if (linked.length > 0) notes.info(`created "${nullName}" above ${linked.join(", ")}`);
   if (failed.length > 0) notes.push(`couldn't parent ${failed.join(", ")} to "${nullName}"`);
   return created;
+}
+
+// ---------------------------------------------------------------------------
+// At playhead: a created layer's window rides with its motion
+// ---------------------------------------------------------------------------
+
+/**
+ * At playhead slid this run's keyframes by `delta` frames. A layer the macro
+ * itself created was written with its RECORDED window, so its motion landed
+ * outside it (live: traces 2026-10-23T14-19-53 / 14-20-04 / 14-22-14 — a
+ * null parked at 0–150 while its keyframes went to 149–276, and it sat
+ * still). The in and out points move together; `timelineOffset` stays,
+ * because the keyframes were shifted explicitly. Both writes are read back.
+ */
+export function slideLayerWindow(node: AnyProxy, delta: number, notes: NoteList): void {
+  if (delta === 0) return;
+  const start = finiteOf(tryRead(() => node.startFrame));
+  const end = finiteOf(tryRead(() => node.endFrame));
+  const label = nameOf(node, "the new layer");
+  if (start === undefined || end === undefined) {
+    notes.push(
+      `couldn't read ${label}'s in and out points — At playhead left its window where it was`,
+    );
+    return;
+  }
+  // Out point first when sliding later, in point first when sliding earlier,
+  // so the window never inverts between the two writes on a host that checks.
+  const writes: Array<["startFrame" | "endFrame", number]> =
+    delta > 0
+      ? [
+          ["endFrame", end + delta],
+          ["startFrame", start + delta],
+        ]
+      : [
+          ["startFrame", start + delta],
+          ["endFrame", end + delta],
+        ];
+  let kept = false;
+  for (const [flag, value] of writes) {
+    try {
+      node[flag] = value;
+    } catch {
+      kept = true;
+    }
+    if (finiteOf(tryRead(() => node[flag])) !== value) kept = true;
+  }
+  if (kept) {
+    notes.push(
+      `Creator kept ${label}'s in and out points as they were — its motion slid to the playhead without it`,
+    );
+    return;
+  }
+  notes.info(
+    `At playhead slid ${label}'s in and out points by ${delta} frames, to ${start + delta}–${end + delta}`,
+  );
+}
+
+/**
+ * At playhead moved these keyframes; say so when one lands past the target's
+ * out point, where it plays to nobody. Only a slid run can do this: a
+ * recorded keyframe past the out point is the recording's own state.
+ */
+function noteKeyframesPastOutPoint(
+  target: AnyProxy,
+  payload: Extract<StepPayload, { op: "keyframes" }>,
+  context: ApplyContext,
+  notes: NoteList,
+): void {
+  const offset = context.frameOffset ?? 0;
+  if (offset === 0) return;
+  const frames = [
+    ...payload.added.map((snap) => snap.frame),
+    ...payload.changed.map((change) => change.after.frame),
+  ];
+  if (frames.length === 0) return;
+  const last = Math.max(...frames) + offset;
+  const end = finiteOf(tryRead(() => target.endFrame));
+  if (end === undefined || last <= end) return;
+  notes.info(`keyframe at ${last} lands past ${nameOf(target, "this layer")}'s out point (${end})`);
 }
 
 // ---------------------------------------------------------------------------

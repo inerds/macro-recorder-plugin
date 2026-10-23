@@ -384,13 +384,15 @@ the layers you have selected, like a nest step, and reports *created "Rig"
 above Layer C, Layer D*. With nothing selected it goes above the layers the
 recording named, found by name. Every run makes a new null object: played
 with nothing selected in the scene you recorded in, the step moves those
-layers from the null object the recording made to a new one. Creator exposes these members in its plugin
-typings, and no session of this plugin has confirmed them in Creator yet: a
-host without them reports *Creator doesn't expose transform parents here —
-skipped*, or *this scene can't create null layers — skipped*, and a host
-that keeps its own value says *Creator kept the parent as it was — the
-change didn't apply*. Parenting records on top-level layers only, not on
-the layers inside a scene layer.
+layers from the null object the recording made to a new one. Creator
+confirmed these members on 2026-10-23; an older host without them reports
+*Creator doesn't expose transform parents here — skipped*, or *this scene
+can't create null layers — skipped*, and a host that keeps its own value
+says *Creator kept the parent as it was — the change didn't apply*.
+Parenting records on top-level layers only, not on the layers inside a scene
+layer. When you parent a layer, Creator keeps it where it is on screen by
+rewriting its position; the recorder leaves that rewrite out of the macro,
+because Creator makes it again on replay.
 
 **Scene settings apply to the scene.** A step that recorded the size,
 background, frame rate, duration, or name goes to the active scene once per
@@ -457,6 +459,13 @@ park the playhead at frame 120, and play at playhead: the bounce happens at
 120→150. All keyframes in the macro move together, and static (non-keyframe)
 edits are unaffected. **Newly recorded macros start with this on** — open the
 play options to turn it off for the session.
+
+A layer the macro itself creates slides with its motion: its in and out
+points move by the same number of frames, and the step says so (*At playhead
+slid Null 1's in and out points by 149 frames, to 149–299*). A keyframe that
+lands past a layer's out point is noted (*keyframe at 276 lands past Null 1's
+out point (150)*). When the scene is shorter than the playhead plus the
+recorded motion, park the playhead earlier or turn At playhead off.
 
 A macro with no keyframes has nothing to slide, so At playhead moves the
 **first target layer's in point to the current frame** instead. The layer's

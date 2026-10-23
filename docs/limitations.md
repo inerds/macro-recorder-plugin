@@ -258,10 +258,12 @@ transform and stays in its own slot of the layer list — not nesting into a
 scene, so it does not answer this entry. Since rev `2026-10-23.2` the
 recorder records it as a `set-parent` step, and a null object added above
 layers as an `add-controller` step; replay writes `transformParent` and calls
-`scene.createNullLayer({ layers })`. Those members stay typed and not yet
-live-verified; `runtime-api.md` lists them under "Typed in 1.2.0, live
-verification pending". A move INTO a scene layer's content still has no API,
-so the rebuild above stays the route for a nest.
+`scene.createNullLayer({ layers })`. Traces of 2026-10-23 verified both: the
+`transformParent` write read back as the new null and `createNullLayer`
+returned a real `NULL_LAYER` (`2026-10-23T14-22-14-161_playback-Macro-3.json`,
+`14-24-41-556_playback-Macro-3.json`; `runtime-api.md` holds the probe
+output). A move INTO a scene layer's content still has no API, so the rebuild
+above stays the route for a nest.
 
 **Why (evidence, 2026-08-22; typings re-checked against 1.0.1 on 2026-09-06
 and against 1.2.0 on 2026-10-23):**

@@ -606,7 +606,7 @@ replay that writes too widely is as much a failure as one that writes nothing.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-10-23.3)
+## Status and open threads (as of engine rev 2026-10-23.4)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two

@@ -21,6 +21,7 @@ import {
   reorderChildren,
   resolvePath,
   sameNode,
+  slideLayerWindow,
   writeTransformParent,
 } from "./applier";
 // (instance-content edits resolve strictly by index — user decision: layer
@@ -816,6 +817,9 @@ function nestByRebuild(
   }
   if (!placed) notes.info("the new scene landed at the end of the layer list");
   dressShell();
+  // The shell is a layer this replay created: its window rides with the
+  // motion At playhead slid, like an add-layer's.
+  slideCreated(shell, notes);
 
   const nested = new Map<number, AnyProxy>();
   buildable.forEach((entry, i) => {
@@ -938,6 +942,16 @@ function parentFromSpec(created: AnyProxy, spec: NodeSnapshot, notes: NoteList):
   if (!written.ok) notes.push(`${label}: ${parentFailureNote(written)}`);
 }
 
+/**
+ * A layer this replay created rides with the motion At playhead slid: its
+ * window moves by the run's frame offset, or its keyframes land outside it.
+ */
+function slideCreated(created: AnyProxy, notes: NoteList): void {
+  const playback = session.playback;
+  if (!playback || playback.frameOffsetBase === 0) return;
+  slideLayerWindow(created, playback.frameOffsetBase, notes);
+}
+
 function applySceneOp(
   payload: Extract<
     StepPayload,
@@ -992,6 +1006,7 @@ function applySceneOp(
       // A controller recorded under another rig takes that parent too, the
       // way a rebuilt add-layer does.
       parentFromSpec(created, payload.spec as NodeSnapshot, notes);
+      slideCreated(created, notes);
     }
     return;
   }
@@ -1029,6 +1044,7 @@ function applySceneOp(
             }
           }
           parentFromSpec(created, payload.spec as NodeSnapshot, notes);
+          slideCreated(created, notes);
           return;
         }
       }
@@ -1041,6 +1057,7 @@ function applySceneOp(
     if (created) {
       playback.layerByRecordedId.set(payload.spec.nodeId, created);
       parentFromSpec(created, payload.spec as NodeSnapshot, notes);
+      slideCreated(created, notes);
     }
     return;
   }

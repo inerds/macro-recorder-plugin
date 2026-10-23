@@ -16,7 +16,8 @@ capability; the record-start debug probe dumps the surfaces into traces.
 ## Node types (runtime `type` strings)
 
 The runtime `type` strings and 1.2.0 agree on every kind a trace has shown.
-The two kinds 1.1.0 and 1.2.0 added are typed and not yet seen live:
+Of the two kinds 1.1.0 and 1.2.0 added, `NULL_LAYER` was seen live on
+2026-10-23 and `AUDIO_LAYER` is typed and not yet seen:
 
 | Runtime | 1.2.0 says | Notes |
 |---|---|---|
@@ -24,7 +25,7 @@ The two kinds 1.1.0 and 1.2.0 added are typed and not yet seen live:
 | `SCENE_LAYER` | `SCENE_LAYER` | content in `instance.scene.layers` (shared between instances) |
 | `TEXT_LAYER` | `TEXT_LAYER` | see text section |
 | image layers (from drops) | `IMAGE_LAYER` | generic layer surface works |
-| not yet seen live | `NULL_LAYER` | 1.1.0 `NullLayer`: `LayerMixin` plus a read-only `layers` list |
+| `NULL_LAYER` (live 2026-10-23) | `NULL_LAYER` | 1.1.0 `NullLayer`: `LayerMixin` plus a read-only `layers` list; traces `2026-10-23T14-19-16-329_record.json` and `14-22-14-161_playback-Macro-3.json` |
 | not yet seen live | `AUDIO_LAYER` | 1.2.0 `AudioLayer`: `BaseLayerMixin` plus `muted`, `volume`, `audio`; no transform |
 | `RECTANGLE` `ELLIPSE` `POLYGON` `STAR` `PATH` `GROUP` | ✓ | shape stack members |
 
@@ -174,17 +175,25 @@ has a fallback:
 
 ## Typed in 1.2.0, live verification pending
 
-Versions 1.1.0 and 1.2.0 added these members. No trace has shown any of them.
-The engine feature-detects each one it calls and has a fallback for it; a
-member the engine does not call is listed so that a later feature starts from
-the typed shape. Since rev `2026-10-23.2` the `record.start` debug probe
+Versions 1.1.0 and 1.2.0 added these members. Traces of 2026-10-23 (rev
+`2026-10-23.3`) verified the three parenting members, marked LIVE below: the
+`record.start` probe read `{"createNullLayer":"function",
+"isTransformableLayer":"function","transformParentIn":true,
+"transformParentOnSurface":true,"transformParentType":"undefined"}`
+(`2026-10-23T14-19-16-329_record.json`), `createNullLayer` returned a real
+`NULL_LAYER`, and a `set-parent` write read back as the new null
+(`14-22-14-161_playback-Macro-3.json`, `14-24-41-556_playback-Macro-3.json`).
+The audio members and the import overloads stay unverified. The engine
+feature-detects each one it calls and has a fallback for it; a member the
+engine does not call is listed so that a later feature starts from the typed
+shape. Since rev `2026-10-23.2` the `record.start` debug probe
 reports `parentingIntrospection` — whether `transformParent` is on the first
 layer, by the `in` operator and by the own-and-prototype surface, whether the
 scene has `createNullLayer`, and whether `utils.isTransformableLayer` exists —
 so the first debug recording on a real host answers for the parenting members
 at once:
 
-- `creator.utils.isTransformableLayer(node)` on `UtilsAPI`: `true` for a
+- LIVE 2026-10-23 — `creator.utils.isTransformableLayer(node)` on `UtilsAPI`: `true` for a
   `TransformableLayer`, which is every layer kind but `AudioLayer`.
   `sandbox/playback.ts#isLayerNode` asks it FIRST, then `isLayer`, then the
   `startFrame` fallback, and takes an answer only when it is a boolean. A
@@ -193,7 +202,7 @@ at once:
   The `startFrame` fallback cannot tell an audio layer from a shape layer,
   because `BaseLayerMixin` gives both a timeline window; a host that has
   audio layers also has the guard.
-- `Scene.createNullLayer(opts?)`, from 1.1.0. `NullLayerCreateOptions` adds a
+- LIVE 2026-10-23 — `Scene.createNullLayer(opts?)`, from 1.1.0. `NullLayerCreateOptions` adds a
   `layers` list to `LayerCreateOptions`.
   `sandbox/applier.ts#createNullLayerFrom` calls it with `{ name, position,
   layers }` for an `add-controller` step (rev `2026-10-23.2`) and with no
@@ -208,7 +217,7 @@ at once:
   transform through `TYPE_PROPS.NULL_LAYER` and does not read `layers`: a
   parent is recorded from each child's `transformParent`, and `layers` is
   the replay's witness that `createNullLayer` linked what it was given.
-- `LayerMixin.transformParent`, readable and writable, typed
+- LIVE 2026-10-23 — `LayerMixin.transformParent`, readable and writable, typed
   `TransformableLayer | undefined`, from 1.1.0. Reading a transform parent
   from `parent` is deprecated since 1.1.0 (removal eligible after 2027-03-05);
   reading the containing `Scene` from `parent` stays, and the engine never
@@ -357,3 +366,18 @@ Other documents cite these items by number, so keep the numbering stable:
     NEVER live-verified, because our introspection predates the probe. If a
     trace shows the frame matching Creator's theme, the event exists; move
     this note accordingly.
+11. **Parenting rewrites the child's transform in place.** A write to
+    `transformParent`, and `createNullLayer({ layers })`, keep the child where
+    it is on screen: the host re-expresses the child's static transform and
+    every transform keyframe in the new parent's space, evaluated at
+    `timeline.currentFrame` (Creator source: `setLayerParent` calls the
+    toolkit's `setParentModifyChild(parent, currentFrame)`). Live: trace
+    `2026-10-23T14-19-42-689_record.json` tick 28 moved Ellipse 1 from
+    {345, 230.3} to {−1, −160.7}, minus the null's frame-149 value, in the
+    same tick as its `set-parent`; `14-22-00-855_record.json` tick 103 shows
+    {124.5, 234.5} → {83.5, 79.5}. The recorder drops a layer's same-tick
+    transform changes when its parent changed in that tick (`engine/diff.ts`,
+    rev `2026-10-23.4`), because the host makes the same rewrite again on
+    replay; a recorded copy would move the layer twice in a targets-mode
+    replay. The value the host writes depends on the playhead, so a
+    compensation recorded at one frame is wrong at another.
