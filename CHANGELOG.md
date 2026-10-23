@@ -6,6 +6,8 @@ one row per fix — is `docs/history/improvements.md`.
 
 ## Unreleased
 
+## 0.9.0 — 2026-10-23
+
 - The recorder now records layer parenting: a layer's transform parent, set
   to a null object or to another layer, or cleared, and a null object added
   above layers, which reads as one step, *Add controller "Null 1" above
