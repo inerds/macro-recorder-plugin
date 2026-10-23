@@ -90,8 +90,10 @@ const NODE_TYPE_NAMES: Record<string, string> = {
   GROUP: "group",
   TEXT_LAYER: "text layer",
   IMAGE_LAYER: "image layer",
-  // Creator's UI calls a NULL_LAYER a null object (creator-api-types 1.1.0).
-  NULL_LAYER: "null object",
+  // Creator's UI calls a null layer a "null object" (1.1.0 NullLayer docs);
+  // the API name is what a recording carries, so notes say "null layer".
+  NULL_LAYER: "null layer",
+  AUDIO_LAYER: "audio layer",
 };
 
 export function nodeTypeName(nodeType: string): string {

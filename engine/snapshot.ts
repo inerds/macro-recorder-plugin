@@ -141,7 +141,7 @@ export interface SceneSnapshot {
 const TRANSFORM_PROPS = ["position", "scale", "rotation", "skew", "skewAxis", "opacity"] as const;
 
 /**
- * Animatable property names per node type (creator-api-types 1.0.1). Unknown
+ * Animatable property names per node type (creator-api-types 1.2.0). Unknown
  * types fall back to probing the union of everything — reads are defensive,
  * absent properties are simply omitted.
  */
@@ -153,10 +153,6 @@ export const TYPE_PROPS: Record<string, readonly string[]> = {
   SCENE_LAYER: TRANSFORM_PROPS,
   // Image layers carry the generic layer surface and nothing else animatable.
   IMAGE_LAYER: TRANSFORM_PROPS,
-  // A null layer (creator-api-types 1.1.0; Creator's UI calls it a null
-  // object) is LayerMixin alone: a transform that other layers inherit, and
-  // nothing it renders itself.
-  NULL_LAYER: TRANSFORM_PROPS,
   GROUP: TRANSFORM_PROPS,
   SHAPE_LAYER: TRANSFORM_PROPS, // legacy/fake type name
   RECTANGLE: ["size", "position", "roundness"],
@@ -176,6 +172,14 @@ export const TYPE_PROPS: Record<string, readonly string[]> = {
   // fontSize may be animatable; if the host serves it as a plain number the
   // serializer records it via the plain channel instead.
   TEXT_LAYER: [...TRANSFORM_PROPS, "fontSize"],
+  // 1.1.0 `NullLayer` extends LayerMixin: a transform and nothing of its own
+  // to animate. Its `layers` list (the layers parented to it) is not recorded
+  // here — parenting is a separate surface (docs/runtime-api.md).
+  NULL_LAYER: TRANSFORM_PROPS,
+  // 1.2.0 `AudioLayer` has NO transform: no position, opacity, blend mode,
+  // matte or masks. `volume` (0–100) is its only animatable, so an idle audio
+  // layer must never produce a transform step. Typed, not live-verified.
+  AUDIO_LAYER: ["volume"],
 };
 
 export const ALL_CANDIDATE_PROPS: readonly string[] = [
@@ -201,6 +205,8 @@ export const PLAIN_PROPS: readonly string[] = [
   "fontStyle",
   "fontSize",
   "alignment",
+  // audio layers (1.2.0 `AudibleMixin`; probed defensively, absent elsewhere)
+  "muted",
 ];
 
 /** Property classes that drive relative playback math for layer transforms. */

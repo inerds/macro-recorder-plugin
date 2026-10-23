@@ -116,7 +116,7 @@ the message channel.
 
 `engine/testing/fakeScene.ts` is the test double for that proxy surface, shared
 by `dev/harness/host-harness.html` and vitest. It models the
-`creator-api-types` 1.0.1 surface, corrected by
+`creator-api-types` 1.2.0 surface, corrected by
 [`runtime-api.md`](runtime-api.md) and [`limitations.md`](limitations.md),
 which win where the two disagree. It reproduces the real API's traps on
 purpose — most importantly that the host silently discards an assignment to
@@ -128,11 +128,18 @@ live host's `✗ Invalid input`). Its header comment holds the full list. Never
 make the fake more permissive than the real host; that would hide the bugs it
 exists to catch — the 2026-09-06 pass that tightened it exposed five real
 applier bugs at once. A `SCENE_LAYER` node carries a real inner scene
-(`makeInnerScene`: `layers`, `isNestableScene`, the three layer factories, and
-`remove()`), which stays inside that rule: 1.0.1 types the inner scene and its
+(`makeInnerScene`: `layers`, `isNestableScene`, the four layer factories, and
+`remove()`), which stays inside that rule: 1.2.0 types the inner scene and its
 factories, the live shell carries `scene.layers`, and the engine
 feature-detects each factory. The root scene's own `createSceneLayer()` stays
-empty and selection-blind, as runtime quirk 8 describes.
+empty and selection-blind, as runtime quirk 8 describes. The two 1.2.0 layer
+kinds follow the same rule: a `NULL_LAYER` is `LayerMixin` plus a read-only
+`layers` list and a writable `transformParent`, and an `AUDIO_LAYER` is
+`BaseLayerMixin` plus `muted`, `volume`, and `audio` — no transform, no
+`visible`, no `blendMode`, no masks — so a step that reaches for one of those
+on an audio layer fails in the fake as it would on the host. `makeUtils()`
+models `creator.utils` (`isLayer`, `isTransformableLayer`, `isShape`) for the
+tests and the harness that want a host with the type guards.
 
 Every proxy reader is defensive, because proxies vary by node type and any
 getter can throw — `serialize.ts` wraps every read in `tryRead` and simply
@@ -171,7 +178,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   a `shapeHint`. A mask's `mode` rides the `set-plain` channel (1.0.1 `Mask`
   types it as a plain string), and a linear↔radial gradient swap records as
   `replace-paint`, because no host gradient carries a writable `type`.
-- **Layer parenting (rev `2026-10-23.1`)**: `NodeSnapshot.transformParent`
+- **Layer parenting (rev `2026-10-23.2`)**: `NodeSnapshot.transformParent`
   is `Layer.transformParent` (creator-api-types 1.1.0) read as a `{id, name}`
   identity on top-level layers — `null` for none, ABSENT when the host does
   not expose the member, which `sandbox/serialize.ts#readTransformParent`
@@ -599,7 +606,7 @@ replay that writes too widely is as much a failure as one that writes nothing.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-10-23.1)
+## Status and open threads (as of engine rev 2026-10-23.2)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two
@@ -625,15 +632,29 @@ declares the same URL.
   new scene instead of reporting a false success — the three 2026-09-06T17-13
   traces showed adoption reading like a nest that never happened. The route
   runs on typed, not yet live-verified members (`runtime-api.md`).
-- Bumped to `@lottiefiles/creator-api-types` 1.2.0 (2026-10-23) for layer
-  parenting. The four members it brought — `Layer.transformParent`,
-  `NullLayer` with its `layers` list, `Scene.createNullLayer`, and
-  `creator.utils.isTransformableLayer` — are feature-detected and none is
-  live-verified. `runtime-api.md` lists them under "Typed in 1.1.0 and
-  1.2.0, live verification pending", and the pull request that added them
+- Baselined on `@lottiefiles/creator-api-types` 1.0.1 (2026-09-06), and
+  re-pinned to 1.2.0 (2026-10-23). The typed surfaces the 1.0.1 pass started
+  to use — `creator.utils.isLayer`, the `Scene` settings writes, `getValueAt`
+  baselines, `createGroup(GroupOptions)`, `clientStorage.usedQuota`, and the
+  nest rebuild's members (the inner scene's factories, `creator.createScene`,
+  `createSceneLayer({ scene })`, `isNestableScene`, and `Scene.remove()`) —
+  are all feature-detected and none is live-verified. `runtime-api.md` lists
+  them under "Typed since 1.0.1, live verification pending"; move each one
+  when a trace confirms it. The 1.2.0 pass (rev `2026-10-23.1`) adds
+  `creator.utils.isTransformableLayer`, asked before `isLayer` in
+  `isLayerNode`, and `Scene.createNullLayer` for a rebuilt `NULL_LAYER`; it
+  records an audio layer's `volume` and `muted` through the ordinary channels
+  and refuses to rebuild one, because the recording holds no audio asset. Those
+  sit under "Typed in 1.2.0, live verification pending".
+- Layer parenting (rev `2026-10-23.2`) builds on that pass: `set-parent` and
+  `add-controller` steps use `Layer.transformParent`, `NullLayer.layers`, and
+  `Scene.createNullLayer({ layers })` — feature-detected, none live-verified,
+  under the same `runtime-api.md` heading. The pull request that added them
   carries the live-verification plan: a dev build with trace capture on, one
   recording that parents a layer to a null object made in Creator's UI, and
-  one replay onto other layers.
+  one replay onto other layers. The `record.start` debug probe's
+  `parentingIntrospection` answers for all four members on the first debug
+  recording.
 - Baselined on `@lottiefiles/creator-api-types` 1.0.1 (2026-09-06). The typed
   surfaces this branch starts to use — `creator.utils.isLayer`, the `Scene`
   settings writes, `getValueAt` baselines, `createGroup(GroupOptions)`,

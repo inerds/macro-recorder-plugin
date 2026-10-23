@@ -1807,7 +1807,7 @@ export function createNullLayerFrom(
 ): AnyProxy | undefined {
   const factory = tryRead(() => scene.createNullLayer);
   if (typeof factory !== "function") {
-    notes.push("this scene can't create null objects — skipped");
+    notes.push("this scene can't create null layers — skipped");
     return undefined;
   }
   const opts: Record<string, unknown> = {};

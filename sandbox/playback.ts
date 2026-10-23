@@ -482,6 +482,22 @@ function layerLabel(ref: LayerRef | undefined): string {
 }
 
 /**
+ * Layer kinds whose content is an ASSET the recording never captured, so no
+ * factory can rebuild one: `createImageLayer` needs an `Image`, and an audio
+ * layer only ever arrives through `scene.import({ type: "AUDIO" })` with the
+ * audio bytes (1.2.0). Both skip with a note that names the missing asset.
+ */
+const ASSET_LAYER_TYPES: Record<string, string> = {
+  IMAGE_LAYER: "image",
+  AUDIO_LAYER: "audio",
+};
+
+/** The spec cannot be rebuilt because its layer is backed by an asset. */
+export function assetKindOf(nodeType: string): string | undefined {
+  return ASSET_LAYER_TYPES[nodeType];
+}
+
+/**
  * Rebuilds a recorded layer from its spec, using the factory that matches its
  * type: scene-instance layers need createSceneLayer — building them with
  * createShapeLayer produced the wrong kind of layer entirely ("create scene
@@ -492,24 +508,26 @@ export function createLayerFromSpec(
   spec: NodeSnapshot,
   notes: NoteList,
 ): AnyProxy | undefined {
-  // An image layer's content is an ASSET the recording never captured, so no
-  // factory can rebuild it: createShapeLayer gives the same dishonest empty
-  // shell TEXT_LAYER used to get (below), and createImageLayer would need an
-  // asset there is none of. Say what happened instead of building one.
-  if (spec.nodeType === "IMAGE_LAYER") {
-    notes.push("can't re-create an image layer — the recording has no image asset — skipped");
+  // An image or audio layer's content is an ASSET the recording never
+  // captured, so no factory can rebuild it: createShapeLayer gives the same
+  // dishonest empty shell TEXT_LAYER used to get (below), and the real
+  // factories would need an asset there is none of. Say what happened
+  // instead of building one.
+  const asset = assetKindOf(spec.nodeType);
+  if (asset !== undefined) {
+    notes.push(`can't re-create an ${asset} layer — the recording has no ${asset} asset — skipped`);
     return undefined;
   }
   // Factory must match the recorded type: a TEXT_LAYER rebuilt with
   // createShapeLayer is a shape shell with no text surface — every later
   // set-plain text/font write lands on nothing (live evidence: trace
   // 2026-08-24T07-49-36-061, "Text 1" with runtime type SHAPE_LAYER). A
-  // host without createTextLayer skips with the note below rather than
-  // silently building a fake.
-  // A null layer has its own factory (creator-api-types 1.1.0) and a shape
-  // shell in its place would render where it should not. The applier owns
-  // the call, with no layers to parent: an add-layer null layer parented
-  // nothing in its tick, or that parenting is a later set-parent step.
+  // NULL_LAYER rebuilt that way would be a shape layer that renders, where a
+  // null layer renders nothing (1.1.0 `createNullLayer`, typed and not yet
+  // live-verified — docs/runtime-api.md): the applier owns that call, with
+  // no layers to parent — an add-layer null layer parented nothing in its
+  // tick, or that parenting is a later set-parent step. A host without the
+  // matching factory skips with a note rather than silently building a fake.
   if (spec.nodeType === "NULL_LAYER") return createNullLayerFrom(scene, spec, [], notes);
   const factoryName = spec.nodeType.startsWith("SCENE")
     ? "createSceneLayer"
@@ -518,7 +536,9 @@ export function createLayerFromSpec(
       : "createShapeLayer";
   const factory = tryRead(() => (scene as AnyProxy)[factoryName]);
   if (typeof factory !== "function") {
-    notes.push(`this scene can't create ${nodeTypeName(spec.nodeType)} layers — skipped`);
+    // "text layers", "null layers", "scene layers": the kind, then the noun.
+    const kind = nodeTypeName(spec.nodeType).replace(/ layer$/, "");
+    notes.push(`this scene can't create ${kind} layers — skipped`);
     return undefined;
   }
   const created = factory.call(scene);
@@ -649,17 +669,18 @@ function nestByRebuild(
   const layerFactory = tryRead(() => (scene as AnyProxy).createSceneLayer);
   if (typeof layerFactory !== "function") return undefined;
 
-  // 1. Read the sources BEFORE anything changes. An image layer's content is
-  //    an asset the recording never captured, so no factory can rebuild it.
+  // 1. Read the sources BEFORE anything changes. An image or audio layer's
+  //    content is an asset the recording never captured, so no factory can
+  //    rebuild it (`assetKindOf`).
   const buildable: { index: number; node: AnyProxy; snapshot: NodeSnapshot }[] = [];
   let skipped = 0;
   sources.forEach((node, index) => {
     const snapshot = tryRead(() => serializeNode(node));
-    if (!snapshot || snapshot.nodeType === "IMAGE_LAYER") {
+    if (!snapshot || assetKindOf(snapshot.nodeType) !== undefined) {
       skipped += 1;
       notes.push(
         snapshot
-          ? "an image layer can't be rebuilt inside the new scene — left it where it was"
+          ? `an ${nodeTypeName(snapshot.nodeType)} can't be rebuilt inside the new scene — left it where it was`
           : `couldn't read ${tryRead(() => String(node.name)) ?? "a layer"} — left it where it was`,
       );
       return;
@@ -1236,20 +1257,79 @@ export function earliestKeyframe(steps: MacroStep[]): number | undefined {
 }
 
 /**
- * Is this selected node a LAYER?
+ * One `creator.utils` type guard, feature-detected: its answer counts only
+ * when it comes back a boolean. `undefined` means the host has no such guard,
+ * or the guard did not answer.
+ */
+function utilsVerdict(
+  guard: "isTransformableLayer" | "isLayer",
+  node: AnyProxy,
+): boolean | undefined {
+  const utils = tryRead(() => (creator as AnyProxy).utils);
+  if (!utils || typeof utils[guard] !== "function") return undefined;
+  const verdict = tryRead(() => utils[guard](node));
+  return typeof verdict === "boolean" ? verdict : undefined;
+}
+
+/**
+ * Is this selected node a LAYER a macro can replay onto — one with a
+ * transform?
  *
- * `creator.utils.isLayer` is typed on 1.0.1 but has never been live-verified
- * here, so it is feature-detected and its answer only used when it comes back
- * a boolean. The fallback is `startFrame`: a timeline in point is LayerMixin's
- * and no shape carries one.
+ * Three answers, in this order, each feature-detected and each used only when
+ * it comes back a boolean (docs/runtime-api.md, "Typed in 1.2.0, live
+ * verification pending"):
+ *
+ *   1. `creator.utils.isTransformableLayer` (1.2.0). The exact question: a
+ *      1.2.0 `AudioLayer` is a layer with NO transform, so a transform step
+ *      has nothing to land on there.
+ *   2. `creator.utils.isLayer` (1.0.1). Every layer a pre-1.2.0 host knows
+ *      has a transform, so on such a host the two guards agree.
+ *   3. `startFrame`: a timeline in point is BaseLayerMixin's and no shape
+ *      carries one. The fallback cannot tell an audio layer from a shape
+ *      layer, but a host that has audio layers also has the 1.2.0 guard.
+ *
+ * Neither guard is live-verified here yet.
  */
 function isLayerNode(node: AnyProxy): boolean {
-  const utils = tryRead(() => (creator as AnyProxy).utils);
-  if (utils && typeof utils.isLayer === "function") {
-    const verdict = tryRead(() => utils.isLayer(node));
-    if (typeof verdict === "boolean") return verdict;
-  }
+  const transformable = utilsVerdict("isTransformableLayer", node);
+  if (transformable !== undefined) return transformable;
+  const layer = utilsVerdict("isLayer", node);
+  if (layer !== undefined) return layer;
   return typeof tryRead(() => node.startFrame) === "number";
+}
+
+/**
+ * Is this node a layer of ANY kind, transform or not? Asked only about a node
+ * `isLayerNode` turned down, to word the skip note honestly: a selected audio
+ * layer is not a "shape".
+ */
+function isAnyLayerNode(node: AnyProxy): boolean {
+  const layer = utilsVerdict("isLayer", node);
+  if (layer !== undefined) return layer;
+  return typeof tryRead(() => node.startFrame) === "number";
+}
+
+/** "1 selected shape skipped — …", or undefined when nothing was dropped. */
+function droppedSelectionNote(dropped: AnyProxy[]): string | undefined {
+  if (dropped.length === 0) return undefined;
+  const layers = dropped.filter((node) => isAnyLayerNode(node));
+  const shapes = dropped.length - layers.length;
+  const parts: string[] = [];
+  if (shapes > 0) {
+    parts.push(
+      `${shapes} selected ${shapes === 1 ? "shape" : "shapes"} skipped — macros replay onto layers`,
+    );
+  }
+  if (layers.length > 0) {
+    // Name the kind when every dropped layer shares one ("audio layer"),
+    // otherwise say what they have in common.
+    const kinds = new Set(layers.map((node) => tryRead(() => String(node.type)) ?? "UNKNOWN"));
+    const kind = kinds.size === 1 ? nodeTypeName([...kinds][0]!) : "layer without a transform";
+    parts.push(
+      `${layers.length} selected ${layers.length === 1 ? kind : `${kind}s`} skipped — macros replay onto layers with a transform`,
+    );
+  }
+  return parts.join("; ");
 }
 
 export function playbackBegin(params: {
@@ -1266,16 +1346,14 @@ export function playbackBegin(params: {
   const rawSelection = selectedNodes();
   // A macro's steps are recorded against LAYERS and address them by layer
   // paths, so a selected shape is not a target — applied to one, every step
-  // resolves against the wrong node or fails. Drop them, say so once, and let
-  // an emptied list fall through to the existing no-targets path.
+  // resolves against the wrong node or fails. Nor is a layer without a
+  // transform (a 1.2.0 audio layer): a transform step has nothing to land on.
+  // Drop them, say so once, and let an emptied list fall through to the
+  // existing no-targets path.
   const selection = rawSelection.filter((node) => isLayerNode(node));
-  const droppedShapes = rawSelection.length - selection.length;
-  const selectionNote =
-    droppedShapes > 0
-      ? `${droppedShapes} selected ${
-          droppedShapes === 1 ? "shape" : "shapes"
-        } skipped — macros replay onto layers`
-      : undefined;
+  const selectionNote = droppedSelectionNote(
+    rawSelection.filter((node) => !selection.includes(node)),
+  );
 
   const analysis = chooseMode(params.steps, selection.length);
   const mode = analysis.mode;

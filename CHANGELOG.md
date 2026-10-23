@@ -15,7 +15,22 @@ one row per fix — is `docs/history/improvements.md`.
   plugin typings (`@lottiefiles/creator-api-types` 1.1.0 and 1.2.0), and no
   Creator session has confirmed them yet: a host without them skips the
   step with a note.
-- The plugin builds against `@lottiefiles/creator-api-types` 1.2.0.
+- Creator's two new layer kinds are safe to have in a scene. A null object
+  (a layer that only moves other layers) records and replays its own
+  transform, and a replay that must add one builds a real null layer when
+  Creator offers that, or says *this scene can't create null layers —
+  skipped*. An audio layer records its volume and its mute switch, and
+  nothing else: it has no position or opacity. A replay never rebuilds an
+  audio layer, because a recording holds no sound: it says *can't re-create
+  an audio layer — the recording has no audio asset — skipped*.
+- A selected audio layer is left out of a replay's targets, with the note
+  *1 selected audio layer skipped — macros replay onto layers with a
+  transform*. Before, it would have been counted as a shape.
+- A skip note for a layer kind the scene cannot create now reads *this scene
+  can't create text layers — skipped*, not *text layer layers*.
+- Built against `@lottiefiles/creator-api-types` 1.2.0. None of the new
+  members has been seen in a live Creator session yet; every call to one is
+  feature-detected.
 
 ## 0.8.2 — 2026-09-08
 

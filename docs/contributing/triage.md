@@ -75,7 +75,7 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   scene — left it where it was`, `couldn't rebuild your 3 selected layers
   inside a new scene — left them where they are`, and `couldn't find the
   layers to nest — rebuilt Nested Scene 5 from the recording instead`.
-  One fence at rev `2026-10-23.1`: layer parenting. A `set-parent` or
+  One fence at rev `2026-10-23.2`: layer parenting. A `set-parent` or
   `add-controller` step, the `parent` kind, `transformParent` on a layer
   snapshot, `parentingIntrospection` on the `record.start` debug result,
   and `parent` on a `set-parent` step's probes all exist only from that rev
@@ -102,7 +102,15 @@ Dev sessions write a trace bundle per record/playback run to `traces/` via a
   one `LinearTerm` (`{scale, offset}`) or one per component. Playback reads
   the target's LIVE value for such a step, so its `before` probe is that live
   value and not the baseline frozen at `playback.begin` — a formula step's
-  result is expected to differ from the recorded `after`.
+  result is expected to differ from the recorded `after`. Two more fences at
+  rev `2026-10-23.1` (creator-api-types 1.2.0). `playbackBegin` asks
+  `creator.utils.isTransformableLayer` before `isLayer`, so a selected audio
+  layer leaves the targets with the note `1 selected audio layer skipped —
+  macros replay onto layers with a transform`, where an older trace would
+  have counted it as a shape or kept it. An `add-layer` step for a
+  `NULL_LAYER` takes `createNullLayer`, and one for an `AUDIO_LAYER` skips
+  with `can't re-create an audio layer — the recording has no audio asset —
+  skipped`; before this rev both were rebuilt as shape shells.
 
 ## The trace index
 

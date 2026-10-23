@@ -4,7 +4,13 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 
-import { makeFakeScene, makeIds, makeInnerScene, makeNode } from "../engine/testing/fakeScene";
+import {
+  makeFakeScene,
+  makeIds,
+  makeInnerScene,
+  makeNode,
+  makeUtils,
+} from "../engine/testing/fakeScene";
 import { playbackBegin, playbackEnd, playbackStep } from "./playback";
 
 type Any = any;
@@ -2394,6 +2400,260 @@ describe(
   },
 );
 
+/* ------------------------------------------------------------------ */
+/* 1.2.0 layer kinds: null layers and audio layers                     */
+/* ------------------------------------------------------------------ */
+
+/** A recorded null layer: a transform, a flag, and nothing to draw. */
+const NULL_SPEC = {
+  nodeId: "NULL",
+  nodeType: "NULL_LAYER",
+  nodeName: "Controller",
+  props: { position: { animated: false, static: { x: 40, y: 60 } } },
+  plain: { locked: true },
+  fills: [],
+  strokes: [],
+  masks: [],
+  shapes: [],
+};
+
+/** A recorded audio layer: `volume` and `muted`, and no asset to play. */
+const AUDIO_SPEC = {
+  nodeId: "AUD",
+  nodeType: "AUDIO_LAYER",
+  nodeName: "Music.mp3",
+  props: { volume: { animated: false, static: 80 } },
+  plain: { muted: false },
+  fills: [],
+  strokes: [],
+  masks: [],
+  shapes: [],
+};
+
+/** Counts every layer-factory call on `scene`, by name. */
+function countFactories(scene: Any): Record<string, number> {
+  const calls: Record<string, number> = {};
+  for (const name of [
+    "createShapeLayer",
+    "createTextLayer",
+    "createSceneLayer",
+    "createNullLayer",
+  ]) {
+    const original = scene[name];
+    if (typeof original !== "function") continue;
+    calls[name] = 0;
+    scene[name] = (opts?: Any) => {
+      calls[name] = (calls[name] ?? 0) + 1;
+      return original(opts);
+    };
+  }
+  return calls;
+}
+
+describe("add-layer for a NULL_LAYER (1.1.0 createNullLayer, typed and not live-verified)", () => {
+  it("rebuilds it with createNullLayer, never with createShapeLayer", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const calls = countFactories(scene);
+    stubCreator(scene, []);
+
+    playbackBegin({ steps: [step({ op: "add-layer", spec: NULL_SPEC })] as Any });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    expect(calls.createNullLayer).toBe(1);
+    expect(calls.createShapeLayer).toBe(0);
+    const created = scene.layers[0];
+    expect(created.type).toBe("NULL_LAYER");
+    expect(created.name).toBe("Controller");
+    expect(created.position.staticValue).toEqual({ x: 40, y: 60 });
+    expect(created.locked).toBe(true);
+    // A null layer parents layers; a rebuilt one starts with none.
+    expect(created.layers).toEqual([]);
+  });
+
+  it("skips with a note on a host without createNullLayer, and builds no shape shell", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    delete scene.createNullLayer;
+    const calls = countFactories(scene);
+    stubCreator(scene, []);
+
+    playbackBegin({ steps: [step({ op: "add-layer", spec: NULL_SPEC })] as Any });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
+      "this scene can't create null layers — skipped",
+    );
+    expect(calls.createShapeLayer).toBe(0);
+    expect(scene.layers).toHaveLength(0);
+  });
+
+  it("words the same skip for a text layer without its factory as 'text layers'", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    delete scene.createTextLayer;
+    stubCreator(scene, []);
+
+    playbackBegin({
+      steps: [
+        step({
+          op: "add-layer",
+          spec: { ...NULL_SPEC, nodeType: "TEXT_LAYER", nodeName: "Title" },
+        }),
+      ] as Any,
+    });
+    const result = playbackStep({ index: 0 });
+    expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
+      "this scene can't create text layers — skipped",
+    );
+    expect(scene.layers).toHaveLength(0);
+  });
+});
+
+describe("add-layer for an AUDIO_LAYER", () => {
+  it("skips honestly — the recording has no audio asset — and calls no factory", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const calls = countFactories(scene);
+    stubCreator(scene, []);
+
+    playbackBegin({ steps: [step({ op: "add-layer", spec: AUDIO_SPEC })] as Any });
+    const result = playbackStep({ index: 0 });
+
+    expect(result.failures).toEqual([]);
+    expect((result.notes ?? []).map((n: Any) => n.message)).toContain(
+      "can't re-create an audio layer — the recording has no audio asset — skipped",
+    );
+    expect(Object.values(calls).every((count) => count === 0)).toBe(true);
+    expect(scene.layers).toHaveLength(0);
+  });
+});
+
+describe("nest-layers holds an audio layer back, like an image layer", () => {
+  it("leaves the audio layer where it is, and says so (startFrame-fallback host)", () => {
+    // No `creator.utils`: the startFrame fallback lets the audio layer through
+    // to the nest, where the rebuild has to refuse it itself.
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const shape = scene.addLayer(makeNode("Ellipse 1", { type: "SHAPE_LAYER" }, ids));
+    const music = scene.addLayer(makeNode("Music.mp3", { type: "AUDIO_LAYER" }, ids));
+    stubCreator(scene, [shape, music]);
+
+    playbackBegin({
+      steps: [
+        nestStep([
+          { id: "REC_A", name: "Ellipse 1" },
+          { id: "REC_B", name: "Music.mp3" },
+        ]),
+      ] as Any,
+    });
+    const r0 = playbackStep({ index: 0 });
+
+    expect(r0.failures).toEqual([]);
+    expect((r0.notes ?? []).map((n: Any) => n.message)).toEqual([
+      "an audio layer can't be rebuilt inside the new scene — left it where it was",
+      "nested 1 of the 2 selected layers (rebuilt inside the new scene — Creator can't move them)",
+    ]);
+    expect(scene.layers.map((l: Any) => l.name)).toEqual(["Nested Scene 5", "Music.mp3"]);
+    expect(scene.layers[1]).toBe(music);
+    expect(scene.layers[0].scene.layers.map((l: Any) => l.name)).toEqual(["Ellipse 1"]);
+  });
+});
+
+describe("playbackBegin — the layer guard order: isTransformableLayer, isLayer, startFrame", () => {
+  const opacitySteps = () =>
+    [step({ op: "set-static", path: ["opacity"], before: 100, after: 50 })] as Any;
+
+  it("drops a 1.2.0 audio layer — a layer with no transform — and names it, not a 'shape'", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    const music = scene.addLayer(makeNode("Music.mp3", { type: "AUDIO_LAYER" }, ids));
+    stubCreator(scene, [layer, music]);
+    (globalThis as Any).creator.utils = makeUtils();
+
+    const begin = playbackBegin({ steps: opacitySteps() });
+    expect(begin.targetCount).toBe(1);
+
+    const result = playbackStep({ index: 0 });
+    const messages = (result.notes ?? []).map((n: Any) => n.message);
+    expect(
+      messages.filter(
+        (m: string) =>
+          m === "1 selected audio layer skipped — macros replay onto layers with a transform",
+      ),
+    ).toHaveLength(1);
+    expect(messages.some((m: string) => /shape/.test(m))).toBe(false);
+    expect(layer.opacity.staticValue).toBe(50);
+  });
+
+  it("names shapes and transform-less layers separately when both were dropped", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    const rect = layer.createRectangle({ size: { width: 10, height: 10 } });
+    const music = scene.addLayer(makeNode("Music.mp3", { type: "AUDIO_LAYER" }, ids));
+    stubCreator(scene, [layer, rect, music]);
+    (globalThis as Any).creator.utils = makeUtils();
+
+    expect(playbackBegin({ steps: opacitySteps() }).targetCount).toBe(1);
+    const messages = (playbackStep({ index: 0 }).notes ?? []).map((n: Any) => n.message);
+    expect(messages).toContain(
+      "1 selected shape skipped — macros replay onto layers; " +
+        "1 selected audio layer skipped — macros replay onto layers with a transform",
+    );
+  });
+
+  it("prefers isTransformableLayer over isLayer when both answer with a boolean", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    // isLayer would keep it and so would the startFrame fallback: only the
+    // 1.2.0 guard knows it has no transform.
+    const exotic: Any = { name: "Exotic", type: "AUDIO_LAYER", startFrame: 0 };
+    stubCreator(scene, [layer, exotic]);
+    (globalThis as Any).creator.utils = {
+      isLayer: () => true,
+      isTransformableLayer: (node: Any) => node !== exotic,
+    };
+
+    expect(playbackBegin({ steps: opacitySteps() }).targetCount).toBe(1);
+  });
+
+  it("asks isLayer when isTransformableLayer does not answer with a boolean", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    // No startFrame — the fallback would call this a shape and drop it.
+    const exotic: Any = { name: "Exotic layer", opacity: { staticValue: 100 } };
+    stubCreator(scene, [layer, exotic]);
+    (globalThis as Any).creator.utils = {
+      isTransformableLayer: () => undefined,
+      isLayer: () => true,
+    };
+
+    expect(playbackBegin({ steps: opacitySteps() }).targetCount).toBe(2);
+  });
+
+  it("falls back to startFrame when neither guard answers with a boolean", () => {
+    const ids = makeIds();
+    const scene = makeSceneRoot(ids);
+    const layer = scene.addLayer(makeNode("Layer A", { type: "SHAPE_LAYER" }, ids));
+    const rect = layer.createRectangle({ size: { width: 10, height: 10 } });
+    stubCreator(scene, [layer, rect]);
+    (globalThis as Any).creator.utils = {
+      isTransformableLayer: () => "yes",
+      isLayer: () => 1,
+    };
+
+    expect(playbackBegin({ steps: opacitySteps() }).targetCount).toBe(1);
+    const messages = (playbackStep({ index: 0 }).notes ?? []).map((n: Any) => n.message);
+    expect(messages).toContain("1 selected shape skipped — macros replay onto layers");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Transform parenting (creator-api-types 1.1.0 — typed, not live-verified)
 // ---------------------------------------------------------------------------
@@ -2689,7 +2949,7 @@ describe("add-controller replay", () => {
     const result = playbackStep({ index: 0 });
     expect(result.failures).toEqual([]);
     expect((result.notes ?? []).map((n: Any) => n.message)).toEqual([
-      "this scene can't create null objects — skipped",
+      "this scene can't create null layers — skipped",
     ]);
     expect(hero.transformParent).toBeUndefined();
     expect(scene.layers).toEqual([hero]);

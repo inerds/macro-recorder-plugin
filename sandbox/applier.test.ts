@@ -2717,7 +2717,7 @@ describe("createNullLayerFrom", () => {
     delete scene.createNullLayer;
     const notes = new NoteList();
     expect(createNullLayerFrom(scene, rigSpec(), layers, notes)).toBeUndefined();
-    expect(notes.messages).toEqual(["this scene can't create null objects — skipped"]);
+    expect(notes.messages).toEqual(["this scene can't create null layers — skipped"]);
     expect(layers[0].transformParent).toBeUndefined();
   });
 
@@ -2806,7 +2806,8 @@ describe("the fake scene's parenting surface (what the tests above lean on)", ()
     const rig = scene.createNullLayer({ name: "Rig", layers: [b] });
     expect(rig.layers).toEqual([b]);
     a.transformParent = rig;
-    expect(rig.layers).toEqual([a, b]);
+    // Link order, the order the host's list reports: b was linked first.
+    expect(rig.layers).toEqual([b, a]);
     rig.remove();
     expect(a.transformParent).toBeUndefined();
     expect(b.transformParent).toBeUndefined();

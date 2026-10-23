@@ -1,13 +1,13 @@
 # Creator plugin API — runtime ground truth
 
 This document records what the Creator plugin API really does at runtime. The
-published typings are `@lottiefiles/creator-api-types` 1.2.0, adopted on
-2026-10-23. Version 1.0.1 fixed most of the omissions and dropped the members
-that never existed; 1.1.0 added null layers and `transformParent`; 1.2.0
-added audio layers and `creator.utils.isTransformableLayer`. Each member
-appears once below, under the one status that describes it: verified live,
-typed but not verified yet, live but untyped, or absent from the host
-altogether. **Runtime introspection inside real Creator** established the
+published typings are `@lottiefiles/creator-api-types` 1.2.0. Version 1.0.1
+fixed most of the omissions and dropped the members that never existed; 1.1.0
+(2026-09-10) added null layers and `transformParent`; 1.2.0 (2026-10-08) added
+audio layers, `TransformableLayer`, and the per-type `Scene.import` overloads.
+Each member appears once below, under the one status that describes it:
+verified live, typed but not verified yet, live but untyped, or absent from
+the host altogether. **Runtime introspection inside real Creator** established the
 findings — own and prototype property enumeration, stamped into traces —
 together with live replay verification during 2026-08-21/22. Treat this file
 as the authority over the typings. Introspect first when you add a
@@ -15,16 +15,19 @@ capability; the record-start debug probe dumps the surfaces into traces.
 
 ## Node types (runtime `type` strings)
 
-The runtime `type` strings and 1.0.1 agree:
+The runtime `type` strings and 1.2.0 agree on every kind a trace has shown.
+The two kinds 1.1.0 and 1.2.0 added are typed and not yet seen live:
 
-| Runtime | 1.0.1 says | Notes |
+| Runtime | 1.2.0 says | Notes |
 |---|---|---|
 | `SHAPE_LAYER` / `CONTAINER` | `SHAPE_LAYER` | layer holding `shapes` |
 | `SCENE_LAYER` | `SCENE_LAYER` | content in `instance.scene.layers` (shared between instances) |
 | `TEXT_LAYER` | `TEXT_LAYER` | see text section |
 | image layers (from drops) | `IMAGE_LAYER` | generic layer surface works |
+| not yet seen live | `NULL_LAYER` | 1.1.0 `NullLayer`: `LayerMixin` plus a read-only `layers` list |
+| not yet seen live | `AUDIO_LAYER` | 1.2.0 `AudioLayer`: `BaseLayerMixin` plus `muted`, `volume`, `audio`; no transform |
 | `RECTANGLE` `ELLIPSE` `POLYGON` `STAR` `PATH` `GROUP` | ✓ | shape stack members |
-| null objects | `NULL_LAYER` (1.1.0) | typed only — no trace has read one yet; see below |
+
 
 History: 0.0.2 said `Container` for a shape layer and `SCENE_INSTANCE` for a
 scene layer, and it named no text or image layer type. 1.2.0 also declares
@@ -39,13 +42,14 @@ per selected target (+10 each).
 
 ## Layer timing — `startFrame`, `endFrame`, `timelineOffset`
 
-All three are mutable plain properties on 1.0.1 `LayerMixin`, and the recorder
-reads them every tick (`engine/snapshot.ts` `PLAIN_PROPS`): readable live in
+All three are mutable plain properties on `BaseLayerMixin` (1.2.0; 1.0.1 had
+them on `LayerMixin`), so every layer kind carries them, the audio layer
+included. The recorder reads them every tick (`engine/snapshot.ts` `PLAIN_PROPS`): readable live in
 136 record traces; writes pending one live trace at rev `2026-09-04.1`. The
 traced `timelineOffset` values include negatives, so its sign convention is
 unverified.
 
-1.0.1 also types `shiftTo(frame: number)` on `LayerMixin`. It shifts the
+1.0.1 also types `shiftTo(frame: number)` (on `BaseLayerMixin` in 1.2.0). It shifts the
 layer's timeline window — a TIME shift, not a move in the layer stack. This
 plugin never calls it live. The engine's earlier guessed calls —
 `shiftTo(node)` and `shiftTo({to})` — threw, because neither argument is a
@@ -62,7 +66,7 @@ host moves on its own — that read is the evidence for the pending live check.
 The live position-keyframe proxy surface (trace 2026-08-21T21-53-02-401, rev
 .38) is `easing, frame, id, remove, value` — nothing else. The doc example in
 0.0.2 that writes `positionKeyframe.inTangent`/`outTangent` does not reflect
-the runtime, and 1.0.1's `Keyframe<T>` still has no tangent fields. See
+the runtime, and 1.2.0's `Keyframe<T>` still has no tangent fields. See
 `limitations.md`. The engine keeps its defensive read and write of
 `KfSnap.inTangent`/`outTangent` so a future host lights it up automatically.
 
@@ -70,21 +74,22 @@ The same trace also verified `rect.roundness`. It IS a full Animatable
 (`addKeyframes, clearKeyframes, getKeyframeAt, getValueAt, isAnimated,
 keyframes, staticValue`), and no other rounding-shaped property (`radius`,
 `cornerRadius`, `corners`, `modifiers`) exists on the rectangle or its layer.
-1.0.1 types `Rectangle.roundness` as `Animatable<number>`, which matches the
-live proxy. **But it is a dead proxy**: its `staticValue` is 0 on every
+1.0.1 types `Rectangle.roundness` as `Animatable<number>`, 1.2.0 keeps it so,
+and that matches the live proxy. **But it is a dead proxy**: its `staticValue` is 0 on every
 rectangle ever seen, rounded or not, and a corner-radius drag produces no
 snapshot change (`limitations.md`, 2026-08-23).
 
-## Typed in 1.0.1, live-verified
+## Typed since 1.0.1, live-verified
 
-1.0.1 types these members, and runtime introspection confirms each one:
+The typings have declared these members since 1.0.1, and runtime introspection
+confirms each one:
 
 - Every node/shape: `moveBefore(sib)`, `moveAfter(sib)`, `bringToFront()`,
   `sendToBack()`, `getMatrix()`, `clone()` (inserts copy after self, returns
-  it — verified). 1.0.1 spreads them over three interfaces: the four reorder
-  calls on `LayerMixin` AND `ShapeMixin`, `clone()` on `BaseNodeMixin`, and
-  `getMatrix(frame?)` on `TransformMixin`, which only layers and groups
-  extend.
+  it — verified). 1.2.0 spreads them over three interfaces: the four reorder
+  calls on `BaseLayerMixin` AND `ShapeMixin`, `clone()` on `BaseNodeMixin`,
+  and `getMatrix(frame?)` on `TransformMixin`, which only transformable
+  layers and groups extend.
 - Every `Animatable`: `clearKeyframes()` (bulk animated→static),
   `getValueAt(frame)`.
 - `node.data` (`PluginData`) — this plugin's OWN per-node storage:
@@ -114,14 +119,16 @@ snapshot change (`limitations.md`, 2026-08-23).
   routes exist, and neither carries the timeline selection; the ask is
   upstream. See `limitations.md`.
 
-## Typed in 1.0.1, live verification pending
+## Typed since 1.0.1, live verification pending
 
-1.0.1 types these members, and the engine calls them, but no trace confirms
-one yet. Every call stays feature-detected, and each one has a fallback:
+The typings have declared these members since 1.0.1, the engine calls them,
+and no trace confirms one yet. Every call stays feature-detected, and each one
+has a fallback:
 
 - `creator.utils.isLayer(node)`, and its sibling `isShape(node)`, on
-  `UtilsAPI`. `sandbox/playback.ts#isLayerNode` uses `isLayer` only when it
-  answers with a boolean. The fallback reads `startFrame`, a `LayerMixin`
+  `UtilsAPI`. `sandbox/playback.ts#isLayerNode` asks `isLayer` second, after
+  1.2.0's `isTransformableLayer` (next section), and only when it answers
+  with a boolean. The last fallback reads `startFrame`, a `BaseLayerMixin`
   member that no shape carries.
 - `Scene` settings writes: `name`, `size` (a `Size` — `{width, height}`),
   `backgroundColor` (`Color | null`, where `null` is a transparent scene),
@@ -165,49 +172,86 @@ one yet. Every call stays feature-detected, and each one has a fallback:
   plugin cannot measure the cap: `saveMacro` blames a full store only when
   the host's own message names the quota.
 
-## Typed in 1.1.0 and 1.2.0, live verification pending
+## Typed in 1.2.0, live verification pending
 
-The typings bump to 1.2.0 (2026-10-23) brought four members the engine now
-uses for layer parenting. None has a trace yet. Every call is
-feature-detected, and `record.start`'s debug probe reports
-`parentingIntrospection` — whether `transformParent` is on the first layer
-(by the `in` operator and by the own-and-prototype surface), whether the
-scene has `createNullLayer`, and whether `utils.isTransformableLayer` exists
-— so the first debug recording on a real host answers for all of them:
+Versions 1.1.0 and 1.2.0 added these members. No trace has shown any of them.
+The engine feature-detects each one it calls and has a fallback for it; a
+member the engine does not call is listed so that a later feature starts from
+the typed shape. Since rev `2026-10-23.2` the `record.start` debug probe
+reports `parentingIntrospection` — whether `transformParent` is on the first
+layer, by the `in` operator and by the own-and-prototype surface, whether the
+scene has `createNullLayer`, and whether `utils.isTransformableLayer` exists —
+so the first debug recording on a real host answers for the parenting members
+at once:
 
-- `Layer.transformParent` (1.1.0; `TransformableLayer | undefined`, writable).
-  `sandbox/serialize.ts#readTransformParent` reads it as a `{id, name}`
-  identity on every top-level layer, and tells "no parent" from "member
-  absent" with the `in` operator, because `undefined` is a legitimate value
-  of the member. `sandbox/applier.ts#writeTransformParent` writes it for a
-  `set-parent` step and reads it back; a kept value notes `Creator kept the
-  parent as it was — the change didn't apply`, and an absent member notes
-  `Creator doesn't expose transform parents here — skipped`. The debug probe
-  of a `set-parent` step reports the target's parent identity as `parent`.
-- `NullLayer` (1.1.0; runtime type `NULL_LAYER`, with a read-only `layers`
-  list of the layers it parents). The recorder reads it as a layer with the
-  transform animatables and the layer flags; `engine/snapshot.ts#TYPE_PROPS`
-  lists it. The label says "null object", Creator's own name for it.
-- `Scene.createNullLayer({ name?, position?, layers? })` (1.1.0).
-  `sandbox/applier.ts#createNullLayerFrom` calls it for an `add-controller`
-  step and for an `add-layer` step whose spec is a `NULL_LAYER`, then
-  verifies through `nullLayer.layers`. A host that ignores the `layers`
-  option gets one `transformParent` write per layer; a host that rejects the
-  option is retried without it, with an info note; a host without the
-  factory notes `this scene can't create null objects — skipped`.
-- `creator.utils.isTransformableLayer(node)` (1.2.0). Not called yet: the
-  engine's targets are layers already (`isLayerNode`), and a shape as a
-  parent is refused by the write's read-back. Listed so the probe's reading
-  has a home when a trace arrives.
+- `creator.utils.isTransformableLayer(node)` on `UtilsAPI`: `true` for a
+  `TransformableLayer`, which is every layer kind but `AudioLayer`.
+  `sandbox/playback.ts#isLayerNode` asks it FIRST, then `isLayer`, then the
+  `startFrame` fallback, and takes an answer only when it is a boolean. A
+  selected audio layer therefore leaves the target list, with the note "1
+  selected audio layer skipped — macros replay onto layers with a transform".
+  The `startFrame` fallback cannot tell an audio layer from a shape layer,
+  because `BaseLayerMixin` gives both a timeline window; a host that has
+  audio layers also has the guard.
+- `Scene.createNullLayer(opts?)`, from 1.1.0. `NullLayerCreateOptions` adds a
+  `layers` list to `LayerCreateOptions`.
+  `sandbox/applier.ts#createNullLayerFrom` calls it with `{ name, position,
+  layers }` for an `add-controller` step (rev `2026-10-23.2`) and with no
+  layers for an `add-layer` step whose spec is a `NULL_LAYER`, then verifies
+  through `nullLayer.layers`. A host that ignores the `layers` option gets
+  one `transformParent` write per layer; a host that rejects the option is
+  retried without it, with an info note; a host without the factory skips
+  with "this scene can't create null layers — skipped". It never falls back
+  to `createShapeLayer`: a shape layer renders, a null layer does not.
+- `NullLayer` (type `NULL_LAYER`): `LayerMixin` plus a read-only `layers`
+  list, the layers whose transform parent it is. The recorder reads its
+  transform through `TYPE_PROPS.NULL_LAYER` and does not read `layers`: a
+  parent is recorded from each child's `transformParent`, and `layers` is
+  the replay's witness that `createNullLayer` linked what it was given.
+- `LayerMixin.transformParent`, readable and writable, typed
+  `TransformableLayer | undefined`, from 1.1.0. Reading a transform parent
+  from `parent` is deprecated since 1.1.0 (removal eligible after 2027-03-05);
+  reading the containing `Scene` from `parent` stays, and the engine never
+  read a parent from it. Since rev `2026-10-23.2`
+  `sandbox/serialize.ts#readTransformParent` reads the member as a
+  `{id, name}` identity on every top-level layer, and tells "no parent" from
+  "member absent" with the `in` operator, because `undefined` is a legitimate
+  value of the member; `sandbox/applier.ts#writeTransformParent` writes it for
+  a `set-parent` step and reads it back. A kept value notes "Creator kept the
+  parent as it was — the change didn't apply", an absent member notes
+  "Creator doesn't expose transform parents here — skipped", and the debug
+  probe of a `set-parent` step reports the target's parent identity as
+  `parent`.
+- `AudioLayer` (type `AUDIO_LAYER`): `BaseLayerMixin` plus `AudibleMixin`
+  (`muted: boolean`, `volume: Animatable<number>`, 0 to 100) and a read-only
+  `audio: AudioAsset`. It has NO transform: no `position`, `opacity`,
+  `blendMode`, `matte`, or `masks`. `TYPE_PROPS.AUDIO_LAYER` is `["volume"]`
+  and `PLAIN_PROPS` carries `muted`, so a volume or mute edit records through
+  the ordinary channels, and an idle audio layer records nothing. No factory
+  creates one — an audio layer arrives through `Scene.import` alone — so an
+  `add-layer` step for one skips with "can't re-create an audio layer — the
+  recording has no audio asset — skipped", and `nestByRebuild` holds an audio
+  source back the way it holds an image source.
+- `AudioAsset` (type `AUDIO`): `uri` (a `data:` URI or a URL, `null` while
+  the data is unavailable), `getDuration(): Promise<number | null>`, and
+  `remove()`, which removes every audio layer that plays it. `creator.assets`
+  includes audio assets, and `change:audio` joins the typed events. The
+  engine touches none of them.
+- `BaseLayerMixin`: the members every layer has — `parent`, `locked`,
+  `startFrame`, `endFrame`, `timelineOffset`, `shiftTo`, and the four reorder
+  calls. `LayerMixin` extends it with `TransformMixin`, `visible`, `focused`,
+  `transformParent`, `opacity`, `blendMode`, `isMatte`, `matte`, and masks.
+  `TransformableLayer` is `Extract<Layer, TransformMixin>`.
+- `Scene.import` overloads: `{ type: 'LOTTIE' | 'SVG' }` from content or a URL
+  returns a `SceneLayer`; `{ type: 'IMAGE' }` from a URL ONLY returns an
+  `ImageLayer`; `{ type: 'AUDIO' }` from base64 content or a URL returns an
+  `AudioLayer`; a call typed at runtime returns the union. Every form returns
+  a Promise, which an RPC answer in the no-job-pump sandbox cannot await
+  (`architecture.md`). The engine does not call it.
 
-The deprecation that came with them: 1.1.0 deprecates reading a transform
-parent from `BaseLayerMixin.parent` (removal eligible after 2027-03-05).
-Reading the containing `Scene` from `parent` stays supported, and the engine
-never read a parent from it.
+## Still untyped in 1.2.0
 
-## Still untyped in 1.0.1
-
-These members are live on the runtime surface, and 1.0.1 omits them:
+These members are live on the runtime surface, and 1.2.0 omits them:
 
 - Every node/shape: `toJSON()` (raw Lottie document — how the plugin reads
   fill and stroke opacity `o`) and `getBounds()`. Scene: `toJSON()` and
@@ -231,8 +275,8 @@ These members are live on the runtime surface, and 1.0.1 omits them:
 
 Nothing below exists on the live host. Do not spend a call on any of it.
 
-0.0.2 declared these members, the runtime never had them, and 1.0.1 no longer
-declares them:
+0.0.2 declared these members, the runtime never had them, and 1.0.1 and later
+no longer declare them:
 
 - `Scene.createSceneInstance(layers)` — **absent** from the runtime, and no
   substitute works: `createSceneLayer(layers)` → undefined, and the no-arg
@@ -241,7 +285,7 @@ declares them:
 - `container.addFill/removeFill/addStroke/removeStroke/addMask/removeMask` —
   **absent**. Create via `createFill`/`createStroke`/`createMask`; remove via
   the OBJECT's own `.remove()` (paints, strokes, masks, trims, keyframes,
-  nodes all have it), which is how 1.0.1 types removal.
+  nodes all have it), which is how 1.0.1 and later type removal.
 - `MoveOptions`/`move()` — gone; the real reorder methods are in the typed
   section above.
 
@@ -249,23 +293,23 @@ declares them:
 `PluginEvent*`.
 
 These members no version ever declared, and the runtime does not have them
-either (checked against 1.0.1 on 2026-09-06):
+either (checked against 1.0.1 on 2026-09-06, and against 1.2.0 on 2026-10-23):
 
-- Per-paint opacity, on both the read side and the create side. 1.0.1 types
+- Per-paint opacity, on both the read side and the create side. 1.2.0 types
   `SolidPaint` as `{type, color, remove}` and `GradientPaint` as
   `{start, end, stops, remove}`; `opacity` appears only on `ColorStops`
   entries, `Mask`, `LayerMixin`, and `Group`, and `PaintOptions` has no such
   key. `sandbox/applier.ts#paintSpec` does not emit it: an unknown key makes
   the host reject the whole `createFill` with `✗ Invalid input`, so the key
   lost the fill as well as the opacity. See `limitations.md`.
-- `TrimPath.mode`. A 1.0.1 trim path is `start`, `end`, `offset`, and
+- `TrimPath.mode`. A 1.2.0 trim path is `start`, `end`, `offset`, and
   `remove`, and nothing else. `sandbox/serialize.ts` reads `mode` defensively
   and omits it when it is absent, so a host that adds the member starts
   recording it with no change here. The member is NEVER live-verified.
 - Keyframe spatial tangents, effects, and ungroup. See the tangent section
   above, and `limitations.md` for the other two.
 
-**Still wrong in 1.0.1:** `UIAPI.onMessage(pluginMessage: unknown): void`
+**Still wrong in 1.2.0:** `UIAPI.onMessage(pluginMessage: unknown): void`
 declares a member that RECEIVES a message, but the runtime takes a callback.
 `sandbox/plugin.ts` passes a function, and it compiles only because a function
 is assignable to `unknown`.
@@ -300,12 +344,13 @@ Other documents cite these items by number, so keep the numbering stable:
 9. Fill and stroke on text layers are **singular objects**, not lists — the
    engine models them as one-item lists.
 10. Host events: our introspection found only
-    `selection:nodes`/`selection:keyframes`/`message`. 1.0.1 types those three
-    plus `change:theme`, `change:scenes`, `change:images`, and `change:fonts`.
-    No node-change event exists, so polling plus diff is the only recording
-    mechanism. `change:scenes`, `change:images`, and `change:fonts` are typed
-    in 1.0.1 and not verified live. The theme route is under probe: 1.0.1
-    types `creator.ui.theme` and the `change:theme` event, and the ui-library
+    `selection:nodes`/`selection:keyframes`/`message`. 1.2.0 types those three
+    plus `change:theme`, `change:scenes`, `change:images`, `change:fonts`,
+    and `change:audio`. No node-change event exists, so polling plus diff is
+    the only recording mechanism. `change:scenes`, `change:images`,
+    `change:fonts`, and `change:audio` (1.2.0) are typed and not verified
+    live. The theme route is under probe: the typings declare
+    `creator.ui.theme` and the `change:theme` event, and the ui-library
     docs document the same pair (ThemeProvider sync). A `ThemeTokens` carries
     `tokens`, `themeName`, and `isLight`, and `sandbox/theme.ts` forwards all
     three to the panel. It implements that relay fully feature-detected —

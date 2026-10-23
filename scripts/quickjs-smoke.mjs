@@ -505,7 +505,77 @@ check(
 );
 vm.unwrapResult(vm.evalCode(`delete globalThis.__fakeSelection;`)).dispose();
 
-// 14. Transform parenting (creator-api-types 1.1.0). The serializer tells a
+// 14. 1.2.0 layer kinds (rev 2026-10-23.1). An AUDIO_LAYER has no transform:
+//     BaseLayerMixin timing plus `muted`, `volume` and `audio`, and nothing
+//     else. A scene that holds one must record nothing from it and never
+//     throw, and a host's `creator.utils.isTransformableLayer` must keep it
+//     out of the playback targets, with a note that names it.
+vm.unwrapResult(
+  vm.evalCode(`
+    globalThis.__fakeNodes.push({
+      id: "a1", name: "Music.mp3", type: "AUDIO_LAYER",
+      locked: false, startFrame: 0, endFrame: 150, timelineOffset: 0,
+      muted: false,
+      volume: { isAnimated: false, staticValue: 100, keyframes: [], addKeyframes(list) {} },
+      audio: { id: "asset1", name: "Music.mp3", type: "AUDIO", uri: null },
+    });
+    globalThis.__fakeSelection = [];
+  `),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 40, method: "record.start", params: {} });
+const audioStart = posted[0];
+posted.length = 0;
+sendToPlugin({ t: "req", id: 41, method: "record.tick", params: { seq: 1 } });
+check(
+  "a scene holding an audio layer records nothing from it, and does not throw",
+  audioStart?.ok === true &&
+    posted.length === 1 &&
+    posted[0]?.ok === true &&
+    posted[0]?.result?.steps?.length === 0,
+  JSON.stringify({ start: audioStart ?? null, tick: posted[0] ?? null }),
+);
+sendToPlugin({ t: "req", id: 42, method: "record.discard", params: {} });
+
+// The startFrame fallback cannot tell an audio layer from a shape layer —
+// both carry a timeline window — which is why the 1.2.0 guard is asked first.
+vm.unwrapResult(
+  vm.evalCode(`
+    globalThis.creator.utils = {
+      isLayer(node) { return typeof node?.startFrame === "number"; },
+      isTransformableLayer(node) {
+        return typeof node?.startFrame === "number" && node.type !== "AUDIO_LAYER";
+      },
+    };
+    globalThis.__fakeSelection = [globalThis.__fakeNodes[1], globalThis.__fakeNodes[2]];
+  `),
+).dispose();
+posted.length = 0;
+sendToPlugin({ t: "req", id: 43, method: "playback.begin", params: { steps: staticSteps } });
+const audioBegin = posted[0]?.result;
+posted.length = 0;
+sendToPlugin({ t: "req", id: 44, method: "playback.step", params: { index: 0 } });
+const audioNotes = (posted[0]?.result?.notes ?? []).map((note) => note.message);
+check(
+  "creator.utils.isTransformableLayer keeps an audio layer out of the targets, with a note",
+  audioBegin?.targetCount === 1 &&
+    posted.length === 1 &&
+    posted[0]?.ok === true &&
+    audioNotes.includes(
+      "1 selected audio layer skipped — macros replay onto layers with a transform",
+    ),
+  JSON.stringify({ begin: audioBegin ?? null, notes: audioNotes }),
+);
+sendToPlugin({ t: "req", id: 45, method: "playback.end", params: {} });
+vm.unwrapResult(
+  vm.evalCode(`
+    delete globalThis.creator.utils;
+    delete globalThis.__fakeSelection;
+    globalThis.__fakeNodes.pop();
+  `),
+).dispose();
+
+// 15. Transform parenting (creator-api-types 1.1.0). The serializer tells a
 //     host that DECLARES `transformParent` from one that lacks it with the
 //     `in` operator, inside the VM, where the host's proxies live. Layer 1
 //     declares the member and Layer 2 does not: parenting Layer 1 to Layer 2
