@@ -1247,6 +1247,24 @@ describe("diffScene — transform parents", () => {
       scene(a),
       scene({ ...a, transformParent: { id: "H", name: "Holder" } }, holder),
     );
-    expect(ops.map((op) => op.op)).toEqual(["set-parent", "add-layer"]);
+    // The parent is a layer this same tick adds, so its step must come after
+    // the add: replay resolves the parent by then, not one step too early.
+    expect(ops.map((op) => op.op)).toEqual(["add-layer", "set-parent"]);
+  });
+
+  it("carries a parent forward through a tick whose read failed, and records the change next tick", () => {
+    const before = layer("A", "Layer A", { transformParent: { id: "N", name: "Rig" } });
+    const unreadable = layer("A", "Layer A"); // the serializer could not read the parent's id
+    const after = layer("A", "Layer A", { transformParent: { id: "M", name: "Other" } });
+    expect(diffScene(scene(before, rig()), scene(unreadable, rig()))).toEqual([]);
+    expect(unreadable.transformParent).toEqual({ id: "N", name: "Rig" });
+    expect(diffScene(scene(unreadable, rig()), scene(after, rig()))).toEqual([
+      {
+        op: "set-parent",
+        parent: { id: "M", name: "Other" },
+        before: { id: "N", name: "Rig" },
+        layer: { id: "A", name: "Layer A" },
+      },
+    ]);
   });
 });

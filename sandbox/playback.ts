@@ -20,6 +20,7 @@ import {
   readBaseline,
   reorderChildren,
   resolvePath,
+  sameNode,
   writeTransformParent,
 } from "./applier";
 // (instance-content edits resolve strictly by index — user decision: layer
@@ -932,7 +933,7 @@ function parentFromSpec(created: AnyProxy, spec: NodeSnapshot, notes: NoteList):
     notes.push(`couldn't find "${ref.name ?? "the recorded parent"}" to parent ${label} to`);
     return;
   }
-  if (parent === created) return;
+  if (sameNode(parent, created)) return;
   const written = writeTransformParent(created, parent);
   if (!written.ok) notes.push(`${label}: ${parentFailureNote(written)}`);
 }
@@ -986,7 +987,12 @@ function applySceneOp(
       );
     }
     const created = createNullLayerFrom(scene, payload.spec as NodeSnapshot, targets, notes);
-    if (created) playback.layerByRecordedId.set(payload.spec.nodeId, created);
+    if (created) {
+      playback.layerByRecordedId.set(payload.spec.nodeId, created);
+      // A controller recorded under another rig takes that parent too, the
+      // way a rebuilt add-layer does.
+      parentFromSpec(created, payload.spec as NodeSnapshot, notes);
+    }
     return;
   }
 

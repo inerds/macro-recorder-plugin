@@ -34,21 +34,24 @@ export interface Macro {
 }
 
 /**
- * Every `StepKind` a saved macro may carry. This list is CLOSED: a step whose
+ * Every `StepKind` a saved macro may carry. The list is CLOSED: a step whose
  * kind is not here fails `isMacroShape`, and the whole macro then vanishes
- * from the panel. A new kind in `engine/steps.ts` has to be added here too.
+ * from the panel. The `Record` makes a new kind in `engine/steps.ts` a
+ * compile error here until it is listed — the same guard `STEP_OPS` has.
  */
-const STEP_KINDS: readonly string[] = [
-  "transform",
-  "fill",
-  "stroke",
-  "keyframe",
-  "layer",
-  "shape",
-  "mask",
-  "parent",
-  "other",
-];
+const STEP_KIND_TABLE: Record<StepKind, true> = {
+  transform: true,
+  fill: true,
+  stroke: true,
+  keyframe: true,
+  layer: true,
+  shape: true,
+  mask: true,
+  parent: true,
+  other: true,
+};
+
+const STEP_KINDS: readonly string[] = Object.keys(STEP_KIND_TABLE);
 
 function isMacroStepShape(value: unknown): value is Omit<MacroStep, "id"> {
   if (typeof value !== "object" || value === null) return false;

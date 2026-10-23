@@ -2615,6 +2615,22 @@ describe("set-parent", () => {
     expect(a.transformParent).toBeUndefined();
   });
 
+  it("refuses the layer itself behind a fresh proxy — the id decides, not identity", () => {
+    const { a, context } = rigged();
+    const fresh: ApplyContext = {
+      ...context,
+      resolveLayer: (ref) => {
+        const found = context.resolveLayer?.(ref);
+        return found === undefined ? undefined : new Proxy(found, {});
+      },
+    };
+    const outcome = apply(a, to("Layer A"), fresh);
+    expect(outcome.notes).toEqual([
+      '"Layer A" is this layer — a layer can\'t be its own parent — skipped',
+    ]);
+    expect(a.transformParent).toBeUndefined();
+  });
+
   it("skips with a note on a host that does not expose transformParent", () => {
     const { a, context } = rigged();
     delete a.transformParent;
@@ -2734,6 +2750,30 @@ describe("createNullLayerFrom", () => {
     expect(notes.messages).toEqual(['created "Rig" above A, B']);
   });
 
+  it("does not count a layer's OLD parent as a link when the option is ignored and the list is unreadable", () => {
+    const { scene, layers } = sceneWith("A", "B");
+    const old = scene.createNullLayer({ name: "Old" });
+    layers[0].transformParent = old;
+    const create = scene.createNullLayer;
+    scene.createNullLayer = (opts: Any) => {
+      const { layers: _ignored, ...rest } = opts ?? {};
+      const made = create(rest);
+      // A host whose NullLayer.layers cannot be read: the layer's own
+      // transformParent is the only witness, and A's still points at Old.
+      return new Proxy(made, {
+        get(target, key, receiver) {
+          if (key === "layers") throw new Error("unreadable");
+          return Reflect.get(target, key, receiver);
+        },
+      });
+    };
+    const notes = new NoteList();
+    const rig = createNullLayerFrom(scene, rigSpec(), layers, notes);
+    expect(layers[0].transformParent.id).toBe(rig.id);
+    expect(layers[1].transformParent.id).toBe(rig.id);
+    expect(notes.messages).toEqual(['created "Rig" above A, B']);
+  });
+
   it("retries without the option, and says so, when the host rejects it", () => {
     const { scene, layers } = sceneWith("A");
     const create = scene.createNullLayer;
@@ -2749,6 +2789,27 @@ describe("createNullLayerFrom", () => {
       'created "Rig" above A',
     ]);
     expect(notes.kinds).toEqual(["info", "info"]);
+  });
+
+  it("keeps the null layer a throwing factory left behind instead of making a second one", () => {
+    const { scene, layers } = sceneWith("A");
+    const create = scene.createNullLayer;
+    scene.createNullLayer = (opts: Any) => {
+      const { layers: _ignored, ...rest } = opts ?? {};
+      const made = create(rest);
+      if (opts && "layers" in opts) throw new Error("✗ Invalid input");
+      return made;
+    };
+    const count = scene.layers.length;
+    const notes = new NoteList();
+    const rig = createNullLayerFrom(scene, rigSpec(), layers, notes);
+    expect(scene.layers.length).toBe(count + 1);
+    expect(scene.layers.filter((layer: Any) => layer.type === "NULL_LAYER")).toEqual([rig]);
+    expect(rig.layers).toEqual(layers);
+    expect(notes.messages).toEqual([
+      "Creator refused the layers option (✗ Invalid input) — parenting each layer directly",
+      'created "Rig" above A',
+    ]);
   });
 
   it("names the layers it could not link when the direct write is swallowed too", () => {

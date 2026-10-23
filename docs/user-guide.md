@@ -382,7 +382,9 @@ on every target. A step that recorded a null object above layers, *Add
 controller "Rig" above Layer A, Layer B*, creates a new null object above
 the layers you have selected, like a nest step, and reports *created "Rig"
 above Layer C, Layer D*. With nothing selected it goes above the layers the
-recording named, found by name. Creator exposes these members in its plugin
+recording named, found by name. Every run makes a new null object: played
+with nothing selected in the scene you recorded in, the step moves those
+layers from the null object the recording made to a new one. Creator exposes these members in its plugin
 typings, and no session of this plugin has confirmed them in Creator yet: a
 host without them reports *Creator doesn't expose transform parents here —
 skipped*, or *this scene can't create null layers — skipped*, and a host

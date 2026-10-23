@@ -1230,7 +1230,7 @@ export function applyStep(
           notes.push(`couldn't find "${label}" to parent this layer to — skipped`);
           return outcomeOf(notes);
         }
-        if (parent === target) {
+        if (sameNode(parent, target)) {
           notes.push(`"${label}" is this layer — a layer can't be its own parent — skipped`);
           return outcomeOf(notes);
         }
@@ -1714,6 +1714,17 @@ function parentIdOf(value: AnyProxy): string | undefined {
 }
 
 /**
+ * The same node behind two proxies. A live host may hand out a fresh proxy
+ * on every read (docs/runtime-api.md), so identity is the fast path and the
+ * id is the rule — the same order `linkedTo` follows.
+ */
+export function sameNode(a: AnyProxy, b: AnyProxy): boolean {
+  if (a === b) return true;
+  const idA = parentIdOf(a);
+  return idA !== undefined && idA === parentIdOf(b);
+}
+
+/**
  * Writes `node.transformParent` and verifies the host kept it.
  *
  * `absent`: the node does not carry the member at all, found with the `in`
@@ -1818,19 +1829,32 @@ export function createNullLayerFrom(
   }
   let created: AnyProxy;
   let viaOption = layers.length > 0;
+  // The layer ids before the call: a factory that creates the null layer and
+  // THEN throws on the option leaves it in the scene, and a second call would
+  // make a second one.
+  const before = tryRead(() => scene.layers);
+  const priorIds = new Set(
+    (Array.isArray(before) ? before : []).map((layer: AnyProxy) => parentIdOf(layer)),
+  );
   try {
     created = factory.call(scene, viaOption ? { ...opts, layers } : opts);
   } catch (error) {
     if (!viaOption) throw error;
     // The option is the part the typings added last; retry without it and
-    // link each layer by hand below.
+    // link each layer by hand below — unless the failed call already made
+    // the null layer, which is then the one to keep.
     viaOption = false;
     notes.info(
       `Creator refused the layers option (${
         error instanceof Error ? error.message : String(error)
       }) — parenting each layer directly`,
     );
-    created = factory.call(scene, opts);
+    const after = tryRead(() => scene.layers);
+    const leftover = (Array.isArray(after) ? after : []).find(
+      (layer: AnyProxy) =>
+        !priorIds.has(parentIdOf(layer)) && tryRead(() => String(layer.type)) === "NULL_LAYER",
+    );
+    created = leftover ?? factory.call(scene, opts);
   }
   if (!created || typeof created !== "object") {
     notes.push("Creator returned no null object — skipped");
@@ -1841,12 +1865,19 @@ export function createNullLayerFrom(
   applyNodeSpec(created, { ...spec, shapes: [] }, notes);
 
   const nullName = nameOf(created, spec.nodeName ?? "the null object");
+  const createdId = parentIdOf(created);
   const linked: string[] = [];
   const failed: string[] = [];
   layers.forEach((layer, i) => {
     const label = nameOf(layer, `layer ${i + 1}`);
     const byList = viaOption ? linkedTo(created, layer) : false;
-    const byLink = viaOption && parentIdOf(tryRead(() => layer.transformParent)) !== undefined;
+    // The second witness is the layer's own parent — and it has to be THIS
+    // null layer, not any parent: a layer already under another rig would
+    // otherwise read as linked when the host ignored the option.
+    const byLink =
+      viaOption &&
+      createdId !== undefined &&
+      parentIdOf(tryRead(() => layer.transformParent)) === createdId;
     if (byList === true || (byList === undefined && byLink)) {
       linked.push(label);
       return;

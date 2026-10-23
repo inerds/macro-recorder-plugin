@@ -125,39 +125,25 @@ function introspectSelection(): Json {
  * verified any of these members yet (docs/runtime-api.md).
  */
 function introspectParenting(scene: AnyProxy, node: AnyProxy | undefined): Json {
-  const result: Record<string, Json> = {};
-  try {
-    result.createNullLayer = typeof scene?.createNullLayer;
-  } catch (error) {
-    result.createNullLayer = `threw: ${error instanceof Error ? error.message : String(error)}`;
-  }
-  try {
-    result.isTransformableLayer = typeof (creator as AnyProxy).utils?.isTransformableLayer;
-  } catch (error) {
-    result.isTransformableLayer = `threw: ${
-      error instanceof Error ? error.message : String(error)
-    }`;
-  }
+  /** One probe: its value, or the message of the throw, never the throw. */
+  const probe = (read: () => Json): Json => {
+    try {
+      return read();
+    } catch (error) {
+      return `threw: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  };
+  const result: Record<string, Json> = {
+    createNullLayer: probe(() => typeof scene?.createNullLayer),
+    isTransformableLayer: probe(() => typeof (creator as AnyProxy).utils?.isTransformableLayer),
+  };
   if (node === undefined) return result;
-  try {
-    result.transformParentIn = "transformParent" in node;
-  } catch (error) {
-    result.transformParentIn = `threw: ${error instanceof Error ? error.message : String(error)}`;
-  }
-  try {
-    result.transformParentOnSurface = surfaceOf(node).includes("transformParent");
-  } catch (error) {
-    result.transformParentOnSurface = `threw: ${
-      error instanceof Error ? error.message : String(error)
-    }`;
-  }
-  try {
+  result.transformParentIn = probe(() => "transformParent" in node);
+  result.transformParentOnSurface = probe(() => surfaceOf(node).includes("transformParent"));
+  result.transformParentType = probe(() => {
     const value: AnyProxy = node.transformParent;
-    result.transformParentType =
-      value === null ? "null" : value === undefined ? "undefined" : typeof value;
-  } catch (error) {
-    result.transformParentType = `threw: ${error instanceof Error ? error.message : String(error)}`;
-  }
+    return value === null ? "null" : value === undefined ? "undefined" : typeof value;
+  });
   return result;
 }
 

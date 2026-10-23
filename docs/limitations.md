@@ -424,15 +424,37 @@ for an image.
 
 ## Effects, ungroup — no API surface
 
-No effect types, no effects list, and no ungroup operation exist anywhere in
-the plugin API. They are absent from 1.0.1 as well, and from the runtime
-surface that introspection found. Edits that use them are invisible to
-the recorder, which reports nothing: there is no observable change to note.
+**What does not work:** Creator's layer effects, and ungroup. Creator attaches
+Drop Shadow, Gaussian Blur, Fill (a colour overlay), Tint, and Tritone to a
+layer, each with an id and an enabled state. The plugin API has no effect node,
+no effects list on a layer, and no call that creates or removes one. It has no
+ungroup operation either. An edit that adds, changes, or removes an effect is
+invisible to the recorder, which reports nothing: there is no observable change
+to note.
+
+**Why (evidence, re-checked 2026-10-23 against typings 1.0.1, 1.1.0, and
+1.2.0):**
+- No version of `@lottiefiles/creator-api-types` declares an effect. The only
+  matches for "effect" in 1.2.0 are the mask opacity remark, the `Matte`
+  description, and the trim-path description. `BlendMode` has an `overlay`
+  value; that is a blend mode, not an effect.
+- The Creator API reference (pages dated 2026-10-08) lists 29 node types and
+  51 types. None is an effect, and no page names a shadow, a blur, a tint, a
+  tritone, or a colour overlay.
+- The recorder's rectangle probe (`sandbox/recorder.ts`) reads an `effects`
+  member in every debug recording. 105 traces read it as `undefined`. The 136
+  traces that list a proxy's own property names — the rectangle, and its
+  parent layer or group — never name an effect-like property.
+- `toJSON()`, the one route that could expose a layer's Lottie `ef` array,
+  returned bare `{id, type}` stubs on the live host (2026-08-26,
+  `runtime-api.md`), and no trace carries an `ef` array.
 
 1.0.1 does type a layer `matte` and an `isMatte` flag. That is track matting,
 not an effect: the recorder reads `isMatte` with the other plain flags and
-nothing else of it. The path to lift is upstream — Creator must give plugins
-an effects surface first.
+nothing else of it. The path to lift is upstream — Creator must give plugins an
+effects surface first. **Upstream ask for LottieFiles:** expose a layer's
+effects to plugins — a list, each effect's type and its parameters as
+animatables, and create and remove calls.
 
 ---
 

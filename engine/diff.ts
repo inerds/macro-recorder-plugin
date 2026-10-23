@@ -219,7 +219,16 @@ function diffNode(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, out: S
  */
 function diffParent(basePath: Path, prev: NodeSnapshot, next: NodeSnapshot, out: StepPayload[]) {
   if (basePath.length !== 0) return;
-  if (prev.transformParent === undefined || next.transformParent === undefined) return;
+  if (prev.transformParent === undefined) return;
+  if (next.transformParent === undefined) {
+    // The field was there last tick and is not now: the serializer could not
+    // read the parent's id this once (a detached or half-made proxy), not a
+    // host that lost the member. Carry the last value into `next`, which
+    // becomes the recorder's previous snapshot, so the change is recorded
+    // on the first tick that reads cleanly instead of being lost for good.
+    next.transformParent = prev.transformParent;
+    return;
+  }
   const before = prev.transformParent;
   const after = next.transformParent;
   if ((before?.id ?? null) === (after?.id ?? null)) return;
@@ -481,6 +490,34 @@ function foldControllers(out: StepPayload[]): void {
 }
 
 /**
+ * A `set-parent` whose parent is a layer ADDED this tick — a duplicate, or a
+ * fresh shape layer, parented in the same 500 ms — must replay after that
+ * layer exists. Survivors' payloads are emitted before the adds, so such a
+ * step is moved to just after the last add. Controllers never reach here:
+ * `foldControllers` has already folded a new NULL_LAYER with its links.
+ */
+function deferParentsToAddedLayers(out: StepPayload[]): void {
+  const addedIds = new Set<string>();
+  for (const payload of out) {
+    if (payload.op === "add-layer" || payload.op === "add-controller") {
+      addedIds.add(payload.spec.nodeId);
+    }
+  }
+  if (addedIds.size === 0) return;
+  const deferred = out.filter(
+    (payload): payload is Extract<StepPayload, { op: "set-parent" }> =>
+      payload.op === "set-parent" && payload.parent !== null && addedIds.has(payload.parent.id),
+  );
+  if (deferred.length === 0) return;
+  for (const payload of deferred) out.splice(out.indexOf(payload), 1);
+  let lastAdd = -1;
+  out.forEach((payload, i) => {
+    if (payload.op === "add-layer" || payload.op === "add-controller") lastAdd = i;
+  });
+  out.splice(lastAdd + 1, 0, ...deferred);
+}
+
+/**
  * Whole-scene diff: layers matched by id. Edits inside a surviving layer come
  * from diffSnapshots, each payload bound to its layer. New layers that are
  * structural copies of an existing one become clone-based add-layer steps
@@ -534,6 +571,7 @@ export function diffScene(prev: SceneSnapshot, next: SceneSnapshot): StepPayload
   }
 
   foldControllers(out);
+  deferParentsToAddedLayers(out);
 
   // Break detection: exactly one SCENE-instance layer vanished while new
   // layers appeared in the same tick — that's SceneInstance.break() spilling

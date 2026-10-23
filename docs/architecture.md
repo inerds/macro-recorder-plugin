@@ -178,7 +178,7 @@ RpcRecorderGateway ──record.tick──▶ serializeScene(activeScene) → Sc
   a `shapeHint`. A mask's `mode` rides the `set-plain` channel (1.0.1 `Mask`
   types it as a plain string), and a linear↔radial gradient swap records as
   `replace-paint`, because no host gradient carries a writable `type`.
-- **Layer parenting (rev `2026-10-23.2`)**: `NodeSnapshot.transformParent`
+- **Layer parenting (rev `2026-10-23.3`)**: `NodeSnapshot.transformParent`
   is `Layer.transformParent` (creator-api-types 1.1.0) read as a `{id, name}`
   identity on top-level layers — `null` for none, ABSENT when the host does
   not expose the member, which `sandbox/serialize.ts#readTransformParent`
@@ -606,7 +606,7 @@ replay that writes too widely is as much a failure as one that writes nothing.
 Vite serves plain HTTP, so use `http://localhost:5173`. `.claude/launch.json`
 declares the same URL.
 
-## Status and open threads (as of engine rev 2026-10-23.2)
+## Status and open threads (as of engine rev 2026-10-23.3)
 
 - Motion-token (color token/slot) bindings: SETTLED — not observable,
   conclusively (`limitations.md`). Rev .51's record.start token hunt ran in two
@@ -646,7 +646,7 @@ declares the same URL.
   records an audio layer's `volume` and `muted` through the ordinary channels
   and refuses to rebuild one, because the recording holds no audio asset. Those
   sit under "Typed in 1.2.0, live verification pending".
-- Layer parenting (rev `2026-10-23.2`) builds on that pass: `set-parent` and
+- Layer parenting (rev `2026-10-23.3`) builds on that pass: `set-parent` and
   `add-controller` steps use `Layer.transformParent`, `NullLayer.layers`, and
   `Scene.createNullLayer({ layers })` — feature-detected, none live-verified,
   under the same `runtime-api.md` heading. The pull request that added them
